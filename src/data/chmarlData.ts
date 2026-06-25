@@ -1,0 +1,144 @@
+export type Metric = {
+  label: string;
+  value: string;
+  trend: string;
+};
+
+export type Vessel = {
+  id: string;
+  name: string;
+  route: string;
+  cargo: string;
+  eta: string;
+  speed: string;
+  status: "Nominal" | "Watch" | "Constrained";
+};
+
+export type TimelineEvent = {
+  time: string;
+  title: string;
+  body: string;
+};
+
+export const metrics: Metric[] = [
+  { label: "Active vessels", value: "128", trend: "+14 vs. baseline" },
+  { label: "Port calls", value: "42", trend: "next 24 hours" },
+  { label: "Constraint score", value: "96.4%", trend: "+3.1% safe policy" },
+  { label: "Reward index", value: "0.873", trend: "+0.042 episode mean" },
+  { label: "Avg ETA error", value: "18m", trend: "-11m after replanning" },
+  { label: "CO₂ intensity", value: "7.8", trend: "kg / t-nm" },
+];
+
+export const vessels: Vessel[] = [
+  {
+    id: "MMSI-538214",
+    name: "Al Riyadh Trader",
+    route: "Jeddah → Suez",
+    cargo: "Containers",
+    eta: "04:20 UTC",
+    speed: "14.8 kn",
+    status: "Nominal",
+  },
+  {
+    id: "MMSI-403882",
+    name: "Gulf Horizon",
+    route: "Dammam → Jebel Ali",
+    cargo: "General cargo",
+    eta: "07:55 UTC",
+    speed: "11.2 kn",
+    status: "Watch",
+  },
+  {
+    id: "MMSI-636719",
+    name: "Red Sea Pearl",
+    route: "Yanbu → Aqaba",
+    cargo: "Energy products",
+    eta: "11:10 UTC",
+    speed: "10.1 kn",
+    status: "Constrained",
+  },
+  {
+    id: "MMSI-370441",
+    name: "Najd Carrier",
+    route: "Jizan → Port Sudan",
+    cargo: "Dry bulk",
+    eta: "14:35 UTC",
+    speed: "12.6 kn",
+    status: "Nominal",
+  },
+  {
+    id: "MMSI-565902",
+    name: "Arabian Express",
+    route: "Jeddah → King Abdullah Port",
+    cargo: "Ro-Ro",
+    eta: "18:05 UTC",
+    speed: "16.4 kn",
+    status: "Watch",
+  },
+];
+
+export const rewardTrend = [
+  ["00:00", 0.62],
+  ["04:00", 0.66],
+  ["08:00", 0.7],
+  ["12:00", 0.74],
+  ["16:00", 0.81],
+  ["20:00", 0.86],
+  ["24:00", 0.873],
+];
+
+export const constraintPressure = [
+  { name: "Berth capacity", value: 68 },
+  { name: "Channel safety", value: 42 },
+  { name: "Fuel budget", value: 54 },
+  { name: "ETA window", value: 76 },
+  { name: "Emissions cap", value: 58 },
+];
+
+export const portUtilization = [
+  { name: "Jeddah", value: 82 },
+  { name: "Dammam", value: 71 },
+  { name: "Yanbu", value: 63 },
+  { name: "Jizan", value: 47 },
+  { name: "KAEC", value: 58 },
+];
+
+export const timelineEvents: TimelineEvent[] = [
+  {
+    time: "T+00:02",
+    title: "Fleet-level policy selected",
+    body: "Upper-level controller selected congestion-aware routing for Red Sea corridor.",
+  },
+  {
+    time: "T+00:07",
+    title: "Port agent capacity update",
+    body: "Jeddah berth availability reduced by one slot; local policy rebalanced arrivals.",
+  },
+  {
+    time: "T+00:13",
+    title: "Constraint shield activated",
+    body: "ETA and channel-safety constraints applied to two high-priority vessels.",
+  },
+  {
+    time: "T+00:21",
+    title: "Reward stabilized",
+    body: "Episode reward improved while keeping emissions and berth constraints feasible.",
+  },
+];
+
+export const ports = [
+  { name: "Jeddah", position: [-5.2, 0, -0.6] as [number, number, number] },
+  { name: "Yanbu", position: [-4.4, 0, 2.4] as [number, number, number] },
+  { name: "Suez", position: [-3.4, 0, 5.2] as [number, number, number] },
+  { name: "Dammam", position: [5.3, 0, 2.2] as [number, number, number] },
+  { name: "Jebel Ali", position: [6.1, 0, -0.9] as [number, number, number] },
+  { name: "Jizan", position: [-4.8, 0, -3.9] as [number, number, number] },
+];
+
+export const routes = [
+  { from: "Jeddah", to: "Suez", risk: "medium" },
+  { from: "Yanbu", to: "Suez", risk: "low" },
+  { from: "Jeddah", to: "Jizan", risk: "high" },
+  { from: "Dammam", to: "Jebel Ali", risk: "low" },
+  { from: "Jizan", to: "Jeddah", risk: "medium" },
+];
