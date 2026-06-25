@@ -18,6 +18,22 @@ The current UI includes:
 - A live vessel table with status, route, cargo, ETA, speed, and constraint flags.
 - A decision timeline showing CH-MARL hierarchy actions and platform events.
 
+## Simulated Outcome
+
+The current dashboard uses deterministic mock data in `src/data/chmarlData.ts`. It is not yet connected to AIS feeds, port APIs, or CH-MARL experiment logs.
+
+When you run it locally, you should see:
+
+1. A dark maritime command-center interface.
+2. A CH-MARL header with scenario pills for real-time stream, congestion-aware policy, and emissions shield.
+3. Six KPI cards showing active vessels, port calls, constraint score, reward index, ETA error, and CO2 intensity.
+4. A central 3D ocean scene with labeled ports, route lines, and animated vessel markers.
+5. Left-side charts for policy reward and constraint pressure.
+6. Right-side panels for port utilization and hierarchical decision events.
+7. A live vessel state table at the bottom.
+
+This simulated screen is meant to validate the platform layout, visual hierarchy, and dashboard components before connecting real CH-MARL data.
+
 ## Technology Stack
 
 - React 19
@@ -47,6 +63,12 @@ pnpm install
 pnpm dev
 ```
 
+After running `pnpm dev`, open the local URL printed in your terminal, usually:
+
+```text
+http://localhost:5173/
+```
+
 ### Build
 
 ```bash
@@ -59,12 +81,62 @@ pnpm build
 pnpm preview
 ```
 
+## Local Validation Checklist
+
+Please run these locally when you are ready:
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Then, in a second validation pass:
+
+```bash
+pnpm build
+pnpm preview
+```
+
+A successful build means the migrated UI compiles and the dashboard can be deployed. If `pnpm build` fails, copy the terminal output and we can fix the exact TypeScript or Vite issue.
+
 ## Deployment Base Path
 
 The Vite base path is configurable for GitHub Pages or subpath deployment:
 
 ```bash
 VITE_BASE_PATH=/CHMARL_datav/ pnpm build
+```
+
+## Current Repository File Map
+
+```text
+.
+├── README.md
+├── index.html
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── tsconfig.app.json
+├── tsconfig.node.json
+├── eslint.config.js
+└── src/
+    ├── App.tsx
+    ├── main.tsx
+    ├── index.css
+    ├── data/
+    │   └── chmarlData.ts
+    └── components/
+        ├── Chart.tsx
+        ├── DashboardShell.tsx
+        ├── DecisionTimeline.tsx
+        ├── MetricCard.tsx
+        ├── PanelCard.tsx
+        ├── ShipScene.tsx
+        ├── VesselTable.tsx
+        └── charts/
+            ├── ConstraintChart.tsx
+            ├── PortUtilizationChart.tsx
+            └── RewardTrend.tsx
 ```
 
 ## Suggested Repository About Description
