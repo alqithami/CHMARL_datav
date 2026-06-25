@@ -40,15 +40,26 @@ All five CH-MARL milestones are considered in the project plan. The current repo
 
 | Milestone | Status | Planned integration |
 | --- | --- | --- |
-| Replace mock data with AIS/port-event adapters | Planned | Normalize AIS vessel updates and port-call events into provider-neutral dashboard data contracts. |
+| Replace mock data with AIS/port-event adapters | Adapter scaffold added | Normalize AIS vessel updates and port-call events into provider-neutral dashboard data contracts. |
 | Add maritime GeoJSON layers | Planned | Add ports, corridors, anchorages, chokepoints, berth areas, restricted zones, and safety buffers. |
-| Connect CH-MARL experiment logs | Planned | Ingest state, action, reward, constraint, fairness, and hierarchy-decision outputs from experiments. |
-| Add scenario switching | Partially scaffolded | Scenario pills exist now; next step is interactive switching for baseline, congestion, disruption, emissions-aware, and fairness-aware modes. |
+| Connect CH-MARL experiment logs | Adapter scaffold added | Ingest state, action, reward, constraint, fairness, and hierarchy-decision outputs from experiments. |
+| Add scenario switching | Partially scaffolded | Scenario catalog and UI pills exist; next step is interactive switching for baseline, congestion, disruption, emissions-aware, and fairness-aware modes. |
 | Add exportable dashboards | Planned | Export PNG/CSV/JSON artifacts for figures, demos, and paper-ready visual evidence. |
 
 Roadmap details: [`docs/ROADMAP.md`](docs/ROADMAP.md)
 
 Provider-neutral data contracts: [`docs/DATA_CONTRACTS.md`](docs/DATA_CONTRACTS.md)
+
+## Adapter and Contract Scaffold
+
+The first integration layer has been added:
+
+- `src/types/chmarl.ts` defines provider-neutral TypeScript contracts for vessel states, port events, maritime feature metadata, CH-MARL experiment steps, actions, rewards, constraints, fairness metrics, hierarchy decisions, scenarios, and export manifests.
+- `src/adapters/aisAdapter.ts` normalizes raw AIS-like vessel updates into `VesselState` objects and dashboard vessel-table rows.
+- `src/adapters/portEventAdapter.ts` normalizes port-call events and summarizes arrivals, departures, berth assignments, and anchorage entries.
+- `src/adapters/experimentLogAdapter.ts` maps CH-MARL experiment steps into reward trends, constraint pressure charts, and decision timeline events.
+- `src/scenarios/scenarioCatalog.ts` defines baseline, congestion, disruption, emissions-aware, and fairness-aware scenario definitions.
+- `src/data/mock/integrationFixtures.ts` provides initial mock AIS, port-event, and CH-MARL experiment-step fixtures for offline development.
 
 ## Technology Stack
 
@@ -142,8 +153,18 @@ VITE_BASE_PATH=/CHMARL_datav/ pnpm build
     ├── App.tsx
     ├── main.tsx
     ├── index.css
+    ├── adapters/
+    │   ├── aisAdapter.ts
+    │   ├── experimentLogAdapter.ts
+    │   └── portEventAdapter.ts
     ├── data/
-    │   └── chmarlData.ts
+    │   ├── chmarlData.ts
+    │   └── mock/
+    │       └── integrationFixtures.ts
+    ├── scenarios/
+    │   └── scenarioCatalog.ts
+    ├── types/
+    │   └── chmarl.ts
     └── components/
         ├── Chart.tsx
         ├── DashboardShell.tsx
@@ -172,4 +193,4 @@ chmarl, multi-agent-reinforcement-learning, maritime-logistics, ais, threejs, re
 
 ## Next Implementation Commit
 
-The next implementation commit should add TypeScript interfaces from `docs/DATA_CONTRACTS.md` under `src/types/chmarl.ts`, then introduce mock adapter modules before connecting live AIS, port-event, or experiment-log sources.
+The next implementation commit should wire the scenario catalog and adapter outputs into the dashboard state, so the scenario pills become interactive and panels can switch between baseline, congestion, disruption, emissions-aware, and fairness-aware mock datasets before live data connections are introduced.
