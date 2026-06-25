@@ -34,6 +34,22 @@ When you run it locally, you should see:
 
 This simulated screen is meant to validate the platform layout, visual hierarchy, and dashboard components before connecting real CH-MARL data.
 
+## Platform Scope and Roadmap
+
+All five CH-MARL milestones are considered in the project plan. The current repository implements the first UI scaffold and documents the next integration work in `docs/ROADMAP.md` and `docs/DATA_CONTRACTS.md`.
+
+| Milestone | Status | Planned integration |
+| --- | --- | --- |
+| Replace mock data with AIS/port-event adapters | Planned | Normalize AIS vessel updates and port-call events into provider-neutral dashboard data contracts. |
+| Add maritime GeoJSON layers | Planned | Add ports, corridors, anchorages, chokepoints, berth areas, restricted zones, and safety buffers. |
+| Connect CH-MARL experiment logs | Planned | Ingest state, action, reward, constraint, fairness, and hierarchy-decision outputs from experiments. |
+| Add scenario switching | Partially scaffolded | Scenario pills exist now; next step is interactive switching for baseline, congestion, disruption, emissions-aware, and fairness-aware modes. |
+| Add exportable dashboards | Planned | Export PNG/CSV/JSON artifacts for figures, demos, and paper-ready visual evidence. |
+
+Roadmap details: [`docs/ROADMAP.md`](docs/ROADMAP.md)
+
+Provider-neutral data contracts: [`docs/DATA_CONTRACTS.md`](docs/DATA_CONTRACTS.md)
+
 ## Technology Stack
 
 - React 19
@@ -119,6 +135,9 @@ VITE_BASE_PATH=/CHMARL_datav/ pnpm build
 ├── tsconfig.app.json
 ├── tsconfig.node.json
 ├── eslint.config.js
+├── docs/
+│   ├── DATA_CONTRACTS.md
+│   └── ROADMAP.md
 └── src/
     ├── App.tsx
     ├── main.tsx
@@ -151,10 +170,6 @@ Suggested topics:
 chmarl, multi-agent-reinforcement-learning, maritime-logistics, ais, threejs, react, echarts, geospatial-visualization
 ```
 
-## Next CH-MARL Platform Milestones
+## Next Implementation Commit
 
-1. Replace mock data with AIS/port-event adapters.
-2. Add maritime GeoJSON layers for ports, corridors, anchorages, chokepoints, and berth areas.
-3. Connect CH-MARL experiment logs for state, action, reward, constraint, fairness, and hierarchy-level decisions.
-4. Add scenario switching for baseline, congestion, disruption, emissions-aware, and fairness-aware experiments.
-5. Add exportable dashboards for figures, demos, and paper-ready visual evidence.
+The next implementation commit should add TypeScript interfaces from `docs/DATA_CONTRACTS.md` under `src/types/chmarl.ts`, then introduce mock adapter modules before connecting live AIS, port-event, or experiment-log sources.
