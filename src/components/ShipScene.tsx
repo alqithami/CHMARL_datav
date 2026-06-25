@@ -1,5 +1,5 @@
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Grid, Line, OrbitControls } from "@react-three/drei";
+import { Grid, Html, Line, OrbitControls } from "@react-three/drei";
 import { useMemo, useRef } from "react";
 import { Color, Group, Vector3 } from "three";
 import { ports, routes } from "@/data/chmarlData";
@@ -20,20 +20,16 @@ function PortMarker({ name, position }: PortMarkerProps) {
         <sphereGeometry args={[0.08, 16, 16]} />
         <meshStandardMaterial color="#ffffff" emissive="#8ddcff" emissiveIntensity={0.6} />
       </mesh>
-      <HtmlLabel label={name} />
+      <PortLabel label={name} />
     </group>
   );
 }
 
-function HtmlLabel({ label }: { label: string }) {
+function PortLabel({ label }: { label: string }) {
   return (
-    <group position={[0, 0.32, 0]}>
-      <mesh>
-        <planeGeometry args={[0.02, 0.02]} />
-        <meshBasicMaterial transparent opacity={0} />
-      </mesh>
-      <sprite scale={[0.01, 0.01, 0.01]} />
-    </group>
+    <Html center distanceFactor={8} position={[0, 0.46, 0]} style={{ pointerEvents: "none" }}>
+      <div className="port-label">{label}</div>
+    </Html>
   );
 }
 
