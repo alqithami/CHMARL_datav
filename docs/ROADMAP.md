@@ -14,10 +14,10 @@ This roadmap converts the high-level milestone list into concrete platform works
 
 **Planned modules:**
 
-- `src/adapters/aisAdapter.ts`
-- `src/adapters/portEventAdapter.ts`
-- `src/types/chmarl.ts`
-- `src/data/mock/` for offline scenario fixtures
+- `src/adapters/aisAdapter.ts` — added.
+- `src/adapters/portEventAdapter.ts` — added.
+- `src/types/chmarl.ts` — added.
+- `src/data/mock/` for offline scenario fixtures — added.
 
 **Dashboard outputs:**
 
@@ -72,7 +72,7 @@ This roadmap converts the high-level milestone list into concrete platform works
 
 **Planned modules:**
 
-- `src/adapters/experimentLogAdapter.ts`
+- `src/adapters/experimentLogAdapter.ts` — added.
 - `src/components/ExperimentTimeline.tsx`
 - `src/components/RewardBreakdown.tsx`
 - `src/components/ConstraintMonitor.tsx`
@@ -99,7 +99,7 @@ This roadmap converts the high-level milestone list into concrete platform works
 
 **Planned modules:**
 
-- `src/scenarios/scenarioCatalog.ts`
+- `src/scenarios/scenarioCatalog.ts` — added.
 - `src/state/scenarioStore.ts`
 - `src/components/ScenarioSwitcher.tsx`
 
@@ -137,12 +137,12 @@ This roadmap converts the high-level milestone list into concrete platform works
 
 | Milestone | Status | Notes |
 | --- | --- | --- |
-| AIS and port-event adapters | Planned | Mock vessel/port data exists; live adapters not yet connected. |
+| AIS and port-event adapters | Adapter scaffold added | Type contracts, AIS normalizer, port-event normalizer, and mock fixtures exist; live adapters are not yet connected. |
 | Maritime GeoJSON layers | Planned | Procedural 3D maritime scene exists; real GeoJSON layers are next. |
-| CH-MARL experiment logs | Planned | Mock reward, constraint, and decision events exist; log adapter is next. |
-| Scenario switching | Partially scaffolded | UI scenario pills exist; interactive scenario data switching is next. |
+| CH-MARL experiment logs | Adapter scaffold added | Experiment-step contract and log-to-dashboard helper functions exist; live experiment logs are not yet connected. |
+| Scenario switching | Partially scaffolded | Scenario catalog and UI pills exist; interactive scenario data switching is next. |
 | Exportable dashboards | Planned | Export requirements defined; implementation is next. |
 
 ## Recommended Next Commit
 
-The next implementation commit should add `src/types/chmarl.ts` and adapter interfaces before connecting any external data source. This prevents the UI from becoming tightly coupled to MarineTraffic, VesselFinder, simulator logs, or any single AIS provider.
+The next implementation commit should wire the scenario catalog and adapter outputs into dashboard state. This will make the scenario pills interactive and let the panels switch between baseline, congestion, disruption, emissions-aware, and fairness-aware mock datasets before live AIS, port-event, or experiment-log sources are introduced.
