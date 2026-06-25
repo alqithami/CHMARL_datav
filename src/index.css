@@ -225,6 +225,21 @@ button {
   margin-bottom: 4px;
 }
 
+.port-label {
+  min-width: 48px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(141, 220, 255, 0.35);
+  background: rgba(3, 13, 24, 0.82);
+  color: #e6f7ff;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+}
+
 .chart-box {
   position: relative;
   z-index: 1;
