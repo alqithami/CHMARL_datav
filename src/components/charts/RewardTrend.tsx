@@ -33,7 +33,7 @@ export default function RewardTrend({ data }: RewardTrendProps) {
       series: [
         {
           name: "Reward index",
-          type: "line",
+          type: "line" as const,
           smooth: true,
           showSymbol: false,
           lineStyle: { width: 4, color: "#65e4cb" },

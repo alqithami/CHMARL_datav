@@ -16,7 +16,7 @@ export default function PortUtilizationChart({ data }: PortUtilizationChartProps
       },
       series: [
         {
-          type: "pie",
+          type: "pie" as const,
           radius: ["48%", "72%"],
           center: ["50%", "52%"],
           avoidLabelOverlap: true,

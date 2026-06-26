@@ -24,7 +24,7 @@ export default function ConstraintChart({ data }: ConstraintChartProps) {
       },
       series: [
         {
-          type: "bar",
+          type: "bar" as const,
           data: data.map((item) => item.value),
           barWidth: 12,
           itemStyle: {
