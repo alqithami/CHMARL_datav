@@ -87,12 +87,20 @@ button {
   color: #dffcff;
   font-size: 12px;
   font-weight: 700;
+  cursor: pointer;
 }
 
 .pill.active {
   color: #04111f;
   background: linear-gradient(135deg, #65e4cb, #8ddcff);
   border-color: transparent;
+}
+
+.data-pill {
+  cursor: default;
+  color: rgba(230, 247, 255, 0.68);
+  background: rgba(101, 228, 203, 0.08);
+  border-color: rgba(101, 228, 203, 0.22);
 }
 
 .metrics-grid {
