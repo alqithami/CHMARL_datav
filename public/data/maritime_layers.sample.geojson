@@ -1,0 +1,87 @@
+{
+  "type": "FeatureCollection",
+  "name": "chmarl_maritime_layers_sample",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "port-jeddah",
+        "name": "Jeddah Islamic Port",
+        "layerType": "port",
+        "riskLevel": "medium",
+        "capacity": 82
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [39.173, 21.485]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "port-yanbu",
+        "name": "Yanbu Commercial Port",
+        "layerType": "port",
+        "riskLevel": "low",
+        "capacity": 63
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [38.063, 24.086]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "corridor-red-sea-northbound",
+        "name": "Red Sea Northbound Corridor",
+        "layerType": "corridor",
+        "riskLevel": "medium"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [39.173, 21.485],
+          [38.063, 24.086],
+          [34.292, 27.258],
+          [32.549, 29.966]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "anchorage-jeddah-alpha",
+        "name": "Jeddah Anchorage Alpha",
+        "layerType": "anchorage",
+        "riskLevel": "low",
+        "capacity": 12
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [39.05, 21.42],
+            [39.28, 21.42],
+            [39.28, 21.60],
+            [39.05, 21.60],
+            [39.05, 21.42]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "chokepoint-bab-el-mandeb",
+        "name": "Bab el-Mandeb Chokepoint",
+        "layerType": "chokepoint",
+        "riskLevel": "high"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [43.329, 12.585]
+      }
+    }
+  ]
+}
