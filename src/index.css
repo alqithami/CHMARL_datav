@@ -206,11 +206,116 @@ button {
   width: 100%;
   height: 100%;
   min-height: 620px;
+  background:
+    radial-gradient(circle at center, rgba(101, 228, 203, 0.10), transparent 55%),
+    linear-gradient(180deg, #03101d, #010711);
+}
+
+.scene-container canvas {
+  opacity: 0.68;
+}
+
+.maritime-map-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(141, 220, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(141, 220, 255, 0.06) 1px, transparent 1px);
+  background-size: 42px 42px;
+}
+
+.maritime-map-layer::before {
+  content: "";
+  position: absolute;
+  inset: 8%;
+  border: 1px solid rgba(101, 228, 203, 0.16);
+  border-radius: 28px;
+  box-shadow: inset 0 0 60px rgba(101, 228, 203, 0.08);
+}
+
+.maritime-route-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 8px rgba(101, 228, 203, 0.32));
+}
+
+.html-port-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #e6f7ff;
+  font-size: 12px;
+  font-weight: 800;
+  text-shadow: 0 2px 8px #020912;
+}
+
+.html-port-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #65e4cb;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 18px rgba(101, 228, 203, 0.95);
+}
+
+.html-port-name {
+  padding: 4px 8px;
+  border: 1px solid rgba(141, 220, 255, 0.26);
+  border-radius: 999px;
+  background: rgba(3, 13, 24, 0.72);
+}
+
+.html-vessel {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px 50% 50% 50%;
+  background: #ffd780;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 0 22px rgba(255, 215, 128, 0.85);
+  transform: rotate(45deg);
+  animation: vesselPulse 1.6s ease-in-out infinite alternate;
+}
+
+.vessel-one {
+  left: 18%;
+  top: 55%;
+}
+
+.vessel-two {
+  left: 32%;
+  top: 34%;
+  background: #8ddcff;
+}
+
+.vessel-three {
+  left: 74%;
+  top: 37%;
+  background: #ff7474;
+}
+
+@keyframes vesselPulse {
+  from {
+    transform: rotate(45deg) scale(0.85);
+    opacity: 0.72;
+  }
+  to {
+    transform: rotate(45deg) scale(1.18);
+    opacity: 1;
+  }
 }
 
 .scene-overlay {
   position: absolute;
   inset: 16px;
+  z-index: 4;
   pointer-events: none;
   display: flex;
   justify-content: space-between;
