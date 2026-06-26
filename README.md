@@ -1,196 +1,101 @@
 # CH-MARL DataV Platform
 
-A CH-MARL-focused geospatial visualization platform for maritime logistics, ship movement, port operations, and constrained hierarchical multi-agent reinforcement learning experiments.
+A Vite + React + TypeScript dashboard for CH-MARL maritime logistics experiments.
 
-This repository was initialized from the English Three.js/React/ECharts dashboard baseline and is now prepared as the dedicated CH-MARL interface and platform repository.
+The project is now structured as a runnable CH-MARL interface scaffold with a mock maritime operations dashboard, typed data contracts, adapter stubs, and a documented roadmap for AIS, port-event, GeoJSON, experiment-log, scenario, and export integrations.
 
-## Purpose
-
-The platform is intended to become the visualization and experiment-control layer for CH-MARL maritime logistics research. It is designed to display vessel trajectories, port and berth utilization, MARL policy behavior, constraints, reward trends, risk indicators, emissions, ETA performance, and live transportation events.
-
-## Initial Interface
-
-The current UI includes:
-
-- A 3D maritime operations scene with vessels, ports, routes, corridor markers, and animated movement.
-- KPI cards for active vessels, port calls, constraint satisfaction, reward score, average ETA error, and emissions intensity.
-- ECharts panels for reward trends, constraint pressure, and port utilization.
-- A live vessel table with status, route, cargo, ETA, speed, and constraint flags.
-- A decision timeline showing CH-MARL hierarchy actions and platform events.
-
-## Simulated Outcome
-
-The current dashboard uses deterministic mock data in `src/data/chmarlData.ts`. It is not yet connected to AIS feeds, port APIs, or CH-MARL experiment logs.
-
-When you run it locally, you should see:
-
-1. A dark maritime command-center interface.
-2. A CH-MARL header with scenario pills for real-time stream, congestion-aware policy, and emissions shield.
-3. Six KPI cards showing active vessels, port calls, constraint score, reward index, ETA error, and CO2 intensity.
-4. A central 3D ocean scene with labeled ports, route lines, and animated vessel markers.
-5. Left-side charts for policy reward and constraint pressure.
-6. Right-side panels for port utilization and hierarchical decision events.
-7. A live vessel state table at the bottom.
-
-This simulated screen is meant to validate the platform layout, visual hierarchy, and dashboard components before connecting real CH-MARL data.
-
-## Platform Scope and Roadmap
-
-All five CH-MARL milestones are considered in the project plan. The current repository implements the first UI scaffold and documents the next integration work in `docs/ROADMAP.md` and `docs/DATA_CONTRACTS.md`.
-
-| Milestone | Status | Planned integration |
-| --- | --- | --- |
-| Replace mock data with AIS/port-event adapters | Adapter scaffold added | Normalize AIS vessel updates and port-call events into provider-neutral dashboard data contracts. |
-| Add maritime GeoJSON layers | Planned | Add ports, corridors, anchorages, chokepoints, berth areas, restricted zones, and safety buffers. |
-| Connect CH-MARL experiment logs | Adapter scaffold added | Ingest state, action, reward, constraint, fairness, and hierarchy-decision outputs from experiments. |
-| Add scenario switching | Partially scaffolded | Scenario catalog and UI pills exist; next step is interactive switching for baseline, congestion, disruption, emissions-aware, and fairness-aware modes. |
-| Add exportable dashboards | Planned | Export PNG/CSV/JSON artifacts for figures, demos, and paper-ready visual evidence. |
-
-Roadmap details: [`docs/ROADMAP.md`](docs/ROADMAP.md)
-
-Provider-neutral data contracts: [`docs/DATA_CONTRACTS.md`](docs/DATA_CONTRACTS.md)
-
-## Adapter and Contract Scaffold
-
-The first integration layer has been added:
-
-- `src/types/chmarl.ts` defines provider-neutral TypeScript contracts for vessel states, port events, maritime feature metadata, CH-MARL experiment steps, actions, rewards, constraints, fairness metrics, hierarchy decisions, scenarios, and export manifests.
-- `src/adapters/aisAdapter.ts` normalizes raw AIS-like vessel updates into `VesselState` objects and dashboard vessel-table rows.
-- `src/adapters/portEventAdapter.ts` normalizes port-call events and summarizes arrivals, departures, berth assignments, and anchorage entries.
-- `src/adapters/experimentLogAdapter.ts` maps CH-MARL experiment steps into reward trends, constraint pressure charts, and decision timeline events.
-- `src/scenarios/scenarioCatalog.ts` defines baseline, congestion, disruption, emissions-aware, and fairness-aware scenario definitions.
-- `src/data/mock/integrationFixtures.ts` provides initial mock AIS, port-event, and CH-MARL experiment-step fixtures for offline development.
-
-## Technology Stack
-
-- React 19
-- TypeScript
-- Vite
-- Three.js
-- @react-three/fiber
-- @react-three/drei
-- ECharts
-
-## Development
-
-### Requirements
-
-- Node.js >= 18
-- PNPM >= 8
-
-### Install
+## Quick Start
 
 ```bash
+git clone https://github.com/alqithami/CHMARL_datav.git
+cd CHMARL_datav
+corepack enable
 pnpm install
-```
-
-### Run
-
-```bash
+pnpm build
 pnpm dev
 ```
 
-After running `pnpm dev`, open the local URL printed in your terminal, usually:
+Open the local URL printed by Vite, usually:
 
 ```text
 http://localhost:5173/
 ```
 
-### Build
+## Current Status
 
-```bash
-pnpm build
+| Area | Status |
+| --- | --- |
+| Dashboard shell | Implemented with mock data |
+| 3D maritime scene | Implemented with procedural ports, routes, and animated vessels |
+| KPI, reward, constraint, port, timeline, and vessel-table panels | Implemented with mock data |
+| CH-MARL TypeScript contracts | Implemented in `src/types/chmarl.ts` |
+| AIS adapter scaffold | Implemented in `src/adapters/aisAdapter.ts` |
+| Port-event adapter scaffold | Implemented in `src/adapters/portEventAdapter.ts` |
+| Experiment-log adapter scaffold | Implemented in `src/adapters/experimentLogAdapter.ts` |
+| Scenario catalog | Implemented in `src/scenarios/scenarioCatalog.ts` |
+| Interactive scenario switching | Next implementation step |
+| Real AIS / port API / experiment-log connection | Planned |
+| Maritime GeoJSON layers | Planned |
+| Dashboard export tools | Planned |
+
+## Project Structure
+
+```text
+.
+├── docs/
+│   ├── DATA_CONTRACTS.md
+│   └── ROADMAP.md
+├── src/
+│   ├── adapters/
+│   ├── components/
+│   ├── data/
+│   ├── scenarios/
+│   ├── types/
+│   ├── App.tsx
+│   ├── index.css
+│   └── main.tsx
+├── index.html
+├── package.json
+├── tsconfig.app.json
+├── tsconfig.json
+├── tsconfig.node.json
+└── vite.config.ts
 ```
 
-### Preview
+## Documentation
+
+- Roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md)
+- Data contracts: [`docs/DATA_CONTRACTS.md`](docs/DATA_CONTRACTS.md)
+
+## Development Commands
 
 ```bash
-pnpm preview
+pnpm dev      # start local dev server
+pnpm build    # type-check and build production output
+pnpm preview  # preview production build
+pnpm lint     # run ESLint
 ```
 
-## Local Validation Checklist
-
-Please run these locally when you are ready:
-
-```bash
-pnpm install
-pnpm dev
-```
-
-Then, in a second validation pass:
-
-```bash
-pnpm build
-pnpm preview
-```
-
-A successful build means the migrated UI compiles and the dashboard can be deployed. If `pnpm build` fails, copy the terminal output and we can fix the exact TypeScript or Vite issue.
-
-## Deployment Base Path
-
-The Vite base path is configurable for GitHub Pages or subpath deployment:
+## GitHub Pages Build
 
 ```bash
 VITE_BASE_PATH=/CHMARL_datav/ pnpm build
 ```
 
-## Current Repository File Map
+## Suggested Repository About
+
+Description:
 
 ```text
-.
-├── README.md
-├── index.html
-├── package.json
-├── vite.config.ts
-├── tsconfig.json
-├── tsconfig.app.json
-├── tsconfig.node.json
-├── eslint.config.js
-├── docs/
-│   ├── DATA_CONTRACTS.md
-│   └── ROADMAP.md
-└── src/
-    ├── App.tsx
-    ├── main.tsx
-    ├── index.css
-    ├── adapters/
-    │   ├── aisAdapter.ts
-    │   ├── experimentLogAdapter.ts
-    │   └── portEventAdapter.ts
-    ├── data/
-    │   ├── chmarlData.ts
-    │   └── mock/
-    │       └── integrationFixtures.ts
-    ├── scenarios/
-    │   └── scenarioCatalog.ts
-    ├── types/
-    │   └── chmarl.ts
-    └── components/
-        ├── Chart.tsx
-        ├── DashboardShell.tsx
-        ├── DecisionTimeline.tsx
-        ├── MetricCard.tsx
-        ├── PanelCard.tsx
-        ├── ShipScene.tsx
-        ├── VesselTable.tsx
-        └── charts/
-            ├── ConstraintChart.tsx
-            ├── PortUtilizationChart.tsx
-            └── RewardTrend.tsx
+CH-MARL maritime logistics dashboard for AIS-informed vessel, port, route, reward, and constraint visualization.
 ```
 
-## Suggested Repository About Description
-
-Set the GitHub About description to:
-
-> CH-MARL maritime logistics dashboard for AIS-informed vessel, port, route, reward, and constraint visualization.
-
-Suggested topics:
+Topics:
 
 ```text
 chmarl, multi-agent-reinforcement-learning, maritime-logistics, ais, threejs, react, echarts, geospatial-visualization
 ```
 
-## Next Implementation Commit
+## Next Step
 
-The next implementation commit should wire the scenario catalog and adapter outputs into the dashboard state, so the scenario pills become interactive and panels can switch between baseline, congestion, disruption, emissions-aware, and fairness-aware mock datasets before live data connections are introduced.
+Run `pnpm build` locally. If the build succeeds, the current scaffold is ready for UI review. If it fails, paste the terminal output so the exact TypeScript or dependency issue can be fixed.
