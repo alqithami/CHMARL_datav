@@ -1,0 +1,190 @@
+[
+  {
+    "experimentId": "demo-exp-001",
+    "scenarioId": "baseline",
+    "episode": 1,
+    "step": 1,
+    "timestamp": "T+00:02",
+    "state": {
+      "activeVessels": 128,
+      "berthPressure": 0.62,
+      "channelRisk": 0.41
+    },
+    "actions": [
+      {
+        "agentId": "fleet-controller",
+        "agentType": "fleet",
+        "actionType": "select_policy",
+        "actionValue": "congestion-aware-routing"
+      }
+    ],
+    "rewards": [
+      { "component": "global", "value": 0.62 },
+      { "component": "delay", "value": -0.08 },
+      { "component": "safety", "value": 0.12 }
+    ],
+    "constraints": [
+      {
+        "constraintId": "berth-capacity",
+        "name": "Berth capacity",
+        "value": 68,
+        "limit": 100,
+        "satisfied": true,
+        "severity": "medium"
+      },
+      {
+        "constraintId": "channel-safety",
+        "name": "Channel safety",
+        "value": 42,
+        "limit": 100,
+        "satisfied": true,
+        "severity": "low"
+      },
+      {
+        "constraintId": "emissions-cap",
+        "name": "Emissions cap",
+        "value": 58,
+        "limit": 100,
+        "satisfied": true,
+        "severity": "medium"
+      }
+    ],
+    "fairness": [
+      {
+        "metricId": "port-service-balance",
+        "name": "Port service balance",
+        "value": 0.81,
+        "groupBy": "port"
+      }
+    ],
+    "hierarchyDecisions": [
+      {
+        "level": "fleet",
+        "decisionId": "decision-001",
+        "decisionLabel": "Fleet-level policy selected",
+        "rationale": "Upper-level controller selected congestion-aware routing for Red Sea corridor.",
+        "affectedAgents": ["vessel-al-riyadh-trader", "vessel-red-sea-pearl"]
+      }
+    ]
+  },
+  {
+    "experimentId": "demo-exp-001",
+    "scenarioId": "baseline",
+    "episode": 1,
+    "step": 2,
+    "timestamp": "T+00:07",
+    "state": {
+      "activeVessels": 129,
+      "berthPressure": 0.64,
+      "channelRisk": 0.44
+    },
+    "actions": [
+      {
+        "agentId": "port-agent-jeddah",
+        "agentType": "port",
+        "actionType": "rebalance_arrivals",
+        "actionValue": "delay-low-priority-arrivals"
+      }
+    ],
+    "rewards": [
+      { "component": "global", "value": 0.66 },
+      { "component": "throughput", "value": 0.18 },
+      { "component": "constraint_penalty", "value": -0.05 }
+    ],
+    "constraints": [
+      {
+        "constraintId": "berth-capacity",
+        "name": "Berth capacity",
+        "value": 71,
+        "limit": 100,
+        "satisfied": true,
+        "severity": "medium"
+      },
+      {
+        "constraintId": "eta-window",
+        "name": "ETA window",
+        "value": 76,
+        "limit": 100,
+        "satisfied": true,
+        "severity": "medium"
+      }
+    ],
+    "fairness": [
+      {
+        "metricId": "cargo-class-delay-gap",
+        "name": "Cargo-class delay gap",
+        "value": 0.24,
+        "groupBy": "cargo_class"
+      }
+    ],
+    "hierarchyDecisions": [
+      {
+        "level": "port",
+        "decisionId": "decision-002",
+        "decisionLabel": "Port agent capacity update",
+        "rationale": "Jeddah berth availability was reduced by one slot; local policy rebalanced arrivals.",
+        "affectedAgents": ["port-jeddah", "vessel-al-riyadh-trader"]
+      }
+    ]
+  },
+  {
+    "experimentId": "demo-exp-001",
+    "scenarioId": "baseline",
+    "episode": 1,
+    "step": 3,
+    "timestamp": "T+00:13",
+    "state": {
+      "activeVessels": 128,
+      "berthPressure": 0.61,
+      "channelRisk": 0.39
+    },
+    "actions": [
+      {
+        "agentId": "constraint-shield",
+        "agentType": "constraint_shield",
+        "actionType": "apply_eta_and_channel_constraints",
+        "actionValue": true
+      }
+    ],
+    "rewards": [
+      { "component": "global", "value": 0.74 },
+      { "component": "safety", "value": 0.22 },
+      { "component": "emissions", "value": 0.06 }
+    ],
+    "constraints": [
+      {
+        "constraintId": "channel-safety",
+        "name": "Channel safety",
+        "value": 35,
+        "limit": 100,
+        "satisfied": true,
+        "severity": "low"
+      },
+      {
+        "constraintId": "fuel-budget",
+        "name": "Fuel budget",
+        "value": 54,
+        "limit": 100,
+        "satisfied": true,
+        "severity": "medium"
+      }
+    ],
+    "fairness": [
+      {
+        "metricId": "agent-service-balance",
+        "name": "Agent service balance",
+        "value": 0.87,
+        "groupBy": "vessel"
+      }
+    ],
+    "hierarchyDecisions": [
+      {
+        "level": "shield",
+        "decisionId": "decision-003",
+        "decisionLabel": "Constraint shield activated",
+        "rationale": "ETA and channel-safety constraints were applied to two high-priority vessels.",
+        "affectedAgents": ["vessel-red-sea-pearl", "vessel-gulf-horizon"]
+      }
+    ]
+  }
+]
