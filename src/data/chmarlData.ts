@@ -20,6 +20,8 @@ export type TimelineEvent = {
   body: string;
 };
 
+export type RewardTrendPoint = [time: string, value: number];
+
 export const metrics: Metric[] = [
   { label: "Active vessels", value: "128", trend: "+14 vs. baseline" },
   { label: "Port calls", value: "42", trend: "next 24 hours" },
@@ -77,7 +79,7 @@ export const vessels: Vessel[] = [
   },
 ];
 
-export const rewardTrend = [
+export const rewardTrend: RewardTrendPoint[] = [
   ["00:00", 0.62],
   ["04:00", 0.66],
   ["08:00", 0.7],
