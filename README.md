@@ -83,20 +83,4 @@ pnpm lint     # run ESLint
 VITE_BASE_PATH=/CHMARL_datav/ pnpm build
 ```
 
-## Suggested Repository About
 
-Description:
-
-```text
-CH-MARL maritime logistics dashboard for AIS-informed vessel, port, route, reward, and constraint visualization.
-```
-
-Topics:
-
-```text
-chmarl, multi-agent-reinforcement-learning, maritime-logistics, ais, threejs, react, echarts, geospatial-visualization
-```
-
-## Next Step
-
-Run `pnpm build` locally. If the build succeeds, the current scaffold is ready for UI review. If it fails, paste the terminal output so the exact TypeScript or dependency issue can be fixed.
