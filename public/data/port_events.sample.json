@@ -1,0 +1,58 @@
+[
+  {
+    "eventId": "event-jeddah-arrival-001",
+    "vesselId": "vessel-al-riyadh-trader",
+    "portId": "Jeddah",
+    "berthId": "JED-B02",
+    "eventType": "arrival",
+    "timestamp": "2026-06-25T18:12:00.000Z",
+    "metadata": {
+      "waitingMinutes": 18,
+      "priority": "medium"
+    }
+  },
+  {
+    "eventId": "event-dammam-anchorage-001",
+    "vesselId": "vessel-gulf-horizon",
+    "portId": "Dammam",
+    "eventType": "anchorage_entry",
+    "timestamp": "2026-06-25T18:18:00.000Z",
+    "metadata": {
+      "queuePosition": 3,
+      "reason": "berth congestion"
+    }
+  },
+  {
+    "eventId": "event-yanbu-berth-001",
+    "vesselId": "vessel-red-sea-pearl",
+    "portId": "Yanbu",
+    "berthId": "YNB-B03",
+    "eventType": "berth_assigned",
+    "timestamp": "2026-06-25T18:20:00.000Z",
+    "metadata": {
+      "serviceWindowHours": 6,
+      "cargoClass": "Energy products"
+    }
+  },
+  {
+    "eventId": "event-jizan-service-001",
+    "vesselId": "vessel-najd-carrier",
+    "portId": "Jizan",
+    "berthId": "JZN-B01",
+    "eventType": "service_started",
+    "timestamp": "2026-06-25T18:31:00.000Z",
+    "metadata": {
+      "estimatedServiceHours": 9
+    }
+  },
+  {
+    "eventId": "event-kaec-departure-001",
+    "vesselId": "vessel-arabian-express",
+    "portId": "King Abdullah Port",
+    "eventType": "departure",
+    "timestamp": "2026-06-25T18:40:00.000Z",
+    "metadata": {
+      "delayMinutes": 12
+    }
+  }
+]
