@@ -2,7 +2,7 @@
 
 A Vite + React + TypeScript dashboard for CH-MARL maritime logistics experiments.
 
-The project is structured as a runnable CH-MARL interface scaffold with a mock maritime operations dashboard, typed data contracts, adapter stubs, interactive scenario switching, and a documented roadmap for AIS, port-event, GeoJSON, experiment-log, scenario, and export integrations.
+The project is structured as a runnable CH-MARL interface scaffold with local JSON/GeoJSON sample fixtures, typed data contracts, adapter stubs, interactive scenario switching, and a documented roadmap for AIS, port-event, GeoJSON, experiment-log, scenario, and export integrations.
 
 ## Quick Start
 
@@ -25,18 +25,32 @@ http://localhost:5173/
 
 | Area | Status |
 | --- | --- |
-| Dashboard shell | Implemented with mock data |
+| Dashboard shell | Implemented |
 | 3D maritime scene | Implemented with procedural ports, routes, and animated vessels |
-| KPI, reward, constraint, port, timeline, and vessel-table panels | Implemented with mock data |
+| KPI, reward, constraint, port, timeline, and vessel-table panels | Implemented |
+| Local JSON sample data layer | Implemented in `public/data/` |
+| Dashboard data loading | Implemented through `src/data/loadSampleDashboardData.ts` |
 | CH-MARL TypeScript contracts | Implemented in `src/types/chmarl.ts` |
 | AIS adapter scaffold | Implemented in `src/adapters/aisAdapter.ts` |
 | Port-event adapter scaffold | Implemented in `src/adapters/portEventAdapter.ts` |
 | Experiment-log adapter scaffold | Implemented in `src/adapters/experimentLogAdapter.ts` |
 | Scenario catalog | Implemented in `src/scenarios/scenarioCatalog.ts` |
-| Interactive scenario switching | Implemented for mock scenario datasets |
+| Interactive scenario switching | Implemented for local fixture-driven scenario datasets |
 | Real AIS / port API / experiment-log connection | Planned |
-| Maritime GeoJSON layers | Planned |
 | Dashboard export tools | Planned |
+
+## Local Data Fixtures
+
+The first data-driven mock layer is available under `public/data/`:
+
+```text
+public/data/vessels.sample.json
+public/data/port_events.sample.json
+public/data/chmarl_episode.sample.json
+public/data/maritime_layers.sample.geojson
+```
+
+The dashboard fetches these files at runtime, normalizes them through the adapter layer, and falls back to bundled data if a file cannot be loaded.
 
 ## Project Structure
 
@@ -45,6 +59,8 @@ http://localhost:5173/
 ├── docs/
 │   ├── DATA_CONTRACTS.md
 │   └── ROADMAP.md
+├── public/
+│   └── data/
 ├── src/
 │   ├── adapters/
 │   ├── components/
@@ -82,5 +98,3 @@ pnpm lint     # run ESLint
 ```bash
 VITE_BASE_PATH=/CHMARL_datav/ pnpm build
 ```
-
-
