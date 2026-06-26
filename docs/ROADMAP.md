@@ -1,6 +1,6 @@
 # CH-MARL Platform Roadmap
 
-This roadmap converts the high-level milestone list into concrete platform workstreams. The current repository contains the first CH-MARL dashboard scaffold with mock data. The following milestones are considered part of the planned platform scope.
+This roadmap converts the high-level milestone list into concrete platform workstreams. The current repository contains a runnable CH-MARL dashboard scaffold that loads local sample fixtures from `public/data/` and normalizes them through provider-neutral adapters.
 
 ## Milestone 1 — AIS and Port-Event Adapters
 
@@ -12,19 +12,20 @@ This roadmap converts the high-level milestone list into concrete platform works
 - Port-call events: arrival, departure, berth assignment, anchorage entry/exit, cargo operation start/end, waiting time, service time.
 - Optional operational data: weather, sea state, queue state, fuel price, emissions factors, port capacity.
 
-**Planned modules:**
+**Implemented modules:**
 
-- `src/adapters/aisAdapter.ts` — added.
-- `src/adapters/portEventAdapter.ts` — added.
-- `src/types/chmarl.ts` — added.
-- `src/data/mock/` for offline scenario fixtures — added.
+- `src/adapters/aisAdapter.ts`
+- `src/adapters/portEventAdapter.ts`
+- `src/types/chmarl.ts`
+- `src/data/loadSampleDashboardData.ts`
+- `public/data/vessels.sample.json`
+- `public/data/port_events.sample.json`
 
 **Dashboard outputs:**
 
-- Live vessel table.
-- Vessel trails and current positions on the 3D scene.
-- Port-call timeline.
-- Congestion and waiting-time KPIs.
+- Live vessel table from local fixture data.
+- Port-call summary metrics from local fixture data.
+- Congestion and waiting-time KPIs through scenario transforms.
 
 ## Milestone 2 — Maritime GeoJSON Layers
 
@@ -40,13 +41,16 @@ This roadmap converts the high-level milestone list into concrete platform works
 - Restricted zones and safety buffers.
 - Optional EEZ, coastal, and weather-risk polygons.
 
+**Implemented seed file:**
+
+- `public/data/maritime_layers.sample.geojson`
+
 **Planned modules:**
 
 - `src/layers/portsLayer.tsx`
 - `src/layers/routesLayer.tsx`
 - `src/layers/anchoragesLayer.tsx`
 - `src/layers/constraintsLayer.tsx`
-- `src/assets/geojson/`
 
 **Dashboard outputs:**
 
@@ -70,9 +74,13 @@ This roadmap converts the high-level milestone list into concrete platform works
 - Fairness metrics across vessels, ports, cargo classes, or operators.
 - Episode, step, seed, and scenario metadata.
 
+**Implemented modules:**
+
+- `src/adapters/experimentLogAdapter.ts`
+- `public/data/chmarl_episode.sample.json`
+
 **Planned modules:**
 
-- `src/adapters/experimentLogAdapter.ts` — added.
 - `src/components/ExperimentTimeline.tsx`
 - `src/components/RewardBreakdown.tsx`
 - `src/components/ConstraintMonitor.tsx`
@@ -80,9 +88,9 @@ This roadmap converts the high-level milestone list into concrete platform works
 
 **Dashboard outputs:**
 
-- Decision timeline.
-- Reward trend and reward decomposition.
-- Constraint-pressure charts.
+- Decision timeline from local CH-MARL fixture data.
+- Reward trend from local CH-MARL fixture data.
+- Constraint-pressure chart from local CH-MARL fixture data.
 - Fairness and service-quality indicators.
 
 ## Milestone 4 — Scenario Switching
@@ -97,17 +105,16 @@ This roadmap converts the high-level milestone list into concrete platform works
 - `emissions-aware`: policy emphasizes fuel/emissions constraints.
 - `fairness-aware`: policy emphasizes fairness across agents or cargo classes.
 
-**Planned modules:**
+**Implemented modules:**
 
-- `src/scenarios/scenarioCatalog.ts` — added.
-- `src/state/scenarioStore.ts`
-- `src/components/ScenarioSwitcher.tsx`
+- `src/scenarios/scenarioCatalog.ts`
+- Scenario buttons in `src/components/DashboardShell.tsx`
+- Scenario-specific transforms over local fixture-driven dashboard data
 
 **Dashboard outputs:**
 
 - Scenario pills / tabs.
 - Scenario-specific KPIs.
-- Before/after policy comparison.
 - Constraint and reward changes by scenario.
 
 ## Milestone 5 — Exportable Dashboards
@@ -137,12 +144,12 @@ This roadmap converts the high-level milestone list into concrete platform works
 
 | Milestone | Status | Notes |
 | --- | --- | --- |
-| AIS and port-event adapters | Adapter scaffold added | Type contracts, AIS normalizer, port-event normalizer, and mock fixtures exist; live adapters are not yet connected. |
-| Maritime GeoJSON layers | Planned | Procedural 3D maritime scene exists; real GeoJSON layers are next. |
-| CH-MARL experiment logs | Adapter scaffold added | Experiment-step contract and log-to-dashboard helper functions exist; live experiment logs are not yet connected. |
-| Scenario switching | Partially scaffolded | Scenario catalog and UI pills exist; interactive scenario data switching is next. |
+| AIS and port-event adapters | Local fixture integration added | AIS and port-event sample files are loaded from `public/data/` and normalized through adapters. |
+| Maritime GeoJSON layers | Seed fixture added | Sample GeoJSON exists; rendering real GeoJSON layers in the 3D scene is next. |
+| CH-MARL experiment logs | Local fixture integration added | CH-MARL episode sample file drives reward, constraint, and timeline panels. |
+| Scenario switching | Implemented for local fixture data | Scenario pills switch dashboard transformations for baseline, congestion, disruption, emissions-aware, and fairness-aware modes. |
 | Exportable dashboards | Planned | Export requirements defined; implementation is next. |
 
 ## Recommended Next Commit
 
-The next implementation commit should wire the scenario catalog and adapter outputs into dashboard state. This will make the scenario pills interactive and let the panels switch between baseline, congestion, disruption, emissions-aware, and fairness-aware mock datasets before live AIS, port-event, or experiment-log sources are introduced.
+The next implementation commit should render the sample GeoJSON features in the 3D scene and add basic export utilities for JSON/CSV summaries.
