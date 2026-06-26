@@ -8,10 +8,7 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
-}
-
+* { box-sizing: border-box; }
 body {
   margin: 0;
   min-width: 320px;
@@ -21,37 +18,27 @@ body {
     radial-gradient(circle at 80% 10%, rgba(42, 210, 164, 0.18), transparent 24%),
     linear-gradient(135deg, #04111f 0%, #071a2f 52%, #030b14 100%);
 }
-
-button,
-input,
-select {
-  font: inherit;
-}
-
-button {
-  border: 0;
-}
-
-#root {
-  min-height: 100vh;
-}
+button, input, select { font: inherit; }
+button { border: 0; }
+#root { min-height: 100vh; }
 
 .app-shell {
   min-height: 100vh;
-  padding: 20px;
+  padding: 14px;
+  overflow: hidden;
 }
 
 .topbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 18px;
+  gap: 18px;
+  margin-bottom: 12px;
 }
 
 .brand-kicker {
   color: #65e4cb;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -60,27 +47,28 @@ button {
 .brand-title {
   margin: 4px 0 0;
   color: #f6fbff;
-  font-size: clamp(24px, 3vw, 44px);
-  line-height: 1;
+  font-size: clamp(24px, 2.4vw, 38px);
+  line-height: 1.02;
 }
 
 .brand-subtitle {
   max-width: 760px;
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   color: rgba(230, 247, 255, 0.72);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .scenario-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  max-width: 720px;
 }
 
 .pill {
-  padding: 9px 13px;
+  padding: 8px 12px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -106,8 +94,8 @@ button {
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .metric-card,
@@ -131,89 +119,88 @@ button {
 }
 
 .metric-card {
-  min-height: 104px;
-  padding: 16px;
-  border-radius: 18px;
+  min-height: 86px;
+  padding: 12px;
+  border-radius: 16px;
 }
-
 .metric-label {
   color: rgba(230, 247, 255, 0.68);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.09em;
 }
-
 .metric-value {
-  margin-top: 10px;
+  margin-top: 8px;
   color: #ffffff;
-  font-size: 28px;
+  font-size: 25px;
   font-weight: 850;
 }
-
 .metric-trend {
-  margin-top: 6px;
+  margin-top: 5px;
   color: #65e4cb;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 320px minmax(420px, 1.6fr) 420px;
-  grid-template-rows: minmax(340px, 55vh) minmax(260px, auto);
-  gap: 16px;
+  grid-template-columns: 320px minmax(480px, 1fr) 390px;
+  grid-template-rows: minmax(0, 1fr) 210px;
+  grid-template-areas:
+    "left scene right"
+    "vessels scene right";
+  gap: 12px;
+  height: calc(100vh - 238px);
+  min-height: 520px;
 }
 
 .panel-card {
-  border-radius: 20px;
-  padding: 16px;
+  border-radius: 18px;
+  padding: 14px;
   min-height: 0;
 }
-
 .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   position: relative;
   z-index: 1;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
-
 .panel-title {
   margin: 0;
   color: #f8fdff;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.04em;
 }
-
 .panel-tag {
   color: #65e4cb;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
 }
 
-.scene-panel {
-  grid-row: span 2;
-  padding: 0;
-  min-height: 620px;
-}
+.left-stack { grid-area: left; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.right-stack { grid-area: right; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.dashboard-grid > .panel-card:last-child { grid-area: vessels; min-height: 0; }
 
+.scene-panel {
+  grid-area: scene;
+  padding: 0;
+  min-height: 0;
+}
 .scene-container {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 620px;
+  min-height: 0;
   background:
     radial-gradient(circle at center, rgba(101, 228, 203, 0.10), transparent 55%),
     linear-gradient(180deg, #03101d, #010711);
 }
-
-.scene-container canvas {
-  opacity: 0.68;
-}
+.scene-container canvas { opacity: 0.35; }
 
 .maritime-map-layer {
   position: absolute;
@@ -226,7 +213,6 @@ button {
     linear-gradient(90deg, rgba(141, 220, 255, 0.06) 1px, transparent 1px);
   background-size: 42px 42px;
 }
-
 .maritime-map-layer::before {
   content: "";
   position: absolute;
@@ -235,7 +221,6 @@ button {
   border-radius: 28px;
   box-shadow: inset 0 0 60px rgba(101, 228, 203, 0.08);
 }
-
 .maritime-route-svg {
   position: absolute;
   inset: 0;
@@ -243,7 +228,6 @@ button {
   height: 100%;
   filter: drop-shadow(0 0 8px rgba(101, 228, 203, 0.32));
 }
-
 .html-port-marker {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -255,7 +239,6 @@ button {
   font-weight: 800;
   text-shadow: 0 2px 8px #020912;
 }
-
 .html-port-dot {
   width: 14px;
   height: 14px;
@@ -264,14 +247,12 @@ button {
   border: 2px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 0 18px rgba(101, 228, 203, 0.95);
 }
-
 .html-port-name {
   padding: 4px 8px;
   border: 1px solid rgba(141, 220, 255, 0.26);
   border-radius: 999px;
   background: rgba(3, 13, 24, 0.72);
 }
-
 .html-vessel {
   position: absolute;
   width: 18px;
@@ -281,47 +262,20 @@ button {
   border: 2px solid rgba(255, 255, 255, 0.75);
   box-shadow: 0 0 22px rgba(255, 215, 128, 0.85);
   transform: rotate(45deg);
-  animation: vesselPulse 1.6s ease-in-out infinite alternate;
 }
-
-.vessel-one {
-  left: 18%;
-  top: 55%;
-}
-
-.vessel-two {
-  left: 32%;
-  top: 34%;
-  background: #8ddcff;
-}
-
-.vessel-three {
-  left: 74%;
-  top: 37%;
-  background: #ff7474;
-}
-
-@keyframes vesselPulse {
-  from {
-    transform: rotate(45deg) scale(0.85);
-    opacity: 0.72;
-  }
-  to {
-    transform: rotate(45deg) scale(1.18);
-    opacity: 1;
-  }
-}
+.vessel-one { left: 18%; top: 55%; }
+.vessel-two { left: 32%; top: 34%; background: #8ddcff; }
+.vessel-three { left: 74%; top: 37%; background: #ff7474; }
 
 .scene-overlay {
   position: absolute;
-  inset: 16px;
+  inset: 14px;
   z-index: 4;
   pointer-events: none;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
 }
-
 .overlay-box {
   max-width: 270px;
   padding: 12px 14px;
@@ -331,158 +285,87 @@ button {
   color: rgba(230, 247, 255, 0.78);
   font-size: 12px;
 }
-
-.overlay-box strong {
-  display: block;
-  color: #ffffff;
-  margin-bottom: 4px;
-}
-
-.port-label {
-  min-width: 48px;
-  padding: 4px 7px;
-  border-radius: 999px;
-  border: 1px solid rgba(141, 220, 255, 0.35);
-  background: rgba(3, 13, 24, 0.82);
-  color: #e6f7ff;
-  font-size: 10px;
-  font-weight: 850;
-  letter-spacing: 0.02em;
-  text-align: center;
-  white-space: nowrap;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
-}
+.overlay-box strong { display: block; color: #ffffff; margin-bottom: 4px; }
+.port-label { display: none; }
 
 .chart-box {
   position: relative;
   z-index: 1;
   width: 100%;
-  height: 255px;
+  height: 100%;
+  min-height: 120px;
 }
-
-.left-stack,
-.right-stack {
-  display: grid;
-  gap: 16px;
-}
-
 .vessel-table {
   position: relative;
   z-index: 1;
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 11px;
 }
-
 .vessel-table th,
 .vessel-table td {
-  padding: 10px 8px;
+  padding: 8px 7px;
   text-align: left;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
-
 .vessel-table th {
   color: rgba(230, 247, 255, 0.58);
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
-
 .status-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 9px;
+  padding: 5px 8px;
   border-radius: 999px;
   background: rgba(101, 228, 203, 0.12);
   color: #65e4cb;
   font-weight: 800;
 }
-
-.status-chip.warning {
-  background: rgba(255, 196, 87, 0.14);
-  color: #ffd780;
-}
-
-.status-chip.alert {
-  background: rgba(255, 116, 116, 0.16);
-  color: #ff9c9c;
-}
+.status-chip.warning { background: rgba(255, 196, 87, 0.14); color: #ffd780; }
+.status-chip.alert { background: rgba(255, 116, 116, 0.16); color: #ff9c9c; }
 
 .timeline {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  max-height: 100%;
+  overflow: auto;
 }
-
 .timeline-item {
   display: grid;
-  grid-template-columns: 74px 1fr;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 14px;
+  grid-template-columns: 68px 1fr;
+  gap: 9px;
+  padding: 9px;
+  border-radius: 13px;
   background: rgba(255, 255, 255, 0.055);
 }
+.timeline-time { color: #65e4cb; font-size: 11px; font-weight: 850; }
+.timeline-title { color: #ffffff; font-size: 12px; font-weight: 800; }
+.timeline-body { margin-top: 3px; color: rgba(230, 247, 255, 0.64); font-size: 11px; }
 
-.timeline-time {
-  color: #65e4cb;
-  font-size: 12px;
-  font-weight: 850;
-}
-
-.timeline-title {
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.timeline-body {
-  margin-top: 3px;
-  color: rgba(230, 247, 255, 0.64);
-  font-size: 12px;
-}
+.table-scroll { max-height: 145px; overflow: auto; position: relative; z-index: 1; }
 
 @media (max-width: 1280px) {
-  .metrics-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
+  .app-shell { overflow: auto; }
+  .metrics-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .dashboard-grid {
+    height: auto;
     grid-template-columns: 1fr;
     grid-template-rows: auto;
+    grid-template-areas: "scene" "left" "right" "vessels";
   }
-
-  .scene-panel,
-  .scene-container {
-    min-height: 560px;
-  }
+  .scene-panel, .scene-container { min-height: 520px; }
 }
 
 @media (max-width: 720px) {
-  .app-shell {
-    padding: 14px;
-  }
-
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .metrics-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .scene-panel,
-  .scene-container {
-    min-height: 460px;
-  }
-
-  .vessel-table {
-    min-width: 760px;
-  }
-
-  .table-scroll {
-    overflow-x: auto;
-  }
+  .app-shell { padding: 14px; overflow: auto; }
+  .topbar { flex-direction: column; }
+  .metrics-grid { grid-template-columns: 1fr; }
+  .scene-panel, .scene-container { min-height: 460px; }
+  .vessel-table { min-width: 760px; }
+  .table-scroll { overflow-x: auto; }
 }
