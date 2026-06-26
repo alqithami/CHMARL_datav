@@ -2,7 +2,7 @@
 
 A Vite + React + TypeScript dashboard for CH-MARL maritime logistics experiments.
 
-The project is now structured as a runnable CH-MARL interface scaffold with a mock maritime operations dashboard, typed data contracts, adapter stubs, and a documented roadmap for AIS, port-event, GeoJSON, experiment-log, scenario, and export integrations.
+The project is structured as a runnable CH-MARL interface scaffold with a mock maritime operations dashboard, typed data contracts, adapter stubs, interactive scenario switching, and a documented roadmap for AIS, port-event, GeoJSON, experiment-log, scenario, and export integrations.
 
 ## Quick Start
 
@@ -33,7 +33,7 @@ http://localhost:5173/
 | Port-event adapter scaffold | Implemented in `src/adapters/portEventAdapter.ts` |
 | Experiment-log adapter scaffold | Implemented in `src/adapters/experimentLogAdapter.ts` |
 | Scenario catalog | Implemented in `src/scenarios/scenarioCatalog.ts` |
-| Interactive scenario switching | Next implementation step |
+| Interactive scenario switching | Implemented for mock scenario datasets |
 | Real AIS / port API / experiment-log connection | Planned |
 | Maritime GeoJSON layers | Planned |
 | Dashboard export tools | Planned |
@@ -49,6 +49,7 @@ http://localhost:5173/
 │   ├── adapters/
 │   ├── components/
 │   ├── data/
+│   ├── data/mock/
 │   ├── scenarios/
 │   ├── types/
 │   ├── App.tsx
