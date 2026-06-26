@@ -1,0 +1,6 @@
+vesselId,mmsi,imo,name,vesselType,cargoClass,latitude,longitude,speedKnots,courseDeg,headingDeg,navStatus,originPort,destinationPort,eta,timestamp
+vessel-al-riyadh-trader,538214,9487654,Al Riyadh Trader,Container Ship,Containers,21.45,39.12,14.8,322,320,Nominal,Jeddah,Suez,04:20 UTC,2026-06-25T18:00:00.000Z
+vessel-gulf-horizon,403882,9358102,Gulf Horizon,General Cargo,General cargo,26.43,50.09,11.2,112,110,Watch,Dammam,Jebel Ali,07:55 UTC,2026-06-25T18:00:00.000Z
+vessel-red-sea-pearl,636719,9723310,Red Sea Pearl,Tanker,Energy products,24.05,37.88,10.1,7,9,Constrained,Yanbu,Aqaba,11:10 UTC,2026-06-25T18:00:00.000Z
+vessel-najd-carrier,370441,9290017,Najd Carrier,Bulk Carrier,Dry bulk,16.89,42.55,12.6,208,207,Nominal,Jizan,Port Sudan,14:35 UTC,2026-06-25T18:00:00.000Z
+vessel-arabian-express,565902,9672406,Arabian Express,Ro-Ro Cargo,Ro-Ro,22.72,38.98,16.4,352,350,Watch,Jeddah,King Abdullah Port,18:05 UTC,2026-06-25T18:00:00.000Z
