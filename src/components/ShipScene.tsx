@@ -4,10 +4,26 @@ import { useMemo, useRef } from "react";
 import { Color, Group, Vector3 } from "three";
 import { ports, routes } from "@/data/chmarlData";
 
+type Port = (typeof ports)[number];
+
 type PortMarkerProps = {
   name: string;
   position: [number, number, number];
 };
+
+function mapPosition(position: [number, number, number]) {
+  const [x, , z] = position;
+  return {
+    left: ((x + 7) / 14) * 100,
+    top: ((5.8 - z) / 11.6) * 100,
+  };
+}
+
+function routeColor(risk: string) {
+  if (risk === "high") return "#ff7474";
+  if (risk === "medium") return "#ffd780";
+  return "#65e4cb";
+}
 
 function PortMarker({ name, position }: PortMarkerProps) {
   return (
@@ -31,12 +47,6 @@ function PortLabel({ label }: { label: string }) {
       <div className="port-label">{label}</div>
     </Html>
   );
-}
-
-function routeColor(risk: string) {
-  if (risk === "high") return "#ff7474";
-  if (risk === "medium") return "#ffd780";
-  return "#65e4cb";
 }
 
 function RouteLines() {
@@ -120,6 +130,62 @@ function OceanPlane() {
   );
 }
 
+function HtmlMaritimeMap() {
+  const portMap = useMemo(() => new Map<string, Port>(ports.map((port) => [port.name, port])), []);
+
+  return (
+    <div className="maritime-map-layer" aria-label="Fallback maritime map layer">
+      <svg className="maritime-route-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <defs>
+          <radialGradient id="seaGlow" cx="50%" cy="50%" r="70%">
+            <stop offset="0%" stopColor="rgba(101,228,203,0.18)" />
+            <stop offset="100%" stopColor="rgba(101,228,203,0)" />
+          </radialGradient>
+        </defs>
+        <rect x="0" y="0" width="100" height="100" fill="url(#seaGlow)" />
+        {routes.map((route) => {
+          const from = portMap.get(route.from);
+          const to = portMap.get(route.to);
+          if (!from || !to) return null;
+          const start = mapPosition(from.position);
+          const end = mapPosition(to.position);
+          const midX = (start.left + end.left) / 2;
+          const midY = Math.min(start.top, end.top) - 8;
+
+          return (
+            <path
+              key={`${route.from}-${route.to}-html`}
+              d={`M ${start.left} ${start.top} Q ${midX} ${midY} ${end.left} ${end.top}`}
+              stroke={routeColor(route.risk)}
+              strokeWidth="0.7"
+              strokeDasharray="2 1.4"
+              fill="none"
+              opacity="0.95"
+            />
+          );
+        })}
+      </svg>
+
+      {ports.map((port) => {
+        const point = mapPosition(port.position);
+        return (
+          <div
+            key={`${port.name}-html`}
+            className="html-port-marker"
+            style={{ left: `${point.left}%`, top: `${point.top}%` }}>
+            <span className="html-port-dot" />
+            <span className="html-port-name">{port.name}</span>
+          </div>
+        );
+      })}
+
+      <div className="html-vessel vessel-one" />
+      <div className="html-vessel vessel-two" />
+      <div className="html-vessel vessel-three" />
+    </div>
+  );
+}
+
 export default function ShipScene() {
   return (
     <div className="scene-container">
@@ -150,6 +216,9 @@ export default function ShipScene() {
         <Vessel offset={0.72} color="#ff7474" />
         <OrbitControls enablePan enableZoom enableRotate minDistance={5} maxDistance={14} maxPolarAngle={1.35} />
       </Canvas>
+
+      <HtmlMaritimeMap />
+
       <div className="scene-overlay">
         <div className="overlay-box">
           <strong>Operational layer</strong>
