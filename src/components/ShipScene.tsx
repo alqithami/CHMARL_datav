@@ -21,8 +21,19 @@ type ShipMarker = ProjectedPoint & {
   tone: "cyan" | "yellow" | "red" | "blue";
 };
 
-const MAP_CENTER: GeoPoint = { lat: 18.9, lon: 35.4 };
-const MAP_ZOOM = 6;
+type Tile = {
+  key: string;
+  href: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+const DEFAULT_CENTER: GeoPoint = { lat: 18.9, lon: 35.4 };
+const DEFAULT_ZOOM = 6;
+const MIN_ZOOM = 5;
+const MAX_ZOOM = 8;
 const VIEWPORT_TILES_X = 8;
 const VIEWPORT_TILES_Y = 5.3;
 
@@ -52,11 +63,11 @@ function latToTileY(lat: number, zoom: number) {
   return ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * 2 ** zoom;
 }
 
-function projectGeo(point: GeoPoint): ProjectedPoint {
-  const centerX = lonToTileX(MAP_CENTER.lon, MAP_ZOOM);
-  const centerY = latToTileY(MAP_CENTER.lat, MAP_ZOOM);
-  const x = lonToTileX(point.lon, MAP_ZOOM);
-  const y = latToTileY(point.lat, MAP_ZOOM);
+function projectGeo(point: GeoPoint, center: GeoPoint, zoom: number): ProjectedPoint {
+  const centerX = lonToTileX(center.lon, zoom);
+  const centerY = latToTileY(center.lat, zoom);
+  const x = lonToTileX(point.lon, zoom);
+  const y = latToTileY(point.lat, zoom);
 
   return {
     left: 50 + ((x - centerX) * 100) / VIEWPORT_TILES_X,
@@ -91,15 +102,20 @@ function hasCoordinates(vessel: Vessel): vessel is Vessel & { latitude: number; 
   );
 }
 
-function buildTileGrid() {
-  const centerX = lonToTileX(MAP_CENTER.lon, MAP_ZOOM);
-  const centerY = latToTileY(MAP_CENTER.lat, MAP_ZOOM);
+function geoFromVessel(vessel: Vessel | undefined): GeoPoint | undefined {
+  if (!vessel || !hasCoordinates(vessel)) return undefined;
+  return { lat: vessel.latitude, lon: vessel.longitude };
+}
+
+function buildTileGrid(center: GeoPoint, zoom: number): Tile[] {
+  const centerX = lonToTileX(center.lon, zoom);
+  const centerY = latToTileY(center.lat, zoom);
   const tileWidth = 100 / VIEWPORT_TILES_X;
   const tileHeight = 100 / VIEWPORT_TILES_Y;
   const baseX = Math.floor(centerX);
   const baseY = Math.floor(centerY);
-  const maxTile = 2 ** MAP_ZOOM;
-  const tiles: { key: string; href: string; x: number; y: number; width: number; height: number }[] = [];
+  const maxTile = 2 ** zoom;
+  const tiles: Tile[] = [];
 
   for (let dx = -5; dx <= 5; dx += 1) {
     for (let dy = -4; dy <= 4; dy += 1) {
@@ -108,8 +124,8 @@ function buildTileGrid() {
       if (tileY < 0 || tileY >= maxTile) continue;
       const wrappedX = ((tileX % maxTile) + maxTile) % maxTile;
       tiles.push({
-        key: `${MAP_ZOOM}-${wrappedX}-${tileY}`,
-        href: `https://tile.openstreetmap.org/${MAP_ZOOM}/${wrappedX}/${tileY}.png`,
+        key: `${zoom}-${wrappedX}-${tileY}`,
+        href: `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${tileY}.png`,
         x: 50 + ((tileX - centerX) * 100) / VIEWPORT_TILES_X,
         y: 50 + ((tileY - centerY) * 100) / VIEWPORT_TILES_Y,
         width: tileWidth,
@@ -122,13 +138,17 @@ function buildTileGrid() {
 }
 
 export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps) {
+  const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
+  const [selectedShipId, setSelectedShipId] = useState("");
   const sceneVessels = vessels.length > 0 ? vessels : fallbackVessels;
-  const tileGrid = useMemo(buildTileGrid, []);
+  const selectedVessel = selectedShipId ? sceneVessels.find((vessel) => vessel.id === selectedShipId) : undefined;
+  const mapCenter = geoFromVessel(selectedVessel) ?? DEFAULT_CENTER;
+  const tileGrid = useMemo(() => buildTileGrid(mapCenter, mapZoom), [mapCenter, mapZoom]);
   const shipMarkers = useMemo<ShipMarker[]>(
     () =>
       sceneVessels.map((vessel, index) => {
         const fallback = fallbackShipPositions[index % fallbackShipPositions.length];
-        const projected = hasCoordinates(vessel) ? projectGeo({ lat: vessel.latitude, lon: vessel.longitude }) : fallback;
+        const projected = hasCoordinates(vessel) ? projectGeo({ lat: vessel.latitude, lon: vessel.longitude }, mapCenter, mapZoom) : fallback;
         return {
           vessel,
           left: projected.left,
@@ -137,9 +157,8 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
           tone: toneForStatus(vessel.status),
         };
       }),
-    [sceneVessels]
+    [mapCenter, mapZoom, sceneVessels]
   );
-  const [selectedShipId, setSelectedShipId] = useState("");
   const selectedShip = selectedShipId ? shipMarkers.find((ship) => ship.vessel.id === selectedShipId) : undefined;
 
   const mapStyle = selectedShip
@@ -174,8 +193,8 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
             const to = portGeo[route.to];
             if (!from || !to) return null;
 
-            const start = projectGeo(from);
-            const end = projectGeo(to);
+            const start = projectGeo(from, mapCenter, mapZoom);
+            const end = projectGeo(to, mapCenter, mapZoom);
             const midX = (start.left + end.left) / 2;
             const midY = Math.min(start.top, end.top) - 7;
 
@@ -194,7 +213,7 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
         </svg>
 
         {Object.entries(portGeo).map(([name, geo]) => {
-          const point = projectGeo(geo);
+          const point = projectGeo(geo, mapCenter, mapZoom);
           return (
             <div
               key={name}
@@ -222,6 +241,13 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
             <span />
           </button>
         ))}
+      </div>
+
+      <div className="tile-map-controls">
+        <button type="button" onClick={() => setMapZoom((zoom) => Math.min(MAX_ZOOM, zoom + 1))}>+</button>
+        <button type="button" onClick={() => setMapZoom((zoom) => Math.max(MIN_ZOOM, zoom - 1))}>−</button>
+        <button type="button" onClick={() => setSelectedShipId("")}>Overview</button>
+        <span>Zoom {mapZoom}</span>
       </div>
 
       <div className="tile-attribution">© OpenStreetMap contributors</div>
