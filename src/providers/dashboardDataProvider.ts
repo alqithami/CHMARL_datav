@@ -1,4 +1,10 @@
-import type { Vessel } from "@/data/chmarlData";
+import type { Vessel, VesselTrailPoint } from "@/data/chmarlData";
+
+type RemoteTrailPoint = Partial<VesselTrailPoint> & {
+  lat?: string | number;
+  lon?: string | number;
+  lng?: string | number;
+};
 
 type RemoteVesselRow = Partial<Vessel> & {
   vesselId?: string;
@@ -23,6 +29,9 @@ type RemoteVesselRow = Partial<Vessel> & {
   lng?: string | number;
   heading?: string | number;
   cog?: string | number;
+  trail?: RemoteTrailPoint[];
+  history?: RemoteTrailPoint[];
+  track?: RemoteTrailPoint[];
 };
 
 export type DashboardVesselFeed = {
@@ -61,6 +70,25 @@ function toNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+function normalizeTrail(points: RemoteTrailPoint[] | undefined): VesselTrailPoint[] | undefined {
+  if (!Array.isArray(points)) return undefined;
+
+  const normalized = points
+    .map((point) => {
+      const latitude = toNumber(point.latitude ?? point.lat);
+      const longitude = toNumber(point.longitude ?? point.lon ?? point.lng);
+      if (latitude === undefined || longitude === undefined) return null;
+      return {
+        latitude,
+        longitude,
+        timestamp: point.timestamp,
+      } satisfies VesselTrailPoint;
+    })
+    .filter((point): point is VesselTrailPoint => point !== null);
+
+  return normalized.length > 1 ? normalized : undefined;
+}
+
 function formatSpeed(value: unknown): string {
   if (typeof value === "string" && value.trim().length > 0) {
     return value.toLowerCase().includes("kn") ? value : `${value} kn`;
@@ -89,6 +117,7 @@ function toDashboardVessel(row: RemoteVesselRow): Vessel {
     longitude,
     headingDeg: toNumber(row.headingDeg ?? row.heading),
     courseDeg: toNumber(row.courseDeg ?? row.cog),
+    trail: normalizeTrail(row.trail ?? row.history ?? row.track),
   };
 }
 
