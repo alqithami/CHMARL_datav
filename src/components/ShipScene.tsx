@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { routes, vessels as fallbackVessels, type Vessel } from "@/data/chmarlData";
+import { routes, vessels as fallbackVessels, type Vessel, type VesselTrailPoint } from "@/data/chmarlData";
 
 type ShipSceneProps = {
   vessels?: Vessel[];
@@ -104,6 +104,10 @@ function hasCoordinates(vessel: Vessel): vessel is Vessel & { latitude: number; 
   );
 }
 
+function isTrailPoint(point: VesselTrailPoint): point is VesselTrailPoint {
+  return Number.isFinite(point.latitude) && Number.isFinite(point.longitude);
+}
+
 function geoFromVessel(vessel: Vessel | undefined): GeoPoint | undefined {
   if (!vessel || !hasCoordinates(vessel)) return undefined;
   return { lat: vessel.latitude, lon: vessel.longitude };
@@ -122,6 +126,18 @@ function centerOfVessels(vessels: Vessel[]): GeoPoint | undefined {
     lat: total.lat / points.length,
     lon: total.lon / points.length,
   };
+}
+
+function buildTrailPath(vessel: Vessel, center: GeoPoint, zoom: number) {
+  const trail = vessel.trail?.filter(isTrailPoint);
+  if (!trail || trail.length < 2) return undefined;
+
+  return trail
+    .map((point, index) => {
+      const projected = projectGeo({ lat: point.latitude, lon: point.longitude }, center, zoom);
+      return `${index === 0 ? "M" : "L"} ${projected.left} ${projected.top}`;
+    })
+    .join(" ");
 }
 
 function buildTileGrid(center: GeoPoint, zoom: number): Tile[] {
@@ -258,6 +274,19 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
               />
             );
           })}
+
+          {visibleVessels.map((vessel) => {
+            const trailPath = buildTrailPath(vessel, mapCenter, mapZoom);
+            if (!trailPath) return null;
+            return (
+              <path
+                key={`${vessel.id}-trail`}
+                className={`vessel-trail ${statusClass(vessel.status)}`}
+                d={trailPath}
+                fill="none"
+              />
+            );
+          })}
         </svg>
 
         {Object.entries(portGeo).map(([name, geo]) => {
@@ -369,6 +398,9 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
             {hasCoordinates(selectedShip.vessel) && (
               <div><dt>Position</dt><dd>{selectedShip.vessel.latitude.toFixed(3)}, {selectedShip.vessel.longitude.toFixed(3)}</dd></div>
             )}
+            {selectedShip.vessel.trail && selectedShip.vessel.trail.length > 1 && (
+              <div><dt>Trail</dt><dd>{selectedShip.vessel.trail.length} points</dd></div>
+            )}
           </dl>
           <button type="button" onClick={() => setSelectedShipId("")}>Reset overview</button>
         </aside>
@@ -380,8 +412,8 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
           Select a ship marker to focus the map and show vessel properties.
         </div>
         <div className="overlay-box">
-          <strong>Hover + list</strong>
-          Hover for quick vessel details or select from the visible vessel list.
+          <strong>Trails + list</strong>
+          Hover for quick details, inspect vessels, or review recent movement trails.
         </div>
       </div>
     </div>
