@@ -1,0 +1,47 @@
+.tile-map {
+  background-color: #071624;
+  background-image: none;
+}
+
+.tile-map::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(101, 228, 203, 0.10), transparent 52%),
+    linear-gradient(180deg, rgba(4, 17, 31, 0.12), rgba(4, 17, 31, 0.38));
+  z-index: 1;
+}
+
+.tile-map-svg image {
+  filter: saturate(0.78) brightness(0.74) contrast(1.08);
+}
+
+.tile-map-svg path {
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.65));
+}
+
+.tile-map .html-port-marker,
+.tile-map .ship-figurine {
+  z-index: 3;
+}
+
+.tile-attribution {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  z-index: 8;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(3, 13, 24, 0.76);
+  border: 1px solid rgba(141, 220, 255, 0.18);
+  color: rgba(230, 247, 255, 0.64);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.focus-content .tile-attribution {
+  left: 16px;
+  bottom: 14px;
+}
