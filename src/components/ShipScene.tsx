@@ -160,6 +160,7 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [manualCenter, setManualCenter] = useState<GeoPoint>(DEFAULT_CENTER);
   const [selectedShipId, setSelectedShipId] = useState("");
+  const [hoveredShipId, setHoveredShipId] = useState("");
   const [filter, setFilter] = useState<VesselFilter>("All");
   const sceneVessels = vessels.length > 0 ? vessels : fallbackVessels;
   const visibleVessels = useMemo(
@@ -185,12 +186,20 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
     [mapCenter, mapZoom, visibleVessels]
   );
   const selectedShip = selectedShipId ? shipMarkers.find((ship) => ship.vessel.id === selectedShipId) : undefined;
+  const hoveredShip = hoveredShipId ? shipMarkers.find((ship) => ship.vessel.id === hoveredShipId) : undefined;
 
   const mapStyle = selectedShip
     ? {
         transformOrigin: `${selectedShip.left}% ${selectedShip.top}%`,
       }
     : undefined;
+
+  const selectVessel = (vesselId: string) => {
+    setSelectedShipId(vesselId);
+    const selected = visibleVessels.find((vessel) => vessel.id === vesselId);
+    const center = geoFromVessel(selected);
+    if (center) setManualCenter(center);
+  };
 
   const fitVisibleVessels = () => {
     const center = centerOfVessels(visibleVessels);
@@ -201,6 +210,7 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
 
   const resetOverview = () => {
     setSelectedShipId("");
+    setHoveredShipId("");
     setManualCenter(DEFAULT_CENTER);
     setMapZoom(DEFAULT_ZOOM);
   };
@@ -275,11 +285,25 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
               top: `${ship.top}%`,
               transform: `translate(-50%, -50%) rotate(${ship.heading}deg)`,
             }}
-            onClick={() => setSelectedShipId(ship.vessel.id)}>
+            onClick={() => selectVessel(ship.vessel.id)}
+            onFocus={() => setHoveredShipId(ship.vessel.id)}
+            onMouseEnter={() => setHoveredShipId(ship.vessel.id)}
+            onBlur={() => setHoveredShipId("")}
+            onMouseLeave={() => setHoveredShipId("")}>
             <span />
           </button>
         ))}
       </div>
+
+      {hoveredShip && !selectedShip && (
+        <div
+          className="vessel-hover-card"
+          style={{ left: `${hoveredShip.left}%`, top: `${hoveredShip.top}%` }}>
+          <strong>{hoveredShip.vessel.name}</strong>
+          <span>{hoveredShip.vessel.route}</span>
+          <span>{hoveredShip.vessel.speed} · {hoveredShip.vessel.status}</span>
+        </div>
+      )}
 
       <div className="tile-map-controls">
         <button type="button" onClick={() => setMapZoom((zoom) => Math.min(MAX_ZOOM, zoom + 1))}>+</button>
@@ -299,11 +323,31 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
             onClick={() => {
               setFilter(option);
               setSelectedShipId("");
+              setHoveredShipId("");
             }}>
             {option}
           </button>
         ))}
       </div>
+
+      <aside className="tile-vessel-list" aria-label="Visible vessel list">
+        <div className="tile-vessel-list-header">
+          <strong>Visible vessels</strong>
+          <span>{visibleVessels.length}</span>
+        </div>
+        <div className="tile-vessel-list-items">
+          {visibleVessels.slice(0, 8).map((vessel) => (
+            <button
+              key={vessel.id}
+              type="button"
+              className={vessel.id === selectedShipId ? "active" : ""}
+              onClick={() => selectVessel(vessel.id)}>
+              <span>{vessel.name}</span>
+              <small>{vessel.status} · {vessel.speed}</small>
+            </button>
+          ))}
+        </div>
+      </aside>
 
       <div className="tile-attribution">© OpenStreetMap contributors</div>
 
@@ -336,8 +380,8 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
           Select a ship marker to focus the map and show vessel properties.
         </div>
         <div className="overlay-box">
-          <strong>Filter + fit</strong>
-          Filter vessels by status or fit the visible fleet.
+          <strong>Hover + list</strong>
+          Hover for quick vessel details or select from the visible vessel list.
         </div>
       </div>
     </div>
