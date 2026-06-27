@@ -2,7 +2,7 @@
 
 A Vite + React + TypeScript dashboard for CH-MARL maritime logistics experiments.
 
-The project is structured as a runnable CH-MARL interface scaffold with local JSON/GeoJSON sample fixtures, typed data contracts, adapter stubs, interactive scenario switching, and a documented roadmap for AIS, port-event, GeoJSON, experiment-log, scenario, and export integrations.
+The project is structured as a runnable CH-MARL interface scaffold with local JSON/GeoJSON sample fixtures, typed data contracts, adapter stubs, interactive scenario switching, remote vessel-feed support, and a documented roadmap for vessel, port-event, GeoJSON, experiment-log, scenario, and export integrations.
 
 ## Quick Start
 
@@ -12,13 +12,32 @@ cd CHMARL_datav
 corepack enable
 pnpm install
 pnpm build
-pnpm dev
+pnpm dev:codespaces
 ```
 
-Open the local URL printed by Vite, usually:
+Open the forwarded Vite port from the Codespaces **Ports** tab, usually port `5173`.
+
+## One-Terminal Remote Feed Demo
+
+To run both the local vessel-feed proxy and the dashboard from one Codespaces terminal:
+
+```bash
+corepack enable
+pnpm install
+pnpm dev:proxy
+```
+
+This starts:
 
 ```text
-http://localhost:5173/
+http://localhost:8787/api/vessels   # local vessel feed proxy
+http://localhost:5173/              # dashboard
+```
+
+Open port `5173` from the Codespaces **Ports** tab. The dashboard should show:
+
+```text
+Data: remote
 ```
 
 ## Current Status
@@ -26,17 +45,19 @@ http://localhost:5173/
 | Area | Status |
 | --- | --- |
 | Dashboard shell | Implemented |
-| 3D maritime scene | Implemented with procedural ports, routes, and animated vessels |
+| Vessel inspection map | Implemented with clickable ship markers and detail cards |
 | KPI, reward, constraint, port, timeline, and vessel-table panels | Implemented |
 | Local JSON sample data layer | Implemented in `public/data/` |
+| Remote vessel feed | Implemented through `VITE_VESSEL_DATA_URL` |
+| Local vessel-feed proxy | Implemented in `server/vessel-feed-proxy/` |
 | Dashboard data loading | Implemented through `src/data/loadSampleDashboardData.ts` |
 | CH-MARL TypeScript contracts | Implemented in `src/types/chmarl.ts` |
-| AIS adapter scaffold | Implemented in `src/adapters/aisAdapter.ts` |
+| Vessel/AIS adapter scaffold | Implemented in `src/adapters/aisAdapter.ts` |
 | Port-event adapter scaffold | Implemented in `src/adapters/portEventAdapter.ts` |
 | Experiment-log adapter scaffold | Implemented in `src/adapters/experimentLogAdapter.ts` |
 | Scenario catalog | Implemented in `src/scenarios/scenarioCatalog.ts` |
-| Interactive scenario switching | Implemented for local fixture-driven scenario datasets |
-| Real AIS / port API / experiment-log connection | Planned |
+| Interactive scenario switching | Implemented |
+| Provider-specific live AIS connection | Planned behind the proxy |
 | Dashboard export tools | Planned |
 
 ## Local Data Fixtures
@@ -50,47 +71,34 @@ public/data/chmarl_episode.sample.json
 public/data/maritime_layers.sample.geojson
 ```
 
-The dashboard fetches these files at runtime, normalizes them through the adapter layer, and falls back to bundled data if a file cannot be loaded.
+The dashboard fetches these files at runtime and falls back to bundled data if a file cannot be loaded.
 
-## Project Structure
+## Remote Vessel Feed
 
-```text
-.
-├── docs/
-│   ├── DATA_CONTRACTS.md
-│   └── ROADMAP.md
-├── public/
-│   └── data/
-├── src/
-│   ├── adapters/
-│   ├── components/
-│   ├── data/
-│   ├── data/mock/
-│   ├── scenarios/
-│   ├── types/
-│   ├── App.tsx
-│   ├── index.css
-│   └── main.tsx
-├── index.html
-├── package.json
-├── tsconfig.app.json
-├── tsconfig.json
-├── tsconfig.node.json
-└── vite.config.ts
+The frontend can read vessel rows from a backend endpoint through:
+
+```env
+VITE_VESSEL_DATA_URL=http://localhost:8787/api/vessels
 ```
+
+See [`docs/REMOTE_VESSEL_FEED.md`](docs/REMOTE_VESSEL_FEED.md) and [`server/vessel-feed-proxy/README.md`](server/vessel-feed-proxy/README.md).
 
 ## Documentation
 
 - Roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md)
 - Data contracts: [`docs/DATA_CONTRACTS.md`](docs/DATA_CONTRACTS.md)
+- Remote vessel feed: [`docs/REMOTE_VESSEL_FEED.md`](docs/REMOTE_VESSEL_FEED.md)
 
 ## Development Commands
 
 ```bash
-pnpm dev      # start local dev server
-pnpm build    # type-check and build production output
-pnpm preview  # preview production build
-pnpm lint     # run ESLint
+pnpm dev             # start local dev server
+pnpm dev:codespaces  # start Vite for Codespaces
+pnpm proxy           # start the vessel-feed proxy only
+pnpm dev:proxy       # start proxy and dashboard from one terminal
+pnpm build           # type-check and build production output
+pnpm preview         # preview production build
+pnpm lint            # run ESLint
 ```
 
 ## GitHub Pages Build
