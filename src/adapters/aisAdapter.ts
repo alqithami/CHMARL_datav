@@ -86,6 +86,11 @@ export function vesselStateToDashboardRow(state: VesselState): Vessel {
     eta: state.eta ?? "TBD",
     speed: state.speedKnots === undefined ? "TBD" : `${state.speedKnots.toFixed(1)} kn`,
     status,
+    latitude: state.latitude,
+    longitude: state.longitude,
+    headingDeg: state.headingDeg,
+    courseDeg: state.courseDeg,
+    timestamp: state.timestamp,
   };
 }
 
