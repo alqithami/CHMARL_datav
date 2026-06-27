@@ -215,7 +215,7 @@ export default function DashboardShell() {
   const focusContent = (() => {
     if (focusPanel === "reward") return { title: "Policy Reward Trend", content: <RewardTrend data={dashboardData.rewardTrend} /> };
     if (focusPanel === "constraints") return { title: "Constraint Pressure", content: <ConstraintChart data={dashboardData.constraintPressure} /> };
-    if (focusPanel === "scene") return { title: "Maritime Operations Scene", content: <ShipScene vessels={dashboardData.vessels} /> };
+    if (focusPanel === "scene") return { title: "Maritime Operations Scene", content: <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} /> };
     if (focusPanel === "ports") return { title: "Port Utilization", content: <PortUtilizationChart data={dashboardData.portUtilization} /> };
     if (focusPanel === "timeline") return { title: "Decision Timeline", content: <DecisionTimeline events={dashboardData.timelineEvents} /> };
     if (focusPanel === "vessels") return { title: "Sample Vessel State Table", content: <VesselTable vessels={dashboardData.vessels} /> };
@@ -266,7 +266,7 @@ export default function DashboardShell() {
         </div>
 
         <PanelCard title="Maritime Operations Scene" tag="static map" className="scene-panel" onFocus={() => setFocusPanel("scene")}>
-          <ShipScene vessels={dashboardData.vessels} />
+          <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} />
         </PanelCard>
 
         <div className="right-stack">
