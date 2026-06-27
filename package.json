@@ -9,7 +9,7 @@
     "dev": "vite",
     "dev:codespaces": "vite --host 0.0.0.0 --port 5173",
     "proxy": "node server/vessel-feed-proxy/index.mjs",
-    "dev:proxy": "sh -c 'node server/vessel-feed-proxy/index.mjs & PROXY_PID=$!; trap \"kill $PROXY_PID 2>/dev/null\" EXIT INT TERM; VITE_VESSEL_DATA_URL=http://localhost:8787/api/vessels vite --host 0.0.0.0 --port 5173'",
+    "dev:proxy": "node scripts/dev-with-proxy.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
