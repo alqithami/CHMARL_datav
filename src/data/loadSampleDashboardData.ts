@@ -20,6 +20,7 @@ import {
 } from "@/adapters";
 import type { RawAisVesselUpdate } from "@/adapters/aisAdapter";
 import type { RawPortEvent } from "@/adapters/portEventAdapter";
+import { loadRemoteDashboardVessels } from "@/providers/dashboardDataProvider";
 import type { ChmarlExperimentStep } from "@/types/chmarl";
 
 export type ChartDatum = {
@@ -27,7 +28,10 @@ export type ChartDatum = {
   value: number;
 };
 
+export type DashboardDataSource = "remote" | "local-json" | "fallback";
+
 export type DashboardData = {
+  source: DashboardDataSource;
   metrics: Metric[];
   vessels: Vessel[];
   rewardTrend: RewardTrendPoint[];
@@ -37,6 +41,7 @@ export type DashboardData = {
 };
 
 export const fallbackDashboardData: DashboardData = {
+  source: "fallback",
   metrics,
   vessels,
   rewardTrend,
@@ -58,13 +63,7 @@ async function fetchJson<T>(fileName: string): Promise<T> {
 
 function updateMetric(metricsList: Metric[], label: string, value: string, trend?: string) {
   return metricsList.map((metric) =>
-    metric.label === label
-      ? {
-          ...metric,
-          value,
-          trend: trend ?? metric.trend,
-        }
-      : metric
+    metric.label === label ? { ...metric, value, trend: trend ?? metric.trend } : metric
   );
 }
 
@@ -73,29 +72,33 @@ function toRewardTrend(points: (string | number)[][]): RewardTrendPoint[] {
 }
 
 export async function loadSampleDashboardData(): Promise<DashboardData> {
-  const [rawVessels, rawPortEvents, experimentSteps] = await Promise.all([
+  const [remoteVessels, rawVessels, rawPortEvents, experimentSteps] = await Promise.all([
+    loadRemoteDashboardVessels().catch(() => null),
     fetchJson<RawAisVesselUpdate[]>("vessels.sample.json"),
     fetchJson<RawPortEvent[]>("port_events.sample.json"),
     fetchJson<ChmarlExperimentStep[]>("chmarl_episode.sample.json"),
     fetchJson<unknown>("maritime_layers.sample.geojson"),
   ]);
 
-  const normalizedVessels = normalizeAisBatch(rawVessels);
+  const localVessels = normalizeAisBatch(rawVessels).map(vesselStateToDashboardRow);
+  const dashboardVessels = remoteVessels?.vessels ?? localVessels;
   normalizePortEventBatch(rawPortEvents);
   const rewardData = toRewardTrend(experimentStepsToRewardTrend(experimentSteps));
   const constraintData = experimentStepsToConstraintPressure(experimentSteps);
   const timelineData = experimentStepsToTimelineEvents(experimentSteps);
+  const source: DashboardDataSource = remoteVessels?.source ?? "local-json";
 
   const fileDrivenMetrics = updateMetric(
-    metrics,
+    updateMetric(metrics, "Active vessels", String(dashboardVessels.length), source),
     "Reward index",
     rewardData.at(-1)?.[1].toFixed(3) ?? metrics[3].value,
     "from local CH-MARL episode"
   );
 
   return {
+    source,
     metrics: fileDrivenMetrics,
-    vessels: normalizedVessels.map(vesselStateToDashboardRow),
+    vessels: dashboardVessels,
     rewardTrend: rewardData.length > 0 ? rewardData : rewardTrend,
     constraintPressure: constraintData.length > 0 ? constraintData : constraintPressure,
     portUtilization,
