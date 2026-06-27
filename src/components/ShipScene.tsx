@@ -83,7 +83,12 @@ function statusClass(status: Vessel["status"]) {
 }
 
 function hasCoordinates(vessel: Vessel): vessel is Vessel & { latitude: number; longitude: number } {
-  return Number.isFinite(vessel.latitude) && Number.isFinite(vessel.longitude);
+  return (
+    typeof vessel.latitude === "number" &&
+    Number.isFinite(vessel.latitude) &&
+    typeof vessel.longitude === "number" &&
+    Number.isFinite(vessel.longitude)
+  );
 }
 
 function buildTileGrid() {
