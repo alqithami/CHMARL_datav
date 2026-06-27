@@ -1,22 +1,32 @@
-import { useEffect, useMemo, useState } from "react";
-import { ports, routes, vessels as fallbackVessels, type Vessel } from "@/data/chmarlData";
-import { loadRemoteDashboardVessels } from "@/providers/dashboardDataProvider";
-
-type Port = (typeof ports)[number];
+import { useMemo, useState } from "react";
+import { routes, vessels as fallbackVessels, type Vessel } from "@/data/chmarlData";
 
 type ShipSceneProps = {
   vessels?: Vessel[];
 };
 
-type ShipMarker = {
-  vessel: Vessel;
+type GeoPoint = {
+  lat: number;
+  lon: number;
+};
+
+type ProjectedPoint = {
   left: number;
   top: number;
+};
+
+type ShipMarker = ProjectedPoint & {
+  vessel: Vessel;
   heading: number;
   tone: "cyan" | "yellow" | "red" | "blue";
 };
 
-const shipPositions = [
+const MAP_CENTER: GeoPoint = { lat: 18.9, lon: 35.4 };
+const MAP_ZOOM = 6;
+const VIEWPORT_TILES_X = 8;
+const VIEWPORT_TILES_Y = 5.3;
+
+const fallbackShipPositions = [
   { left: 21, top: 60, heading: -8, tone: "yellow" as const },
   { left: 30, top: 36, heading: 18, tone: "cyan" as const },
   { left: 70, top: 42, heading: -35, tone: "red" as const },
@@ -24,11 +34,33 @@ const shipPositions = [
   { left: 75, top: 58, heading: -8, tone: "yellow" as const },
 ];
 
-function mapPosition(position: [number, number, number]) {
-  const [x, , z] = position;
+const portGeo: Record<string, GeoPoint> = {
+  Jeddah: { lat: 21.485, lon: 39.173 },
+  Yanbu: { lat: 24.086, lon: 38.063 },
+  Suez: { lat: 29.966, lon: 32.549 },
+  Dammam: { lat: 26.43, lon: 50.09 },
+  "Jebel Ali": { lat: 25.011, lon: 55.061 },
+  Jizan: { lat: 16.889, lon: 42.551 },
+};
+
+function lonToTileX(lon: number, zoom: number) {
+  return ((lon + 180) / 360) * 2 ** zoom;
+}
+
+function latToTileY(lat: number, zoom: number) {
+  const latRad = (lat * Math.PI) / 180;
+  return ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * 2 ** zoom;
+}
+
+function projectGeo(point: GeoPoint): ProjectedPoint {
+  const centerX = lonToTileX(MAP_CENTER.lon, MAP_ZOOM);
+  const centerY = latToTileY(MAP_CENTER.lat, MAP_ZOOM);
+  const x = lonToTileX(point.lon, MAP_ZOOM);
+  const y = latToTileY(point.lat, MAP_ZOOM);
+
   return {
-    left: ((x + 7) / 14) * 100,
-    top: ((5.8 - z) / 11.6) * 100,
+    left: 50 + ((x - centerX) * 100) / VIEWPORT_TILES_X,
+    top: 50 + ((y - centerY) * 100) / VIEWPORT_TILES_Y,
   };
 }
 
@@ -38,36 +70,68 @@ function routeColor(risk: string) {
   return "#65e4cb";
 }
 
+function toneForStatus(status: Vessel["status"]): ShipMarker["tone"] {
+  if (status === "Constrained") return "red";
+  if (status === "Watch") return "yellow";
+  return "cyan";
+}
+
 function statusClass(status: Vessel["status"]) {
   if (status === "Constrained") return "alert";
   if (status === "Watch") return "warning";
   return "nominal";
 }
 
+function hasCoordinates(vessel: Vessel): vessel is Vessel & { latitude: number; longitude: number } {
+  return Number.isFinite(vessel.latitude) && Number.isFinite(vessel.longitude);
+}
+
+function buildTileGrid() {
+  const centerX = lonToTileX(MAP_CENTER.lon, MAP_ZOOM);
+  const centerY = latToTileY(MAP_CENTER.lat, MAP_ZOOM);
+  const tileWidth = 100 / VIEWPORT_TILES_X;
+  const tileHeight = 100 / VIEWPORT_TILES_Y;
+  const baseX = Math.floor(centerX);
+  const baseY = Math.floor(centerY);
+  const maxTile = 2 ** MAP_ZOOM;
+  const tiles: { key: string; href: string; x: number; y: number; width: number; height: number }[] = [];
+
+  for (let dx = -5; dx <= 5; dx += 1) {
+    for (let dy = -4; dy <= 4; dy += 1) {
+      const tileX = baseX + dx;
+      const tileY = baseY + dy;
+      if (tileY < 0 || tileY >= maxTile) continue;
+      const wrappedX = ((tileX % maxTile) + maxTile) % maxTile;
+      tiles.push({
+        key: `${MAP_ZOOM}-${wrappedX}-${tileY}`,
+        href: `https://tile.openstreetmap.org/${MAP_ZOOM}/${wrappedX}/${tileY}.png`,
+        x: 50 + ((tileX - centerX) * 100) / VIEWPORT_TILES_X,
+        y: 50 + ((tileY - centerY) * 100) / VIEWPORT_TILES_Y,
+        width: tileWidth,
+        height: tileHeight,
+      });
+    }
+  }
+
+  return tiles;
+}
+
 export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps) {
-  const portMap = useMemo(() => new Map<string, Port>(ports.map((port) => [port.name, port])), []);
-  const [remoteVessels, setRemoteVessels] = useState<Vessel[] | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    loadRemoteDashboardVessels()
-      .then((result) => {
-        if (!active || !result) return;
-        setRemoteVessels(result.vessels);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const sceneVessels = remoteVessels ?? (vessels.length > 0 ? vessels : fallbackVessels);
+  const sceneVessels = vessels.length > 0 ? vessels : fallbackVessels;
+  const tileGrid = useMemo(buildTileGrid, []);
   const shipMarkers = useMemo<ShipMarker[]>(
     () =>
-      sceneVessels.map((vessel, index) => ({
-        vessel,
-        ...shipPositions[index % shipPositions.length],
-      })),
+      sceneVessels.map((vessel, index) => {
+        const fallback = fallbackShipPositions[index % fallbackShipPositions.length];
+        const projected = hasCoordinates(vessel) ? projectGeo({ lat: vessel.latitude, lon: vessel.longitude }) : fallback;
+        return {
+          vessel,
+          left: projected.left,
+          top: projected.top,
+          heading: vessel.headingDeg ?? vessel.courseDeg ?? fallback.heading,
+          tone: toneForStatus(vessel.status),
+        };
+      }),
     [sceneVessels]
   );
   const [selectedShipId, setSelectedShipId] = useState("");
@@ -82,63 +146,57 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
   return (
     <div className="scene-container static-map-container">
       <div
-        className={selectedShip ? "regional-map is-inspecting" : "regional-map"}
+        className={selectedShip ? "regional-map tile-map is-inspecting" : "regional-map tile-map"}
         style={mapStyle}
-        aria-label="CH-MARL maritime regional inspection map">
-        <svg className="regional-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="seaGradient" x1="0" x2="1" y1="0" y2="1">
-              <stop offset="0%" stopColor="rgba(15,80,106,0.45)" />
-              <stop offset="55%" stopColor="rgba(7,36,58,0.72)" />
-              <stop offset="100%" stopColor="rgba(2,10,20,0.95)" />
-            </linearGradient>
-            <linearGradient id="landGradient" x1="0" x2="1" y1="0" y2="1">
-              <stop offset="0%" stopColor="rgba(78,111,96,0.52)" />
-              <stop offset="100%" stopColor="rgba(28,61,62,0.72)" />
-            </linearGradient>
-          </defs>
-
-          <rect x="0" y="0" width="100" height="100" fill="url(#seaGradient)" />
-          <path className="map-landmass" d="M0 100 L0 0 L22 0 C19 15 18 27 22 39 C27 53 27 71 19 100 Z" />
-          <path className="map-landmass" d="M100 0 L100 100 L80 100 C84 82 86 65 83 50 C80 35 79 18 84 0 Z" />
-          <path className="map-landmass-secondary" d="M42 28 C48 25 55 26 60 31 C66 38 65 48 57 54 C50 59 42 57 37 50 C32 43 34 33 42 28 Z" />
-          <text x="12" y="88" className="map-region-label">Red Sea</text>
-          <text x="69" y="29" className="map-region-label">Arabian Gulf</text>
-          <text x="41" y="63" className="map-region-label subdued">Arabian Peninsula</text>
+        aria-label="CH-MARL maritime tile map inspection view">
+        <svg className="regional-map-svg tile-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+          {tileGrid.map((tile) => (
+            <image
+              key={tile.key}
+              href={tile.href}
+              x={tile.x}
+              y={tile.y}
+              width={tile.width}
+              height={tile.height}
+              opacity="0.78"
+              preserveAspectRatio="none"
+            />
+          ))}
+          <rect x="0" y="0" width="100" height="100" fill="rgba(2, 10, 20, 0.18)" />
 
           {routes.map((route) => {
-            const from = portMap.get(route.from);
-            const to = portMap.get(route.to);
+            const from = portGeo[route.from];
+            const to = portGeo[route.to];
             if (!from || !to) return null;
 
-            const start = mapPosition(from.position);
-            const end = mapPosition(to.position);
+            const start = projectGeo(from);
+            const end = projectGeo(to);
             const midX = (start.left + end.left) / 2;
-            const midY = Math.min(start.top, end.top) - 9;
+            const midY = Math.min(start.top, end.top) - 7;
 
             return (
               <path
                 key={`${route.from}-${route.to}`}
                 d={`M ${start.left} ${start.top} Q ${midX} ${midY} ${end.left} ${end.top}`}
                 stroke={routeColor(route.risk)}
-                strokeWidth="0.85"
-                strokeDasharray="2.5 1.8"
+                strokeWidth="0.55"
+                strokeDasharray="1.8 1.4"
                 fill="none"
-                opacity="0.88"
+                opacity="0.9"
               />
             );
           })}
         </svg>
 
-        {ports.map((port) => {
-          const point = mapPosition(port.position);
+        {Object.entries(portGeo).map(([name, geo]) => {
+          const point = projectGeo(geo);
           return (
             <div
-              key={port.name}
+              key={name}
               className="html-port-marker"
               style={{ left: `${point.left}%`, top: `${point.top}%` }}>
               <span className="html-port-dot" />
-              <span className="html-port-name">{port.name}</span>
+              <span className="html-port-name">{name}</span>
             </div>
           );
         })}
@@ -161,6 +219,8 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
         ))}
       </div>
 
+      <div className="tile-attribution">© OpenStreetMap contributors</div>
+
       {selectedShip && (
         <aside className="ship-inspector-card">
           <div className="ship-inspector-header">
@@ -176,6 +236,9 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
             <div><dt>Cargo</dt><dd>{selectedShip.vessel.cargo}</dd></div>
             <div><dt>ETA</dt><dd>{selectedShip.vessel.eta}</dd></div>
             <div><dt>Speed</dt><dd>{selectedShip.vessel.speed}</dd></div>
+            {hasCoordinates(selectedShip.vessel) && (
+              <div><dt>Position</dt><dd>{selectedShip.vessel.latitude.toFixed(3)}, {selectedShip.vessel.longitude.toFixed(3)}</dd></div>
+            )}
           </dl>
           <button type="button" onClick={() => setSelectedShipId("")}>Reset overview</button>
         </aside>
@@ -183,12 +246,12 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
 
       <div className="scene-overlay compact">
         <div className="overlay-box">
-          <strong>Inspect vessels</strong>
+          <strong>Tile map view</strong>
           Select a ship marker to focus the map and show vessel properties.
         </div>
         <div className="overlay-box">
-          <strong>Policy context</strong>
-          Routes and panels change with each CH-MARL scenario.
+          <strong>Red Sea focus</strong>
+          Map center: 35.4E, 18.9N, zoom 6.
         </div>
       </div>
     </div>
