@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ports, routes, vessels as fallbackVessels, type Vessel } from "@/data/chmarlData";
+import { loadRemoteDashboardVessels } from "@/providers/dashboardDataProvider";
 
 type Port = (typeof ports)[number];
 
@@ -45,7 +46,22 @@ function statusClass(status: Vessel["status"]) {
 
 export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps) {
   const portMap = useMemo(() => new Map<string, Port>(ports.map((port) => [port.name, port])), []);
-  const sceneVessels = vessels.length > 0 ? vessels : fallbackVessels;
+  const [remoteVessels, setRemoteVessels] = useState<Vessel[] | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    loadRemoteDashboardVessels()
+      .then((result) => {
+        if (!active || !result) return;
+        setRemoteVessels(result.vessels);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const sceneVessels = remoteVessels ?? (vessels.length > 0 ? vessels : fallbackVessels);
   const shipMarkers = useMemo<ShipMarker[]>(
     () =>
       sceneVessels.map((vessel, index) => ({
