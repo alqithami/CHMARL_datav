@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { RewardTrendPoint } from "@/data/chmarlData";
+import type { Metric, RewardTrendPoint } from "@/data/chmarlData";
 import { fallbackDashboardData, loadSampleDashboardData, type DashboardData } from "@/data/loadSampleDashboardData";
 import { scenarioCatalog } from "@/scenarios/scenarioCatalog";
 import ConstraintChart from "./charts/ConstraintChart";
@@ -11,20 +11,70 @@ import RewardTrend from "./charts/RewardTrend";
 import ShipScene from "./ShipScene";
 import VesselTable from "./VesselTable";
 
+const scenarioMetrics: Record<string, Metric[]> = {
+  baseline: [
+    { label: "Active vessels", value: "128", trend: "simulated regional fleet" },
+    { label: "Port calls", value: "42", trend: "scheduled next 24h" },
+    { label: "Constraint score", value: "96.4%", trend: "safe policy feasible" },
+    { label: "Reward index", value: "0.740", trend: "local episode sample" },
+    { label: "Avg ETA error", value: "18m", trend: "after replanning" },
+    { label: "CO₂ intensity", value: "7.8", trend: "kg / t-nm" },
+  ],
+  congestion: [
+    { label: "Active vessels", value: "174", trend: "+46 surge vessels" },
+    { label: "Port calls", value: "67", trend: "berth pressure high" },
+    { label: "Constraint score", value: "88.1%", trend: "capacity binding" },
+    { label: "Reward index", value: "0.691", trend: "recovery mode" },
+    { label: "Avg ETA error", value: "41m", trend: "queue delay" },
+    { label: "CO₂ intensity", value: "8.9", trend: "kg / t-nm" },
+  ],
+  disruption: [
+    { label: "Active vessels", value: "119", trend: "8 rerouted" },
+    { label: "Port calls", value: "35", trend: "reduced window" },
+    { label: "Constraint score", value: "91.7%", trend: "shield active" },
+    { label: "Reward index", value: "0.656", trend: "safety-first policy" },
+    { label: "Avg ETA error", value: "54m", trend: "route disruption" },
+    { label: "CO₂ intensity", value: "9.4", trend: "kg / t-nm" },
+  ],
+  "emissions-aware": [
+    { label: "Active vessels", value: "126", trend: "slow steaming" },
+    { label: "Port calls", value: "40", trend: "balanced arrivals" },
+    { label: "Constraint score", value: "97.2%", trend: "emissions feasible" },
+    { label: "Reward index", value: "0.762", trend: "fuel trade-off" },
+    { label: "Avg ETA error", value: "24m", trend: "+6m slow speed" },
+    { label: "CO₂ intensity", value: "6.3", trend: "kg / t-nm" },
+  ],
+  "fairness-aware": [
+    { label: "Active vessels", value: "132", trend: "priority rebalance" },
+    { label: "Port calls", value: "44", trend: "balanced service" },
+    { label: "Constraint score", value: "95.8%", trend: "fairness shield" },
+    { label: "Reward index", value: "0.826", trend: "lower service gap" },
+    { label: "Avg ETA error", value: "22m", trend: "variance reduced" },
+    { label: "CO₂ intensity", value: "7.6", trend: "kg / t-nm" },
+  ],
+};
+
 function shiftRewardTrend(data: RewardTrendPoint[], offset: number, slope: number): RewardTrendPoint[] {
   return data.map(([time, value], index) => [time, Number(Math.max(0.5, value + offset + index * slope).toFixed(3))]);
 }
 
 function getScenarioDashboardData(base: DashboardData, scenarioId: string): DashboardData {
+  const metrics = scenarioMetrics[scenarioId] ?? scenarioMetrics.baseline;
+
   if (scenarioId === "congestion") {
     return {
-      metrics: base.metrics.map((metric) =>
-        metric.label === "Active vessels" ? { ...metric, value: "174", trend: "+46 under surge" } : metric
-      ),
+      ...base,
+      metrics,
       vessels: base.vessels.map((vessel, index) => ({ ...vessel, status: index < 2 ? ("Watch" as const) : vessel.status })),
       rewardTrend: shiftRewardTrend(base.rewardTrend, -0.04, 0.002),
       constraintPressure: base.constraintPressure.map((item) => ({ ...item, value: Math.min(100, item.value + 18) })),
-      portUtilization: base.portUtilization.map((item) => ({ ...item, value: Math.min(100, item.value + 12) })),
+      portUtilization: [
+        { name: "Jeddah", value: 96 },
+        { name: "Dammam", value: 84 },
+        { name: "Yanbu", value: 79 },
+        { name: "Jizan", value: 63 },
+        { name: "KAEC", value: 71 },
+      ],
       timelineEvents: [
         { time: "T+00:03", title: "Congestion-aware policy selected", body: "Port agents rebalance arrivals under increased berth pressure." },
         ...base.timelineEvents,
@@ -34,13 +84,18 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
 
   if (scenarioId === "disruption") {
     return {
-      metrics: base.metrics.map((metric) =>
-        metric.label === "Avg ETA error" ? { ...metric, value: "54m", trend: "route disruption" } : metric
-      ),
+      ...base,
+      metrics,
       vessels: base.vessels.map((vessel, index) => ({ ...vessel, status: index === 2 ? ("Constrained" as const) : vessel.status })),
       rewardTrend: shiftRewardTrend(base.rewardTrend, -0.04, -0.006),
       constraintPressure: base.constraintPressure.map((item) => ({ ...item, value: item.name === "Channel safety" ? 93 : Math.min(100, item.value + 7) })),
-      portUtilization: base.portUtilization.map((item) => ({ ...item, value: Math.max(30, item.value - 8) })),
+      portUtilization: [
+        { name: "Jeddah", value: 66 },
+        { name: "Dammam", value: 74 },
+        { name: "Yanbu", value: 69 },
+        { name: "Jizan", value: 53 },
+        { name: "KAEC", value: 62 },
+      ],
       timelineEvents: [
         { time: "T+00:01", title: "Route disruption detected", body: "A high-risk corridor segment was marked unavailable for routing." },
         ...base.timelineEvents,
@@ -50,13 +105,11 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
 
   if (scenarioId === "emissions-aware") {
     return {
-      metrics: base.metrics.map((metric) =>
-        metric.label === "CO₂ intensity" ? { ...metric, value: "6.3", trend: "kg / t-nm" } : metric
-      ),
+      ...base,
+      metrics,
       vessels: base.vessels.map((vessel) => ({ ...vessel, speed: "11.0 kn" })),
       rewardTrend: shiftRewardTrend(base.rewardTrend, -0.02, 0.004),
       constraintPressure: base.constraintPressure.map((item) => ({ ...item, value: item.name === "Emissions cap" ? 35 : Math.max(30, item.value - 8) })),
-      portUtilization: base.portUtilization,
       timelineEvents: [
         { time: "T+00:04", title: "Emissions shield enabled", body: "Vessel speeds are reduced to keep fuel and emissions constraints feasible." },
         ...base.timelineEvents,
@@ -66,13 +119,17 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
 
   if (scenarioId === "fairness-aware") {
     return {
-      metrics: base.metrics.map((metric) =>
-        metric.label === "Reward index" ? { ...metric, value: "0.826", trend: "balanced allocation" } : metric
-      ),
-      vessels: base.vessels,
+      ...base,
+      metrics,
       rewardTrend: shiftRewardTrend(base.rewardTrend, -0.03, 0.003),
       constraintPressure: [...base.constraintPressure.slice(0, 4), { name: "Fairness gap", value: 31 }],
-      portUtilization: base.portUtilization.map((item) => ({ ...item, value: Math.round((item.value + 65) / 2) })),
+      portUtilization: [
+        { name: "Jeddah", value: 78 },
+        { name: "Dammam", value: 74 },
+        { name: "Yanbu", value: 68 },
+        { name: "Jizan", value: 59 },
+        { name: "KAEC", value: 66 },
+      ],
       timelineEvents: [
         { time: "T+00:05", title: "Fairness-aware policy selected", body: "Service variance is reduced across vessels, ports, and cargo classes." },
         ...base.timelineEvents,
@@ -80,7 +137,7 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
     };
   }
 
-  return base;
+  return { ...base, metrics };
 }
 
 export default function DashboardShell() {
@@ -118,7 +175,7 @@ export default function DashboardShell() {
           <div className="brand-kicker">CH-MARL Maritime Logistics</div>
           <h1 className="brand-title">Constrained Hierarchical MARL DataV Platform</h1>
           <p className="brand-subtitle">
-            A command-center interface for ship transportation, AIS-informed traffic, port operations, and policy evaluation.
+            Synthetic regional operations view for policy comparison before live AIS, port, and experiment-log connections.
           </p>
         </div>
         <div className="scenario-bar" aria-label="Scenario controls">
@@ -152,7 +209,7 @@ export default function DashboardShell() {
           </PanelCard>
         </div>
 
-        <PanelCard title="Maritime Operations Scene" tag="3D map" className="scene-panel">
+        <PanelCard title="Maritime Operations Scene" tag="static map" className="scene-panel">
           <ShipScene />
         </PanelCard>
 
@@ -165,7 +222,7 @@ export default function DashboardShell() {
           </PanelCard>
         </div>
 
-        <PanelCard title="Live Vessel State Table" tag="AIS-ready">
+        <PanelCard title="Sample Vessel State Table" tag="fixture">
           <VesselTable vessels={dashboardData.vessels} />
         </PanelCard>
       </section>
