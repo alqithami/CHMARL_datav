@@ -50,8 +50,8 @@ export default function ShipScene() {
       })),
     []
   );
-  const [selectedShipId, setSelectedShipId] = useState(shipMarkers[0]?.vessel.id ?? "");
-  const selectedShip = shipMarkers.find((ship) => ship.vessel.id === selectedShipId) ?? shipMarkers[0];
+  const [selectedShipId, setSelectedShipId] = useState("");
+  const selectedShip = selectedShipId ? shipMarkers.find((ship) => ship.vessel.id === selectedShipId) : undefined;
 
   const mapStyle = selectedShip
     ? {
