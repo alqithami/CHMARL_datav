@@ -2,7 +2,7 @@
 
 A Vite + React + TypeScript dashboard for CH-MARL maritime logistics experiments.
 
-The project is structured as a runnable CH-MARL interface scaffold with local JSON/GeoJSON sample fixtures, typed data contracts, adapter stubs, interactive scenario switching, remote vessel-feed support, and a documented roadmap for vessel, port-event, GeoJSON, experiment-log, scenario, and export integrations.
+The project is structured as a runnable CH-MARL interface scaffold with local JSON/GeoJSON sample fixtures, typed data contracts, adapter stubs, interactive scenario switching, remote vessel-feed support, refresh controls, and a documented roadmap for vessel, port-event, GeoJSON, experiment-log, scenario, and export integrations.
 
 ## Quick Start
 
@@ -40,6 +40,8 @@ Open port `5173` from the Codespaces **Ports** tab. The dashboard should show:
 Data: remote
 ```
 
+The dashboard refreshes vessel data every 30 seconds and also includes a manual **Refresh** button in the header.
+
 ## Current Status
 
 | Area | Status |
@@ -50,6 +52,7 @@ Data: remote
 | Local JSON sample data layer | Implemented in `public/data/` |
 | Remote vessel feed | Implemented through `VITE_VESSEL_DATA_URL` |
 | Local vessel-feed proxy | Implemented in `server/vessel-feed-proxy/` |
+| Manual and timed vessel refresh | Implemented |
 | Dashboard data loading | Implemented through `src/data/loadSampleDashboardData.ts` |
 | CH-MARL TypeScript contracts | Implemented in `src/types/chmarl.ts` |
 | Vessel/AIS adapter scaffold | Implemented in `src/adapters/aisAdapter.ts` |
