@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Metric, RewardTrendPoint } from "@/data/chmarlData";
 import { fallbackDashboardData, loadSampleDashboardData, type DashboardData } from "@/data/loadSampleDashboardData";
 import { scenarioCatalog } from "@/scenarios/scenarioCatalog";
@@ -53,6 +53,8 @@ const scenarioMetrics: Record<string, Metric[]> = {
     { label: "CO₂ intensity", value: "7.6", trend: "kg / t-nm" },
   ],
 };
+
+type FocusPanel = "reward" | "constraints" | "scene" | "ports" | "timeline" | "vessels";
 
 function shiftRewardTrend(data: RewardTrendPoint[], offset: number, slope: number): RewardTrendPoint[] {
   return data.map(([time, value], index) => [time, Number(Math.max(0.5, value + offset + index * slope).toFixed(3))]);
@@ -140,14 +142,28 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
   return { ...base, metrics };
 }
 
+function FocusModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+  return (
+    <div className="focus-backdrop" role="dialog" aria-modal="true" aria-label={title}>
+      <section className="focus-panel">
+        <header className="focus-header">
+          <h2>{title}</h2>
+          <button type="button" onClick={onClose}>Close</button>
+        </header>
+        <div className="focus-content">{children}</div>
+      </section>
+    </div>
+  );
+}
+
 export default function DashboardShell() {
   const [selectedScenarioId, setSelectedScenarioId] = useState("baseline");
   const [baseData, setBaseData] = useState<DashboardData>(fallbackDashboardData);
   const [dataSourceStatus, setDataSourceStatus] = useState<"loading" | "local-json" | "fallback">("loading");
+  const [focusPanel, setFocusPanel] = useState<FocusPanel | null>(null);
 
   useEffect(() => {
     let active = true;
-
     loadSampleDashboardData()
       .then((data) => {
         if (!active) return;
@@ -167,6 +183,16 @@ export default function DashboardShell() {
   }, []);
 
   const dashboardData = useMemo(() => getScenarioDashboardData(baseData, selectedScenarioId), [baseData, selectedScenarioId]);
+
+  const focusContent = (() => {
+    if (focusPanel === "reward") return { title: "Policy Reward Trend", content: <RewardTrend data={dashboardData.rewardTrend} /> };
+    if (focusPanel === "constraints") return { title: "Constraint Pressure", content: <ConstraintChart data={dashboardData.constraintPressure} /> };
+    if (focusPanel === "scene") return { title: "Maritime Operations Scene", content: <ShipScene /> };
+    if (focusPanel === "ports") return { title: "Port Utilization", content: <PortUtilizationChart data={dashboardData.portUtilization} /> };
+    if (focusPanel === "timeline") return { title: "Decision Timeline", content: <DecisionTimeline events={dashboardData.timelineEvents} /> };
+    if (focusPanel === "vessels") return { title: "Sample Vessel State Table", content: <VesselTable vessels={dashboardData.vessels} /> };
+    return null;
+  })();
 
   return (
     <main className="app-shell">
@@ -201,31 +227,37 @@ export default function DashboardShell() {
 
       <section className="dashboard-grid">
         <div className="left-stack">
-          <PanelCard title="Policy Reward Trend" tag={selectedScenarioId}>
+          <PanelCard title="Policy Reward Trend" tag={selectedScenarioId} onFocus={() => setFocusPanel("reward")}>
             <RewardTrend data={dashboardData.rewardTrend} />
           </PanelCard>
-          <PanelCard title="Constraint Pressure" tag="shield">
+          <PanelCard title="Constraint Pressure" tag="shield" onFocus={() => setFocusPanel("constraints")}>
             <ConstraintChart data={dashboardData.constraintPressure} />
           </PanelCard>
         </div>
 
-        <PanelCard title="Maritime Operations Scene" tag="static map" className="scene-panel">
+        <PanelCard title="Maritime Operations Scene" tag="static map" className="scene-panel" onFocus={() => setFocusPanel("scene")}>
           <ShipScene />
         </PanelCard>
 
         <div className="right-stack">
-          <PanelCard title="Port Utilization" tag="capacity">
+          <PanelCard title="Port Utilization" tag="capacity" onFocus={() => setFocusPanel("ports")}>
             <PortUtilizationChart data={dashboardData.portUtilization} />
           </PanelCard>
-          <PanelCard title="Decision Timeline" tag="hierarchy">
+          <PanelCard title="Decision Timeline" tag="hierarchy" onFocus={() => setFocusPanel("timeline")}>
             <DecisionTimeline events={dashboardData.timelineEvents} />
           </PanelCard>
         </div>
 
-        <PanelCard title="Sample Vessel State Table" tag="fixture">
+        <PanelCard title="Sample Vessel State Table" tag="fixture" onFocus={() => setFocusPanel("vessels")}>
           <VesselTable vessels={dashboardData.vessels} />
         </PanelCard>
       </section>
+
+      {focusContent && (
+        <FocusModal title={focusContent.title} onClose={() => setFocusPanel(null)}>
+          {focusContent.content}
+        </FocusModal>
+      )}
     </main>
   );
 }
