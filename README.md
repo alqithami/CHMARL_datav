@@ -47,7 +47,7 @@ The dashboard refreshes vessel data every 30 seconds and also includes a manual 
 | Area | Status |
 | --- | --- |
 | Dashboard shell | Implemented |
-| Vessel inspection map | Implemented with clickable ship markers and detail cards |
+| Vessel inspection map | Implemented with map tiles, clickable ship markers, and detail cards |
 | KPI, reward, constraint, port, timeline, and vessel-table panels | Implemented |
 | Local JSON sample data layer | Implemented in `public/data/` |
 | Remote vessel feed | Implemented through `VITE_VESSEL_DATA_URL` |
@@ -62,6 +62,12 @@ The dashboard refreshes vessel data every 30 seconds and also includes a manual 
 | Interactive scenario switching | Implemented |
 | Provider-specific live AIS connection | Planned behind the proxy |
 | Dashboard export tools | Planned |
+
+## Middle Map
+
+The center panel now uses a tile-based maritime map centered on the Red Sea region, with port markers, route overlays, clickable vessel figurines, and an inspection card for each selected vessel.
+
+The current tile layer uses OpenStreetMap map tiles with visible attribution. A Google Maps layer can be added later if a Google Maps Platform API key and billing project are available.
 
 ## Local Data Fixtures
 
