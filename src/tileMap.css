@@ -27,10 +27,9 @@
   z-index: 3;
 }
 
-.tile-map-controls {
+.tile-map-controls,
+.tile-filter-bar {
   position: absolute;
-  left: 12px;
-  top: 12px;
   z-index: 9;
   display: flex;
   align-items: center;
@@ -42,8 +41,21 @@
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.24);
 }
 
+.tile-map-controls {
+  left: 12px;
+  top: 12px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 24px);
+}
+
+.tile-filter-bar {
+  right: 12px;
+  top: 12px;
+}
+
 .tile-map-controls button,
-.tile-map-controls span {
+.tile-map-controls span,
+.tile-filter-bar button {
   min-width: 28px;
   height: 26px;
   padding: 0 9px;
@@ -55,11 +67,14 @@
   font-weight: 850;
 }
 
-.tile-map-controls button {
+.tile-map-controls button,
+.tile-filter-bar button {
   cursor: pointer;
 }
 
-.tile-map-controls button:hover {
+.tile-map-controls button:hover,
+.tile-filter-bar button:hover,
+.tile-filter-bar button.active {
   color: #04111f;
   background: #65e4cb;
 }
@@ -92,7 +107,31 @@
   top: 16px;
 }
 
+.focus-content .tile-filter-bar {
+  right: 16px;
+  top: 16px;
+}
+
 .focus-content .tile-attribution {
   left: 16px;
   bottom: 14px;
+}
+
+@media (max-width: 900px) {
+  .tile-map-controls,
+  .tile-filter-bar {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    justify-content: flex-start;
+    border-radius: 16px;
+  }
+
+  .tile-map-controls {
+    top: 10px;
+  }
+
+  .tile-filter-bar {
+    top: 58px;
+  }
 }
