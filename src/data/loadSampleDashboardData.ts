@@ -16,7 +16,6 @@ import {
   experimentStepsToTimelineEvents,
   normalizeAisBatch,
   normalizePortEventBatch,
-  summarizePortEvents,
   vesselStateToDashboardRow,
 } from "@/adapters";
 import type { RawAisVesselUpdate } from "@/adapters/aisAdapter";
@@ -69,21 +68,6 @@ function updateMetric(metricsList: Metric[], label: string, value: string, trend
   );
 }
 
-function portUtilizationFromEvents(portEvents: ReturnType<typeof normalizePortEventBatch>): ChartDatum[] {
-  const counts = new Map<string, number>();
-
-  portEvents.forEach((event) => {
-    counts.set(event.portId, (counts.get(event.portId) ?? 0) + 1);
-  });
-
-  const maxCount = Math.max(...Array.from(counts.values()), 1);
-
-  return Array.from(counts.entries()).map(([name, count]) => ({
-    name,
-    value: Math.max(12, Math.round((count / maxCount) * 100)),
-  }));
-}
-
 function toRewardTrend(points: (string | number)[][]): RewardTrendPoint[] {
   return points.map((point) => [String(point[0]), Number(point[1])] as RewardTrendPoint);
 }
@@ -97,22 +81,16 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
   ]);
 
   const normalizedVessels = normalizeAisBatch(rawVessels);
-  const normalizedPortEvents = normalizePortEventBatch(rawPortEvents);
-  const portSummary = summarizePortEvents(normalizedPortEvents);
+  normalizePortEventBatch(rawPortEvents);
   const rewardData = toRewardTrend(experimentStepsToRewardTrend(experimentSteps));
   const constraintData = experimentStepsToConstraintPressure(experimentSteps);
   const timelineData = experimentStepsToTimelineEvents(experimentSteps);
 
   const fileDrivenMetrics = updateMetric(
-    updateMetric(
-      updateMetric(metrics, "Active vessels", String(normalizedVessels.length), "from local AIS fixture"),
-      "Port calls",
-      String(portSummary.total),
-      "from local port-event fixture"
-    ),
+    metrics,
     "Reward index",
     rewardData.at(-1)?.[1].toFixed(3) ?? metrics[3].value,
-    "from local CH-MARL fixture"
+    "from local CH-MARL episode"
   );
 
   return {
@@ -120,7 +98,7 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     vessels: normalizedVessels.map(vesselStateToDashboardRow),
     rewardTrend: rewardData.length > 0 ? rewardData : rewardTrend,
     constraintPressure: constraintData.length > 0 ? constraintData : constraintPressure,
-    portUtilization: normalizedPortEvents.length > 0 ? portUtilizationFromEvents(normalizedPortEvents) : portUtilization,
+    portUtilization,
     timelineEvents: timelineData.length > 0 ? timelineData : timelineEvents,
   };
 }
