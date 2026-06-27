@@ -47,7 +47,7 @@ The dashboard refreshes vessel data every 30 seconds and also includes a manual 
 | Area | Status |
 | --- | --- |
 | Dashboard shell | Implemented |
-| Vessel inspection map | Implemented with map tiles, clickable ship markers, and detail cards |
+| Vessel inspection map | Implemented with map tiles, clickable ship markers, vessel trails, hover cards, filters, fit controls, and detail cards |
 | KPI, reward, constraint, port, timeline, and vessel-table panels | Implemented |
 | Local JSON sample data layer | Implemented in `public/data/` |
 | Remote vessel feed | Implemented through `VITE_VESSEL_DATA_URL` |
@@ -65,7 +65,7 @@ The dashboard refreshes vessel data every 30 seconds and also includes a manual 
 
 ## Middle Map
 
-The center panel now uses a tile-based maritime map centered on the Red Sea region, with port markers, route overlays, clickable vessel figurines, and an inspection card for each selected vessel.
+The center panel now uses a tile-based maritime map centered on the Red Sea region, with port markers, route overlays, clickable vessel figurines, hover cards, status filters, fit-to-vessels control, recent movement trails, and an inspection card for each selected vessel.
 
 The current tile layer uses OpenStreetMap map tiles with visible attribution. A Google Maps layer can be added later if a Google Maps Platform API key and billing project are available.
 
@@ -108,6 +108,20 @@ pnpm dev:proxy       # start proxy and dashboard from one terminal
 pnpm build           # type-check and build production output
 pnpm preview         # preview production build
 pnpm lint            # run ESLint
+```
+
+## CI
+
+The GitHub Actions build workflow is currently manual-only to avoid notification spam during rapid UI commits. Run it from:
+
+```text
+GitHub → Actions → CI → Run workflow
+```
+
+Local/Codespaces build validation remains:
+
+```bash
+pnpm build
 ```
 
 ## GitHub Pages Build
