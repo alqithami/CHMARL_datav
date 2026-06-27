@@ -18,6 +18,11 @@ type RemoteVesselRow = Partial<Vessel> & {
   speedKnots?: string | number;
   sog?: string | number;
   navStatus?: string;
+  lat?: string | number;
+  lon?: string | number;
+  lng?: string | number;
+  heading?: string | number;
+  cog?: string | number;
 };
 
 export type DashboardVesselFeed = {
@@ -47,6 +52,15 @@ function normalizeStatus(value: unknown): Vessel["status"] {
   return "Nominal";
 }
 
+function toNumber(value: unknown): number | undefined {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
 function formatSpeed(value: unknown): string {
   if (typeof value === "string" && value.trim().length > 0) {
     return value.toLowerCase().includes("kn") ? value : `${value} kn`;
@@ -60,6 +74,8 @@ function toDashboardVessel(row: RemoteVesselRow): Vessel {
   const id = row.id ?? row.vesselId ?? (row.mmsi ? `MMSI-${row.mmsi}` : row.imo ? `IMO-${row.imo}` : name);
   const origin = row.originPort ?? row.origin ?? "Unknown";
   const destination = row.destinationPort ?? row.destination ?? row.dest ?? "Unknown";
+  const latitude = toNumber(row.latitude ?? row.lat);
+  const longitude = toNumber(row.longitude ?? row.lon ?? row.lng);
 
   return {
     id: String(id),
@@ -69,6 +85,10 @@ function toDashboardVessel(row: RemoteVesselRow): Vessel {
     eta: row.eta ?? row.ETA ?? "TBD",
     speed: row.speed ?? formatSpeed(row.speedKnots ?? row.sog),
     status: row.status ?? normalizeStatus(row.navStatus),
+    latitude,
+    longitude,
+    headingDeg: toNumber(row.headingDeg ?? row.heading),
+    courseDeg: toNumber(row.courseDeg ?? row.cog),
   };
 }
 
