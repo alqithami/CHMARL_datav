@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Metric, RewardTrendPoint } from "@/data/chmarlData";
-import { fallbackDashboardData, loadSampleDashboardData, type DashboardData } from "@/data/loadSampleDashboardData";
+import { fallbackDashboardData, loadSampleDashboardData, type DashboardData, type DashboardDataSource } from "@/data/loadSampleDashboardData";
 import { scenarioCatalog } from "@/scenarios/scenarioCatalog";
 import ConstraintChart from "./charts/ConstraintChart";
 import DecisionTimeline from "./DecisionTimeline";
@@ -55,6 +55,7 @@ const scenarioMetrics: Record<string, Metric[]> = {
 };
 
 type FocusPanel = "reward" | "constraints" | "scene" | "ports" | "timeline" | "vessels";
+type LoadStatus = "loading" | DashboardDataSource;
 
 function shiftRewardTrend(data: RewardTrendPoint[], offset: number, slope: number): RewardTrendPoint[] {
   return data.map(([time, value], index) => [time, Number(Math.max(0.5, value + offset + index * slope).toFixed(3))]);
@@ -159,7 +160,7 @@ function FocusModal({ title, children, onClose }: { title: string; children: Rea
 export default function DashboardShell() {
   const [selectedScenarioId, setSelectedScenarioId] = useState("baseline");
   const [baseData, setBaseData] = useState<DashboardData>(fallbackDashboardData);
-  const [dataSourceStatus, setDataSourceStatus] = useState<"loading" | "local-json" | "fallback">("loading");
+  const [dataSourceStatus, setDataSourceStatus] = useState<LoadStatus>("loading");
   const [focusPanel, setFocusPanel] = useState<FocusPanel | null>(null);
 
   useEffect(() => {
@@ -168,10 +169,10 @@ export default function DashboardShell() {
       .then((data) => {
         if (!active) return;
         setBaseData(data);
-        setDataSourceStatus("local-json");
+        setDataSourceStatus(data.source);
       })
       .catch((error: unknown) => {
-        console.error("Failed to load public sample data fixtures. Falling back to bundled data.", error);
+        console.error("Failed to load dashboard data. Falling back to bundled data.", error);
         if (!active) return;
         setBaseData(fallbackDashboardData);
         setDataSourceStatus("fallback");
@@ -187,7 +188,7 @@ export default function DashboardShell() {
   const focusContent = (() => {
     if (focusPanel === "reward") return { title: "Policy Reward Trend", content: <RewardTrend data={dashboardData.rewardTrend} /> };
     if (focusPanel === "constraints") return { title: "Constraint Pressure", content: <ConstraintChart data={dashboardData.constraintPressure} /> };
-    if (focusPanel === "scene") return { title: "Maritime Operations Scene", content: <ShipScene /> };
+    if (focusPanel === "scene") return { title: "Maritime Operations Scene", content: <ShipScene vessels={dashboardData.vessels} /> };
     if (focusPanel === "ports") return { title: "Port Utilization", content: <PortUtilizationChart data={dashboardData.portUtilization} /> };
     if (focusPanel === "timeline") return { title: "Decision Timeline", content: <DecisionTimeline events={dashboardData.timelineEvents} /> };
     if (focusPanel === "vessels") return { title: "Sample Vessel State Table", content: <VesselTable vessels={dashboardData.vessels} /> };
@@ -201,7 +202,7 @@ export default function DashboardShell() {
           <div className="brand-kicker">CH-MARL Maritime Logistics</div>
           <h1 className="brand-title">Constrained Hierarchical MARL DataV Platform</h1>
           <p className="brand-subtitle">
-            Synthetic regional operations view for policy comparison before live AIS, port, and experiment-log connections.
+            Synthetic regional operations view for policy comparison before live vessel, port, and experiment-log connections.
           </p>
         </div>
         <div className="scenario-bar" aria-label="Scenario controls">
@@ -236,7 +237,7 @@ export default function DashboardShell() {
         </div>
 
         <PanelCard title="Maritime Operations Scene" tag="static map" className="scene-panel" onFocus={() => setFocusPanel("scene")}>
-          <ShipScene />
+          <ShipScene vessels={dashboardData.vessels} />
         </PanelCard>
 
         <div className="right-stack">
