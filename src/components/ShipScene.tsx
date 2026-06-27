@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { routes, vessels as fallbackVessels, type Vessel, type VesselTrailPoint } from "@/data/chmarlData";
+import type { PortEvent } from "@/types/chmarl";
 
 type ShipSceneProps = {
   vessels?: Vessel[];
+  portEvents?: PortEvent[];
 };
 
 type GeoPoint = {
@@ -49,6 +51,7 @@ const fallbackShipPositions = [
 
 const portGeo: Record<string, GeoPoint> = {
   Jeddah: { lat: 21.485, lon: 39.173 },
+  "King Abdullah Port": { lat: 22.393, lon: 39.097 },
   Yanbu: { lat: 24.086, lon: 38.063 },
   Suez: { lat: 29.966, lon: 32.549 },
   Dammam: { lat: 26.43, lon: 50.09 },
@@ -170,9 +173,23 @@ function buildTileGrid(center: GeoPoint, zoom: number): Tile[] {
   return tiles;
 }
 
+function labelForEvent(eventType: PortEvent["eventType"]) {
+  return eventType
+    .split("_")
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function eventClass(eventType: PortEvent["eventType"]) {
+  if (eventType === "departure" || eventType === "service_completed") return "complete";
+  if (eventType === "anchorage_entry" || eventType === "anchorage_exit") return "watch";
+  if (eventType === "berth_assigned" || eventType === "service_started") return "active";
+  return "arrival";
+}
+
 const filterOptions: VesselFilter[] = ["All", "Nominal", "Watch", "Constrained"];
 
-export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps) {
+export default function ShipScene({ vessels = fallbackVessels, portEvents = [] }: ShipSceneProps) {
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [manualCenter, setManualCenter] = useState<GeoPoint>(DEFAULT_CENTER);
   const [selectedShipId, setSelectedShipId] = useState("");
@@ -200,6 +217,18 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
         };
       }),
     [mapCenter, mapZoom, visibleVessels]
+  );
+  const eventMarkers = useMemo(
+    () =>
+      portEvents
+        .map((event) => {
+          const port = portGeo[event.portId];
+          if (!port) return null;
+          const point = projectGeo(port, mapCenter, mapZoom);
+          return { event, ...point };
+        })
+        .filter((event): event is { event: PortEvent; left: number; top: number } => event !== null),
+    [mapCenter, mapZoom, portEvents]
   );
   const selectedShip = selectedShipId ? shipMarkers.find((ship) => ship.vessel.id === selectedShipId) : undefined;
   const hoveredShip = hoveredShipId ? shipMarkers.find((ship) => ship.vessel.id === hoveredShipId) : undefined;
@@ -302,6 +331,16 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
           );
         })}
 
+        {eventMarkers.map(({ event, left, top }) => (
+          <div
+            key={event.eventId}
+            className={`port-event-marker ${eventClass(event.eventType)}`}
+            style={{ left: `${left}%`, top: `${top}%` }}
+            title={`${labelForEvent(event.eventType)} · ${event.portId}`}>
+            <span />
+          </div>
+        ))}
+
         {shipMarkers.map((ship) => (
           <button
             key={ship.vessel.id}
@@ -340,6 +379,7 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
         <button type="button" onClick={resetOverview}>Overview</button>
         <button type="button" onClick={fitVisibleVessels}>Fit vessels</button>
         <span>{visibleVessels.length}/{sceneVessels.length} vessels</span>
+        <span>{eventMarkers.length} events</span>
         <span>Zoom {mapZoom}</span>
       </div>
 
@@ -373,6 +413,21 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
               onClick={() => selectVessel(vessel.id)}>
               <span>{vessel.name}</span>
               <small>{vessel.status} · {vessel.speed}</small>
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      <aside className="tile-event-list" aria-label="Port event list">
+        <div className="tile-vessel-list-header">
+          <strong>Port events</strong>
+          <span>{eventMarkers.length}</span>
+        </div>
+        <div className="tile-vessel-list-items">
+          {eventMarkers.slice(0, 6).map(({ event }) => (
+            <button key={event.eventId} type="button">
+              <span>{labelForEvent(event.eventType)}</span>
+              <small>{event.portId} · {event.timestamp}</small>
             </button>
           ))}
         </div>
@@ -412,8 +467,8 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
           Select a ship marker to focus the map and show vessel properties.
         </div>
         <div className="overlay-box">
-          <strong>Trails + list</strong>
-          Hover for quick details, inspect vessels, or review recent movement trails.
+          <strong>Vessels + port events</strong>
+          Inspect movement trails and operational port events together.
         </div>
       </div>
     </div>
