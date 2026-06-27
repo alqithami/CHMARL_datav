@@ -12,6 +12,11 @@ export type Vessel = {
   eta: string;
   speed: string;
   status: "Nominal" | "Watch" | "Constrained";
+  latitude?: number;
+  longitude?: number;
+  headingDeg?: number;
+  courseDeg?: number;
+  timestamp?: string;
 };
 
 export type TimelineEvent = {
@@ -40,6 +45,9 @@ export const vessels: Vessel[] = [
     eta: "04:20 UTC",
     speed: "14.8 kn",
     status: "Nominal",
+    latitude: 21.45,
+    longitude: 39.12,
+    courseDeg: 322,
   },
   {
     id: "MMSI-403882",
@@ -49,6 +57,9 @@ export const vessels: Vessel[] = [
     eta: "07:55 UTC",
     speed: "11.2 kn",
     status: "Watch",
+    latitude: 26.43,
+    longitude: 50.09,
+    courseDeg: 112,
   },
   {
     id: "MMSI-636719",
@@ -58,6 +69,9 @@ export const vessels: Vessel[] = [
     eta: "11:10 UTC",
     speed: "10.1 kn",
     status: "Constrained",
+    latitude: 24.05,
+    longitude: 37.88,
+    courseDeg: 7,
   },
   {
     id: "MMSI-370441",
@@ -67,6 +81,9 @@ export const vessels: Vessel[] = [
     eta: "14:35 UTC",
     speed: "12.6 kn",
     status: "Nominal",
+    latitude: 16.89,
+    longitude: 42.55,
+    courseDeg: 208,
   },
   {
     id: "MMSI-565902",
@@ -76,6 +93,9 @@ export const vessels: Vessel[] = [
     eta: "18:05 UTC",
     speed: "16.4 kn",
     status: "Watch",
+    latitude: 22.72,
+    longitude: 38.98,
+    courseDeg: 352,
   },
 ];
 
