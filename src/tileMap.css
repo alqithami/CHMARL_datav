@@ -22,6 +22,25 @@
   filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.65));
 }
 
+.vessel-trail {
+  stroke: rgba(101, 228, 203, 0.82);
+  stroke-width: 0.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1.2 1.1;
+  filter: drop-shadow(0 0 5px rgba(101, 228, 203, 0.58));
+}
+
+.vessel-trail.warning {
+  stroke: rgba(255, 215, 128, 0.86);
+  filter: drop-shadow(0 0 5px rgba(255, 215, 128, 0.55));
+}
+
+.vessel-trail.alert {
+  stroke: rgba(255, 116, 116, 0.9);
+  filter: drop-shadow(0 0 5px rgba(255, 116, 116, 0.55));
+}
+
 .tile-map .html-port-marker,
 .tile-map .ship-figurine {
   z-index: 3;
