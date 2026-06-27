@@ -44,7 +44,7 @@ The endpoint may return an array directly:
 ]
 ```
 
-Or an object with `vessels`:
+Or an object with `vessels`, `data`, or `items`:
 
 ```json
 {
@@ -62,25 +62,7 @@ Or an object with `vessels`:
 }
 ```
 
-Or an object with `data`:
-
-```json
-{
-  "data": [
-    {
-      "id": "MMSI-636020259",
-      "name": "SUNNY HONOR",
-      "route": "Jeddah → Jeddah",
-      "cargo": "Bulk Carrier",
-      "eta": "Arrived",
-      "speed": "0.0 kn",
-      "status": "Nominal"
-    }
-  ]
-}
-```
-
-## Required Dashboard Vessel Row
+## Preferred Dashboard Vessel Row
 
 ```ts
 type Vessel = {
@@ -93,6 +75,30 @@ type Vessel = {
   status: "Nominal" | "Watch" | "Constrained";
 };
 ```
+
+## Raw Vessel Rows Also Work
+
+The frontend provider now also normalizes common raw vessel fields. This means the endpoint may return rows like:
+
+```json
+{
+  "vessels": [
+    {
+      "mmsi": "636020259",
+      "imo": "9267106",
+      "vesselName": "SUNNY HONOR",
+      "vesselType": "Bulk Carrier",
+      "originPort": "Jeddah",
+      "destinationPort": "Jeddah",
+      "speedKnots": 0,
+      "eta": "Arrived",
+      "navStatus": "Moored"
+    }
+  ]
+}
+```
+
+The provider maps those rows into the dashboard vessel row shape automatically.
 
 ## Security Rule
 
