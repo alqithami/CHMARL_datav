@@ -21,7 +21,7 @@ import {
 import type { RawAisVesselUpdate } from "@/adapters/aisAdapter";
 import type { RawPortEvent } from "@/adapters/portEventAdapter";
 import { loadRemoteDashboardVessels } from "@/providers/dashboardDataProvider";
-import type { ChmarlExperimentStep } from "@/types/chmarl";
+import type { ChmarlExperimentStep, PortEvent } from "@/types/chmarl";
 
 export type ChartDatum = {
   name: string;
@@ -34,6 +34,7 @@ export type DashboardData = {
   source: DashboardDataSource;
   metrics: Metric[];
   vessels: Vessel[];
+  portEvents: PortEvent[];
   rewardTrend: RewardTrendPoint[];
   constraintPressure: ChartDatum[];
   portUtilization: ChartDatum[];
@@ -44,6 +45,7 @@ export const fallbackDashboardData: DashboardData = {
   source: "fallback",
   metrics,
   vessels,
+  portEvents: [],
   rewardTrend,
   constraintPressure,
   portUtilization,
@@ -82,7 +84,7 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
 
   const localVessels = normalizeAisBatch(rawVessels).map(vesselStateToDashboardRow);
   const dashboardVessels = remoteVessels?.vessels ?? localVessels;
-  normalizePortEventBatch(rawPortEvents);
+  const normalizedPortEvents = normalizePortEventBatch(rawPortEvents);
   const rewardData = toRewardTrend(experimentStepsToRewardTrend(experimentSteps));
   const constraintData = experimentStepsToConstraintPressure(experimentSteps);
   const timelineData = experimentStepsToTimelineEvents(experimentSteps);
@@ -99,6 +101,7 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     source,
     metrics: fileDrivenMetrics,
     vessels: dashboardVessels,
+    portEvents: normalizedPortEvents,
     rewardTrend: rewardData.length > 0 ? rewardData : rewardTrend,
     constraintPressure: constraintData.length > 0 ? constraintData : constraintPressure,
     portUtilization,
