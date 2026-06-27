@@ -4,14 +4,22 @@ export type PanelCardProps = PropsWithChildren<{
   title: string;
   tag?: string;
   className?: string;
+  onFocus?: () => void;
 }>;
 
-export default function PanelCard({ title, tag, className = "", children }: PanelCardProps) {
+export default function PanelCard({ title, tag, className = "", onFocus, children }: PanelCardProps) {
   return (
     <section className={`panel-card ${className}`.trim()}>
       <header className="panel-header">
         <h2 className="panel-title">{title}</h2>
-        {tag && <span className="panel-tag">{tag}</span>}
+        <div className="panel-actions">
+          {tag && <span className="panel-tag">{tag}</span>}
+          {onFocus && (
+            <button type="button" className="panel-focus-button" onClick={onFocus}>
+              Expand
+            </button>
+          )}
+        </div>
       </header>
       {children}
     </section>
