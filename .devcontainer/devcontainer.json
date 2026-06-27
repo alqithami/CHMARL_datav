@@ -1,0 +1,23 @@
+{
+  "name": "CH-MARL DataV",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "forwardPorts": [5173, 8787],
+  "portsAttributes": {
+    "5173": {
+      "label": "CH-MARL Dashboard",
+      "onAutoForward": "openBrowser"
+    },
+    "8787": {
+      "label": "Vessel Feed Proxy",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "corepack enable && pnpm install --no-frozen-lockfile",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  }
+}
