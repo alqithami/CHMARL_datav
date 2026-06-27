@@ -156,6 +156,18 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
   return { ...base, metrics };
 }
 
+function sourceLabel(source: DashboardDataSource) {
+  if (source === "remote") return "Remote proxy";
+  if (source === "local-json") return "Local fixtures";
+  return "Bundled fallback";
+}
+
+function statusLabel(status: LoadStatus) {
+  if (status === "loading") return "Loading";
+  if (status === "refreshing") return "Refreshing";
+  return sourceLabel(status);
+}
+
 function FocusModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return (
     <div className="focus-backdrop" role="dialog" aria-modal="true" aria-label={title}>
@@ -211,6 +223,9 @@ export default function DashboardShell() {
   }, [refreshData]);
 
   const dashboardData = useMemo(() => getScenarioDashboardData(baseData, selectedScenarioId), [baseData, selectedScenarioId]);
+  const trailCount = dashboardData.vessels.filter((vessel) => vessel.trail && vessel.trail.length > 1).length;
+  const eventCount = dashboardData.portEvents.length;
+  const providerState = statusLabel(dataSourceStatus);
 
   const focusContent = (() => {
     if (focusPanel === "reward") return { title: "Policy Reward Trend", content: <RewardTrend data={dashboardData.rewardTrend} /> };
@@ -248,6 +263,34 @@ export default function DashboardShell() {
           ))}
         </div>
       </header>
+
+      <section className="data-health-grid" aria-label="Provider and data health">
+        <div className="data-health-card primary">
+          <span>Provider state</span>
+          <strong>{providerState}</strong>
+          <small>{baseData.source === "remote" ? "VITE_VESSEL_DATA_URL active" : "Using non-remote data path"}</small>
+        </div>
+        <div className="data-health-card">
+          <span>Vessels</span>
+          <strong>{dashboardData.vessels.length}</strong>
+          <small>{trailCount} with movement trails</small>
+        </div>
+        <div className="data-health-card">
+          <span>Port events</span>
+          <strong>{eventCount}</strong>
+          <small>Mapped to known ports</small>
+        </div>
+        <div className="data-health-card">
+          <span>Refresh cadence</span>
+          <strong>30s</strong>
+          <small>Manual refresh available</small>
+        </div>
+        <div className="data-health-card">
+          <span>Scenario</span>
+          <strong>{selectedScenarioId}</strong>
+          <small>UI policy transform active</small>
+        </div>
+      </section>
 
       <section className="metrics-grid" aria-label="CH-MARL performance metrics">
         {dashboardData.metrics.map((metric) => (
