@@ -13,6 +13,9 @@ const fallbackVessels = [
     eta: "04:20 UTC",
     speed: "14.8 kn",
     status: "Nominal",
+    latitude: 21.45,
+    longitude: 39.12,
+    courseDeg: 322,
   },
   {
     id: "MMSI-636719",
@@ -22,6 +25,9 @@ const fallbackVessels = [
     eta: "11:10 UTC",
     speed: "10.1 kn",
     status: "Constrained",
+    latitude: 24.05,
+    longitude: 37.88,
+    courseDeg: 7,
   },
 ];
 
@@ -45,6 +51,15 @@ function normalizeStatus(value) {
 function numberToSpeed(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? `${parsed.toFixed(1)} kn` : "TBD";
+}
+
+function optionalNumber(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
 }
 
 function extractRows(payload) {
@@ -72,6 +87,10 @@ function normalizeVessel(row) {
     eta: String(row.eta ?? row.ETA ?? "TBD"),
     speed: typeof speedValue === "string" && speedValue.includes("kn") ? speedValue : numberToSpeed(speedValue),
     status: normalizeStatus(row.status ?? row.navStatus),
+    latitude: optionalNumber(row.latitude ?? row.lat),
+    longitude: optionalNumber(row.longitude ?? row.lon ?? row.lng),
+    headingDeg: optionalNumber(row.headingDeg ?? row.heading),
+    courseDeg: optionalNumber(row.courseDeg ?? row.cog),
   };
 }
 
