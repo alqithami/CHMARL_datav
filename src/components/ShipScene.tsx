@@ -1,11 +1,14 @@
 import { useMemo, useState } from "react";
-import { ports, routes, vessels } from "@/data/chmarlData";
+import { ports, routes, vessels as fallbackVessels, type Vessel } from "@/data/chmarlData";
 
 type Port = (typeof ports)[number];
-type VesselRow = (typeof vessels)[number];
+
+type ShipSceneProps = {
+  vessels?: Vessel[];
+};
 
 type ShipMarker = {
-  vessel: VesselRow;
+  vessel: Vessel;
   left: number;
   top: number;
   heading: number;
@@ -34,21 +37,22 @@ function routeColor(risk: string) {
   return "#65e4cb";
 }
 
-function statusClass(status: VesselRow["status"]) {
+function statusClass(status: Vessel["status"]) {
   if (status === "Constrained") return "alert";
   if (status === "Watch") return "warning";
   return "nominal";
 }
 
-export default function ShipScene() {
+export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps) {
   const portMap = useMemo(() => new Map<string, Port>(ports.map((port) => [port.name, port])), []);
+  const sceneVessels = vessels.length > 0 ? vessels : fallbackVessels;
   const shipMarkers = useMemo<ShipMarker[]>(
     () =>
-      vessels.map((vessel, index) => ({
+      sceneVessels.map((vessel, index) => ({
         vessel,
         ...shipPositions[index % shipPositions.length],
       })),
-    []
+    [sceneVessels]
   );
   const [selectedShipId, setSelectedShipId] = useState("");
   const selectedShip = selectedShipId ? shipMarkers.find((ship) => ship.vessel.id === selectedShipId) : undefined;
