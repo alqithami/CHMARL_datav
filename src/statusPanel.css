@@ -1,0 +1,72 @@
+.data-health-grid {
+  display: grid;
+  grid-template-columns: 1.35fr repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.data-health-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 76px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(141, 228, 255, 0.14);
+  background: linear-gradient(180deg, rgba(12, 38, 64, 0.58), rgba(5, 20, 34, 0.74));
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.20);
+}
+
+.data-health-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(120deg, rgba(101, 228, 203, 0.10), transparent 42%, rgba(141, 220, 255, 0.06));
+}
+
+.data-health-card.primary {
+  border-color: rgba(101, 228, 203, 0.28);
+  background: linear-gradient(180deg, rgba(9, 54, 71, 0.72), rgba(4, 25, 39, 0.84));
+}
+
+.data-health-card span,
+.data-health-card strong,
+.data-health-card small {
+  position: relative;
+  z-index: 1;
+  display: block;
+}
+
+.data-health-card span {
+  color: rgba(230, 247, 255, 0.58);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+
+.data-health-card strong {
+  margin-top: 7px;
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1.05;
+}
+
+.data-health-card small {
+  margin-top: 6px;
+  color: rgba(101, 228, 203, 0.76);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+@media (max-width: 1280px) {
+  .data-health-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .data-health-grid {
+    grid-template-columns: 1fr;
+  }
+}
