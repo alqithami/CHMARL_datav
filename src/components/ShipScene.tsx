@@ -30,6 +30,8 @@ type Tile = {
   height: number;
 };
 
+type VesselFilter = "All" | Vessel["status"];
+
 const DEFAULT_CENTER: GeoPoint = { lat: 18.9, lon: 35.4 };
 const DEFAULT_ZOOM = 6;
 const MIN_ZOOM = 5;
@@ -107,6 +109,21 @@ function geoFromVessel(vessel: Vessel | undefined): GeoPoint | undefined {
   return { lat: vessel.latitude, lon: vessel.longitude };
 }
 
+function centerOfVessels(vessels: Vessel[]): GeoPoint | undefined {
+  const points = vessels.filter(hasCoordinates);
+  if (points.length === 0) return undefined;
+
+  const total = points.reduce(
+    (sum, vessel) => ({ lat: sum.lat + vessel.latitude, lon: sum.lon + vessel.longitude }),
+    { lat: 0, lon: 0 }
+  );
+
+  return {
+    lat: total.lat / points.length,
+    lon: total.lon / points.length,
+  };
+}
+
 function buildTileGrid(center: GeoPoint, zoom: number): Tile[] {
   const centerX = lonToTileX(center.lon, zoom);
   const centerY = latToTileY(center.lat, zoom);
@@ -137,16 +154,24 @@ function buildTileGrid(center: GeoPoint, zoom: number): Tile[] {
   return tiles;
 }
 
+const filterOptions: VesselFilter[] = ["All", "Nominal", "Watch", "Constrained"];
+
 export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps) {
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
+  const [manualCenter, setManualCenter] = useState<GeoPoint>(DEFAULT_CENTER);
   const [selectedShipId, setSelectedShipId] = useState("");
+  const [filter, setFilter] = useState<VesselFilter>("All");
   const sceneVessels = vessels.length > 0 ? vessels : fallbackVessels;
-  const selectedVessel = selectedShipId ? sceneVessels.find((vessel) => vessel.id === selectedShipId) : undefined;
-  const mapCenter = geoFromVessel(selectedVessel) ?? DEFAULT_CENTER;
+  const visibleVessels = useMemo(
+    () => (filter === "All" ? sceneVessels : sceneVessels.filter((vessel) => vessel.status === filter)),
+    [filter, sceneVessels]
+  );
+  const selectedVessel = selectedShipId ? visibleVessels.find((vessel) => vessel.id === selectedShipId) : undefined;
+  const mapCenter = geoFromVessel(selectedVessel) ?? manualCenter;
   const tileGrid = useMemo(() => buildTileGrid(mapCenter, mapZoom), [mapCenter, mapZoom]);
   const shipMarkers = useMemo<ShipMarker[]>(
     () =>
-      sceneVessels.map((vessel, index) => {
+      visibleVessels.map((vessel, index) => {
         const fallback = fallbackShipPositions[index % fallbackShipPositions.length];
         const projected = hasCoordinates(vessel) ? projectGeo({ lat: vessel.latitude, lon: vessel.longitude }, mapCenter, mapZoom) : fallback;
         return {
@@ -157,7 +182,7 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
           tone: toneForStatus(vessel.status),
         };
       }),
-    [mapCenter, mapZoom, sceneVessels]
+    [mapCenter, mapZoom, visibleVessels]
   );
   const selectedShip = selectedShipId ? shipMarkers.find((ship) => ship.vessel.id === selectedShipId) : undefined;
 
@@ -166,6 +191,19 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
         transformOrigin: `${selectedShip.left}% ${selectedShip.top}%`,
       }
     : undefined;
+
+  const fitVisibleVessels = () => {
+    const center = centerOfVessels(visibleVessels);
+    if (center) setManualCenter(center);
+    setSelectedShipId("");
+    setMapZoom(7);
+  };
+
+  const resetOverview = () => {
+    setSelectedShipId("");
+    setManualCenter(DEFAULT_CENTER);
+    setMapZoom(DEFAULT_ZOOM);
+  };
 
   return (
     <div className="scene-container static-map-container">
@@ -246,8 +284,25 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
       <div className="tile-map-controls">
         <button type="button" onClick={() => setMapZoom((zoom) => Math.min(MAX_ZOOM, zoom + 1))}>+</button>
         <button type="button" onClick={() => setMapZoom((zoom) => Math.max(MIN_ZOOM, zoom - 1))}>−</button>
-        <button type="button" onClick={() => setSelectedShipId("")}>Overview</button>
+        <button type="button" onClick={resetOverview}>Overview</button>
+        <button type="button" onClick={fitVisibleVessels}>Fit vessels</button>
+        <span>{visibleVessels.length}/{sceneVessels.length} vessels</span>
         <span>Zoom {mapZoom}</span>
+      </div>
+
+      <div className="tile-filter-bar" aria-label="Vessel status filter">
+        {filterOptions.map((option) => (
+          <button
+            key={option}
+            type="button"
+            className={filter === option ? "active" : ""}
+            onClick={() => {
+              setFilter(option);
+              setSelectedShipId("");
+            }}>
+            {option}
+          </button>
+        ))}
       </div>
 
       <div className="tile-attribution">© OpenStreetMap contributors</div>
@@ -281,8 +336,8 @@ export default function ShipScene({ vessels = fallbackVessels }: ShipSceneProps)
           Select a ship marker to focus the map and show vessel properties.
         </div>
         <div className="overlay-box">
-          <strong>Red Sea focus</strong>
-          Map center: 35.4E, 18.9N, zoom 6.
+          <strong>Filter + fit</strong>
+          Filter vessels by status or fit the visible fleet.
         </div>
       </div>
     </div>
