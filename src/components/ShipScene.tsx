@@ -1,7 +1,24 @@
-import { useMemo } from "react";
-import { ports, routes } from "@/data/chmarlData";
+import { useMemo, useState } from "react";
+import { ports, routes, vessels } from "@/data/chmarlData";
 
 type Port = (typeof ports)[number];
+type VesselRow = (typeof vessels)[number];
+
+type ShipMarker = {
+  vessel: VesselRow;
+  left: number;
+  top: number;
+  heading: number;
+  tone: "cyan" | "yellow" | "red" | "blue";
+};
+
+const shipPositions = [
+  { left: 21, top: 60, heading: -8, tone: "yellow" as const },
+  { left: 30, top: 36, heading: 18, tone: "cyan" as const },
+  { left: 70, top: 42, heading: -35, tone: "red" as const },
+  { left: 18, top: 78, heading: 12, tone: "blue" as const },
+  { left: 75, top: 58, heading: -8, tone: "yellow" as const },
+];
 
 function mapPosition(position: [number, number, number]) {
   const [x, , z] = position;
@@ -17,12 +34,37 @@ function routeColor(risk: string) {
   return "#65e4cb";
 }
 
+function statusClass(status: VesselRow["status"]) {
+  if (status === "Constrained") return "alert";
+  if (status === "Watch") return "warning";
+  return "nominal";
+}
+
 export default function ShipScene() {
   const portMap = useMemo(() => new Map<string, Port>(ports.map((port) => [port.name, port])), []);
+  const shipMarkers = useMemo<ShipMarker[]>(
+    () =>
+      vessels.map((vessel, index) => ({
+        vessel,
+        ...shipPositions[index % shipPositions.length],
+      })),
+    []
+  );
+  const [selectedShipId, setSelectedShipId] = useState(shipMarkers[0]?.vessel.id ?? "");
+  const selectedShip = shipMarkers.find((ship) => ship.vessel.id === selectedShipId) ?? shipMarkers[0];
+
+  const mapStyle = selectedShip
+    ? {
+        transformOrigin: `${selectedShip.left}% ${selectedShip.top}%`,
+      }
+    : undefined;
 
   return (
     <div className="scene-container static-map-container">
-      <div className="regional-map" aria-label="CH-MARL maritime regional schematic map">
+      <div
+        className={selectedShip ? "regional-map is-inspecting" : "regional-map"}
+        style={mapStyle}
+        aria-label="CH-MARL maritime regional inspection map">
         <svg className="regional-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
           <defs>
             <linearGradient id="seaGradient" x1="0" x2="1" y1="0" y2="1">
@@ -37,20 +79,9 @@ export default function ShipScene() {
           </defs>
 
           <rect x="0" y="0" width="100" height="100" fill="url(#seaGradient)" />
-
-          <path
-            className="map-landmass"
-            d="M0 100 L0 0 L22 0 C19 15 18 27 22 39 C27 53 27 71 19 100 Z"
-          />
-          <path
-            className="map-landmass"
-            d="M100 0 L100 100 L80 100 C84 82 86 65 83 50 C80 35 79 18 84 0 Z"
-          />
-          <path
-            className="map-landmass-secondary"
-            d="M42 28 C48 25 55 26 60 31 C66 38 65 48 57 54 C50 59 42 57 37 50 C32 43 34 33 42 28 Z"
-          />
-
+          <path className="map-landmass" d="M0 100 L0 0 L22 0 C19 15 18 27 22 39 C27 53 27 71 19 100 Z" />
+          <path className="map-landmass" d="M100 0 L100 100 L80 100 C84 82 86 65 83 50 C80 35 79 18 84 0 Z" />
+          <path className="map-landmass-secondary" d="M42 28 C48 25 55 26 60 31 C66 38 65 48 57 54 C50 59 42 57 37 50 C32 43 34 33 42 28 Z" />
           <text x="12" y="88" className="map-region-label">Red Sea</text>
           <text x="69" y="29" className="map-region-label">Arabian Gulf</text>
           <text x="41" y="63" className="map-region-label subdued">Arabian Peninsula</text>
@@ -70,10 +101,10 @@ export default function ShipScene() {
                 key={`${route.from}-${route.to}`}
                 d={`M ${start.left} ${start.top} Q ${midX} ${midY} ${end.left} ${end.top}`}
                 stroke={routeColor(route.risk)}
-                strokeWidth="0.9"
-                strokeDasharray="3 2"
+                strokeWidth="0.85"
+                strokeDasharray="2.5 1.8"
                 fill="none"
-                opacity="0.95"
+                opacity="0.88"
               />
             );
           })}
@@ -92,19 +123,52 @@ export default function ShipScene() {
           );
         })}
 
-        <div className="html-vessel vessel-one" title="Sample vessel" />
-        <div className="html-vessel vessel-two" title="Sample vessel" />
-        <div className="html-vessel vessel-three" title="Sample vessel" />
+        {shipMarkers.map((ship) => (
+          <button
+            key={ship.vessel.id}
+            type="button"
+            aria-label={`Inspect ${ship.vessel.name}`}
+            title={`Inspect ${ship.vessel.name}`}
+            className={`ship-figurine ${ship.tone} ${ship.vessel.id === selectedShipId ? "selected" : ""}`}
+            style={{
+              left: `${ship.left}%`,
+              top: `${ship.top}%`,
+              transform: `translate(-50%, -50%) rotate(${ship.heading}deg)`,
+            }}
+            onClick={() => setSelectedShipId(ship.vessel.id)}>
+            <span />
+          </button>
+        ))}
       </div>
+
+      {selectedShip && (
+        <aside className="ship-inspector-card">
+          <div className="ship-inspector-header">
+            <div>
+              <span className="ship-inspector-kicker">Selected vessel</span>
+              <h3>{selectedShip.vessel.name}</h3>
+            </div>
+            <span className={`ship-status ${statusClass(selectedShip.vessel.status)}`}>{selectedShip.vessel.status}</span>
+          </div>
+          <dl>
+            <div><dt>ID</dt><dd>{selectedShip.vessel.id}</dd></div>
+            <div><dt>Route</dt><dd>{selectedShip.vessel.route}</dd></div>
+            <div><dt>Cargo</dt><dd>{selectedShip.vessel.cargo}</dd></div>
+            <div><dt>ETA</dt><dd>{selectedShip.vessel.eta}</dd></div>
+            <div><dt>Speed</dt><dd>{selectedShip.vessel.speed}</dd></div>
+          </dl>
+          <button type="button" onClick={() => setSelectedShipId("")}>Reset overview</button>
+        </aside>
+      )}
 
       <div className="scene-overlay compact">
         <div className="overlay-box">
-          <strong>Static regional view</strong>
-          Synthetic corridors and ports for comparing CH-MARL policy scenarios.
+          <strong>Inspect vessels</strong>
+          Select a ship marker to focus the map and show vessel properties.
         </div>
         <div className="overlay-box">
-          <strong>Fixture driven</strong>
-          Panels use local AIS-like, port-event, and episode sample files.
+          <strong>Policy context</strong>
+          Routes and panels change with each CH-MARL scenario.
         </div>
       </div>
     </div>
