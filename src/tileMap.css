@@ -42,8 +42,44 @@
 }
 
 .tile-map .html-port-marker,
-.tile-map .ship-figurine {
+.tile-map .ship-figurine,
+.tile-map .port-event-marker {
   z-index: 3;
+}
+
+.port-event-marker {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: rgba(101, 228, 203, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.40);
+  box-shadow: 0 0 16px rgba(101, 228, 203, 0.45);
+  pointer-events: auto;
+}
+
+.port-event-marker span {
+  position: absolute;
+  inset: 6px;
+  border-radius: 999px;
+  background: #65e4cb;
+  box-shadow: 0 0 14px rgba(101, 228, 203, 0.8);
+}
+
+.port-event-marker.watch span {
+  background: #ffd780;
+  box-shadow: 0 0 14px rgba(255, 215, 128, 0.78);
+}
+
+.port-event-marker.active span {
+  background: #8ddcff;
+  box-shadow: 0 0 14px rgba(141, 220, 255, 0.78);
+}
+
+.port-event-marker.complete span {
+  background: #bda0ff;
+  box-shadow: 0 0 14px rgba(189, 160, 255, 0.78);
 }
 
 .tile-map-controls,
@@ -151,19 +187,29 @@
   line-height: 1.35;
 }
 
-.tile-vessel-list {
+.tile-vessel-list,
+.tile-event-list {
   position: absolute;
-  right: 14px;
-  bottom: 44px;
   z-index: 8;
   width: min(280px, calc(100% - 28px));
-  max-height: 240px;
   overflow: hidden;
   border-radius: 18px;
   border: 1px solid rgba(141, 220, 255, 0.20);
   background: rgba(3, 13, 24, 0.78);
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.30);
   color: rgba(230, 247, 255, 0.78);
+}
+
+.tile-vessel-list {
+  right: 14px;
+  bottom: 44px;
+  max-height: 240px;
+}
+
+.tile-event-list {
+  right: 14px;
+  bottom: 298px;
+  max-height: 212px;
 }
 
 .tile-vessel-list-header {
@@ -191,6 +237,10 @@
   display: grid;
   gap: 4px;
   padding: 8px;
+}
+
+.tile-event-list .tile-vessel-list-items {
+  max-height: 160px;
 }
 
 .tile-vessel-list-items button {
@@ -258,8 +308,18 @@
   max-height: 340px;
 }
 
+.focus-content .tile-event-list {
+  right: 18px;
+  bottom: 398px;
+  max-height: 300px;
+}
+
 .focus-content .tile-vessel-list-items {
   max-height: 288px;
+}
+
+.focus-content .tile-event-list .tile-vessel-list-items {
+  max-height: 248px;
 }
 
 @media (max-width: 900px) {
@@ -280,7 +340,8 @@
     top: 58px;
   }
 
-  .tile-vessel-list {
+  .tile-vessel-list,
+  .tile-event-list {
     display: none;
   }
 }
