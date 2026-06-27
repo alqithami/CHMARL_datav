@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Metric, RewardTrendPoint } from "@/data/chmarlData";
 import { fallbackDashboardData, loadSampleDashboardData, type DashboardData, type DashboardDataSource } from "@/data/loadSampleDashboardData";
 import { scenarioCatalog } from "@/scenarios/scenarioCatalog";
@@ -55,14 +55,27 @@ const scenarioMetrics: Record<string, Metric[]> = {
 };
 
 type FocusPanel = "reward" | "constraints" | "scene" | "ports" | "timeline" | "vessels";
-type LoadStatus = "loading" | DashboardDataSource;
+type LoadStatus = "loading" | "refreshing" | DashboardDataSource;
 
 function shiftRewardTrend(data: RewardTrendPoint[], offset: number, slope: number): RewardTrendPoint[] {
   return data.map(([time, value], index) => [time, Number(Math.max(0.5, value + offset + index * slope).toFixed(3))]);
 }
 
+function scenarioMetricsFor(base: DashboardData, scenarioId: string): Metric[] {
+  const baseMetrics = scenarioMetrics[scenarioId] ?? scenarioMetrics.baseline;
+  return baseMetrics.map((metric) =>
+    metric.label === "Active vessels"
+      ? {
+          ...metric,
+          value: String(base.vessels.length),
+          trend: base.source === "remote" ? "remote vessel feed" : metric.trend,
+        }
+      : metric
+  );
+}
+
 function getScenarioDashboardData(base: DashboardData, scenarioId: string): DashboardData {
-  const metrics = scenarioMetrics[scenarioId] ?? scenarioMetrics.baseline;
+  const metrics = scenarioMetricsFor(base, scenarioId);
 
   if (scenarioId === "congestion") {
     return {
@@ -161,27 +174,41 @@ export default function DashboardShell() {
   const [selectedScenarioId, setSelectedScenarioId] = useState("baseline");
   const [baseData, setBaseData] = useState<DashboardData>(fallbackDashboardData);
   const [dataSourceStatus, setDataSourceStatus] = useState<LoadStatus>("loading");
+  const [lastUpdated, setLastUpdated] = useState("not loaded");
   const [focusPanel, setFocusPanel] = useState<FocusPanel | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    loadSampleDashboardData()
+  const refreshData = useCallback((status: LoadStatus = "refreshing") => {
+    setDataSourceStatus(status);
+    return loadSampleDashboardData()
       .then((data) => {
-        if (!active) return;
         setBaseData(data);
         setDataSourceStatus(data.source);
+        setLastUpdated(new Date().toLocaleTimeString());
       })
       .catch((error: unknown) => {
         console.error("Failed to load dashboard data. Falling back to bundled data.", error);
-        if (!active) return;
         setBaseData(fallbackDashboardData);
         setDataSourceStatus("fallback");
+        setLastUpdated(new Date().toLocaleTimeString());
       });
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const load = () => {
+      refreshData(active ? "loading" : "refreshing");
+    };
+
+    load();
+    const interval = window.setInterval(() => {
+      if (active) refreshData("refreshing");
+    }, 30_000);
 
     return () => {
       active = false;
+      window.clearInterval(interval);
     };
-  }, []);
+  }, [refreshData]);
 
   const dashboardData = useMemo(() => getScenarioDashboardData(baseData, selectedScenarioId), [baseData, selectedScenarioId]);
 
@@ -207,6 +234,8 @@ export default function DashboardShell() {
         </div>
         <div className="scenario-bar" aria-label="Scenario controls">
           <span className="pill data-pill">Data: {dataSourceStatus}</span>
+          <span className="pill data-pill">Updated: {lastUpdated}</span>
+          <button type="button" className="pill" onClick={() => refreshData("refreshing")}>Refresh</button>
           {scenarioCatalog.map((scenario) => (
             <button
               key={scenario.scenarioId}
