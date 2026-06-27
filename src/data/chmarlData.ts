@@ -4,6 +4,12 @@ export type Metric = {
   trend: string;
 };
 
+export type VesselTrailPoint = {
+  latitude: number;
+  longitude: number;
+  timestamp?: string;
+};
+
 export type Vessel = {
   id: string;
   name: string;
@@ -17,6 +23,7 @@ export type Vessel = {
   headingDeg?: number;
   courseDeg?: number;
   timestamp?: string;
+  trail?: VesselTrailPoint[];
 };
 
 export type TimelineEvent = {
@@ -48,6 +55,12 @@ export const vessels: Vessel[] = [
     latitude: 21.45,
     longitude: 39.12,
     courseDeg: 322,
+    trail: [
+      { latitude: 20.92, longitude: 39.42, timestamp: "T-30m" },
+      { latitude: 21.12, longitude: 39.31, timestamp: "T-20m" },
+      { latitude: 21.28, longitude: 39.22, timestamp: "T-10m" },
+      { latitude: 21.45, longitude: 39.12, timestamp: "Now" },
+    ],
   },
   {
     id: "MMSI-403882",
@@ -60,6 +73,12 @@ export const vessels: Vessel[] = [
     latitude: 26.43,
     longitude: 50.09,
     courseDeg: 112,
+    trail: [
+      { latitude: 26.65, longitude: 49.52, timestamp: "T-30m" },
+      { latitude: 26.58, longitude: 49.74, timestamp: "T-20m" },
+      { latitude: 26.51, longitude: 49.92, timestamp: "T-10m" },
+      { latitude: 26.43, longitude: 50.09, timestamp: "Now" },
+    ],
   },
   {
     id: "MMSI-636719",
@@ -72,6 +91,12 @@ export const vessels: Vessel[] = [
     latitude: 24.05,
     longitude: 37.88,
     courseDeg: 7,
+    trail: [
+      { latitude: 23.43, longitude: 37.74, timestamp: "T-30m" },
+      { latitude: 23.64, longitude: 37.79, timestamp: "T-20m" },
+      { latitude: 23.86, longitude: 37.84, timestamp: "T-10m" },
+      { latitude: 24.05, longitude: 37.88, timestamp: "Now" },
+    ],
   },
   {
     id: "MMSI-370441",
@@ -84,6 +109,12 @@ export const vessels: Vessel[] = [
     latitude: 16.89,
     longitude: 42.55,
     courseDeg: 208,
+    trail: [
+      { latitude: 17.42, longitude: 42.88, timestamp: "T-30m" },
+      { latitude: 17.24, longitude: 42.77, timestamp: "T-20m" },
+      { latitude: 17.04, longitude: 42.66, timestamp: "T-10m" },
+      { latitude: 16.89, longitude: 42.55, timestamp: "Now" },
+    ],
   },
   {
     id: "MMSI-565902",
@@ -96,6 +127,12 @@ export const vessels: Vessel[] = [
     latitude: 22.72,
     longitude: 38.98,
     courseDeg: 352,
+    trail: [
+      { latitude: 22.10, longitude: 39.12, timestamp: "T-30m" },
+      { latitude: 22.32, longitude: 39.07, timestamp: "T-20m" },
+      { latitude: 22.52, longitude: 39.02, timestamp: "T-10m" },
+      { latitude: 22.72, longitude: 38.98, timestamp: "Now" },
+    ],
   },
 ];
 
