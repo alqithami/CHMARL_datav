@@ -8,6 +8,7 @@ import "./operationalWatchlist.css";
 import "./platformLayout.css";
 import "./mapPolish.css";
 import "./commandBar.css";
+import "./aisDiagnostics.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
