@@ -4,15 +4,15 @@ import { fallbackDashboardData, loadSampleDashboardData, type DashboardData, typ
 import { exportDashboardSnapshot, exportOperationalReport, exportVesselCsv } from "@/export/dashboardExports";
 import { scenarioCatalog } from "@/scenarios/scenarioCatalog";
 import ConstraintChart from "./charts/ConstraintChart";
-import DecisionTimeline from "./DecisionTimeline";
 import MetricCard from "./MetricCard";
+import OperationalWatchlist from "./OperationalWatchlist";
 import PanelCard from "./PanelCard";
 import PortUtilizationChart from "./charts/PortUtilizationChart";
 import RewardTrend from "./charts/RewardTrend";
 import ShipScene from "./ShipScene";
 import VesselTable from "./VesselTable";
 
-type FocusPanel = "reward" | "constraints" | "scene" | "ports" | "timeline" | "vessels";
+type FocusPanel = "reward" | "constraints" | "scene" | "ports" | "watchlist" | "vessels";
 type LoadStatus = "loading" | "refreshing" | DashboardDataSource;
 
 function shiftRewardTrend(data: RewardTrendPoint[], offset: number, slope: number): RewardTrendPoint[] {
@@ -236,7 +236,7 @@ export default function DashboardShell() {
     if (focusPanel === "constraints") return { title: "Operational Constraint Pressure", content: <ConstraintChart data={dashboardData.constraintPressure} /> };
     if (focusPanel === "scene") return { title: "Maritime Operations Map", content: <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} /> };
     if (focusPanel === "ports") return { title: "Port Utilization", content: <PortUtilizationChart data={dashboardData.portUtilization} /> };
-    if (focusPanel === "timeline") return { title: "CH-MARL Decision Timeline", content: <DecisionTimeline events={dashboardData.timelineEvents} /> };
+    if (focusPanel === "watchlist") return { title: "Operational Watchlist", content: <OperationalWatchlist data={dashboardData} scenarioId={selectedScenarioId} /> };
     if (focusPanel === "vessels") return { title: "Vessel State Table", content: <VesselTable vessels={dashboardData.vessels} /> };
     return null;
   })();
@@ -323,8 +323,8 @@ export default function DashboardShell() {
           <PanelCard title="Port Utilization" tag="capacity" onFocus={() => setFocusPanel("ports")}>
             <PortUtilizationChart data={dashboardData.portUtilization} />
           </PanelCard>
-          <PanelCard title="CH-MARL Decision Timeline" tag="hierarchy" onFocus={() => setFocusPanel("timeline")}>
-            <DecisionTimeline events={dashboardData.timelineEvents} />
+          <PanelCard title="Operational Watchlist" tag="actions" onFocus={() => setFocusPanel("watchlist")}>
+            <OperationalWatchlist data={dashboardData} scenarioId={selectedScenarioId} />
           </PanelCard>
         </div>
 
