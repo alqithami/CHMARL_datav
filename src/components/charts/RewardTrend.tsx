@@ -15,6 +15,19 @@ export default function RewardTrend({ data }: RewardTrendProps) {
         borderColor: "rgba(101,228,203,0.35)",
         textStyle: { color: "#e6f7ff" },
       },
+      graphic: data.length === 0
+        ? {
+            type: "text" as const,
+            left: "center",
+            top: "middle",
+            style: {
+              text: "No CH-MARL episode log connected",
+              fill: "rgba(230,247,255,0.62)",
+              fontSize: 13,
+              fontWeight: 700,
+            },
+          }
+        : undefined,
       xAxis: {
         type: "category" as const,
         data: data.map((item) => item[0]),
