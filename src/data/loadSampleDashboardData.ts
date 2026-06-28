@@ -22,6 +22,7 @@ import type { RawAisVesselUpdate } from "@/adapters/aisAdapter";
 import type { RawPortEvent } from "@/adapters/portEventAdapter";
 import { loadRuntimeChmarlExperiment } from "@/providers/chmarlExperimentProvider";
 import { loadRemoteDashboardVessels } from "@/providers/dashboardDataProvider";
+import { loadRuntimePortOperations } from "@/providers/portOperationsProvider";
 import type { ChmarlExperimentStep, PortEvent } from "@/types/chmarl";
 
 export type ChartDatum = {
@@ -31,10 +32,12 @@ export type ChartDatum = {
 
 export type DashboardDataSource = "aisstream" | "aisstream-waiting" | "upstream" | "remote" | "local-json" | "fallback";
 export type ChmarlDataSource = "runtime" | "local-json" | "none";
+export type PortOpsDataSource = "runtime" | "local-json" | "none";
 
 export type DashboardData = {
   source: DashboardDataSource;
   chmarlSource: ChmarlDataSource;
+  portOpsSource: PortOpsDataSource;
   chmarlExperimentId?: string;
   chmarlScenarioId?: string;
   metrics: Metric[];
@@ -46,19 +49,10 @@ export type DashboardData = {
   timelineEvents: TimelineEvent[];
 };
 
-const knownPorts = [
-  { name: "Jeddah", latitude: 21.485, longitude: 39.173 },
-  { name: "King Abdullah Port", latitude: 22.393, longitude: 39.097 },
-  { name: "Yanbu", latitude: 24.086, longitude: 38.063 },
-  { name: "Suez", latitude: 29.966, longitude: 32.549 },
-  { name: "Dammam", latitude: 26.43, longitude: 50.09 },
-  { name: "Jebel Ali", latitude: 25.011, longitude: 55.061 },
-  { name: "Jizan", latitude: 16.889, longitude: 42.551 },
-];
-
 export const fallbackDashboardData: DashboardData = {
   source: "fallback",
   chmarlSource: "local-json",
+  portOpsSource: "local-json",
   metrics,
   vessels,
   portEvents: [],
@@ -114,19 +108,6 @@ function pct(count: number, total: number) {
   return Number(((count / total) * 100).toFixed(1));
 }
 
-function distanceNm(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) {
-  const radiusNm = 3440.065;
-  const toRad = (value: number) => (value * Math.PI) / 180;
-  const dLat = toRad(b.latitude - a.latitude);
-  const dLon = toRad(b.longitude - a.longitude);
-  const lat1 = toRad(a.latitude);
-  const lat2 = toRad(b.latitude);
-  const sinDLat = Math.sin(dLat / 2);
-  const sinDLon = Math.sin(dLon / 2);
-  const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
-  return 2 * radiusNm * Math.asin(Math.min(1, Math.sqrt(h)));
-}
-
 function deriveConstraintPressureFromVessels(vesselRows: Vessel[]): ChartDatum[] {
   const total = vesselRows.length;
   const missingPosition = vesselRows.filter((vessel) => !hasPosition(vessel)).length;
@@ -147,25 +128,7 @@ function deriveConstraintPressureFromVessels(vesselRows: Vessel[]): ChartDatum[]
   ];
 }
 
-function derivePortProximityFromVessels(vesselRows: Vessel[]): ChartDatum[] {
-  const counts = new Map<string, number>();
-  const positioned = vesselRows.filter((vessel): vessel is Vessel & { latitude: number; longitude: number } => hasPosition(vessel));
-
-  for (const vessel of positioned) {
-    const nearest = knownPorts
-      .map((port) => ({ port, distance: distanceNm(vessel, port) }))
-      .sort((a, b) => a.distance - b.distance)[0];
-    if (!nearest || nearest.distance > 75) continue;
-    counts.set(nearest.port.name, (counts.get(nearest.port.name) ?? 0) + 1);
-  }
-
-  return [...counts.entries()]
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 6);
-}
-
-function externalTimeline(source: DashboardDataSource, vesselRows: Vessel[], chmarlSource: ChmarlDataSource): TimelineEvent[] {
+function externalTimeline(source: DashboardDataSource, vesselRows: Vessel[], chmarlSource: ChmarlDataSource, portOpsSource: PortOpsDataSource): TimelineEvent[] {
   if (source === "aisstream-waiting") {
     return [
       {
@@ -181,16 +144,17 @@ function externalTimeline(source: DashboardDataSource, vesselRows: Vessel[], chm
   return [
     {
       time: "live",
-      title: chmarlSource === "runtime" ? "Live vessel feed + CH-MARL runtime active" : "External vessel feed active",
-      body: `${vesselRows.length} vessel rows are loaded from ${source}. CH-MARL source: ${chmarlSource}.`,
+      title: chmarlSource !== "none" ? "Live vessel feed + CH-MARL active" : "External vessel feed active",
+      body: `${vesselRows.length} vessel rows are loaded from ${source}. CH-MARL source: ${chmarlSource}. Port operations source: ${portOpsSource}.`,
     },
   ];
 }
 
 export async function loadSampleDashboardData(): Promise<DashboardData> {
-  const [remoteVessels, runtimeExperiment, rawVessels, rawPortEvents, localExperimentSteps] = await Promise.all([
+  const [remoteVessels, runtimeExperiment, runtimePortOps, rawVessels, rawPortEvents, localExperimentSteps] = await Promise.all([
     loadRemoteDashboardVessels().catch(() => null),
     loadRuntimeChmarlExperiment().catch(() => null),
+    loadRuntimePortOperations().catch(() => null),
     fetchJson<RawAisVesselUpdate[]>("vessels.sample.json"),
     fetchJson<RawPortEvent[]>("port_events.sample.json"),
     fetchJson<ChmarlExperimentStep[]>("chmarl_episode.sample.json"),
@@ -201,21 +165,30 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
   const dashboardVessels = remoteVessels?.vessels ?? localVessels;
   const source: DashboardDataSource = remoteVessels?.source ?? "local-json";
   const externalSource = isExternalSource(source);
-  const experimentSteps = runtimeExperiment?.steps ?? (externalSource ? [] : localExperimentSteps);
-  const chmarlSource: ChmarlDataSource = runtimeExperiment ? "runtime" : externalSource ? "none" : "local-json";
+  const experimentSteps = runtimeExperiment?.steps ?? localExperimentSteps;
+  const chmarlSource: ChmarlDataSource = runtimeExperiment
+    ? "runtime"
+    : localExperimentSteps.length > 0
+      ? "local-json"
+      : "none";
+  const portOpsSource: PortOpsDataSource = runtimePortOps
+    ? "runtime"
+    : externalSource
+      ? "none"
+      : "local-json";
 
-  const normalizedPortEvents = externalSource ? [] : normalizePortEventBatch(rawPortEvents);
+  const normalizedPortEvents = runtimePortOps?.portEvents ?? (externalSource ? [] : normalizePortEventBatch(rawPortEvents));
   const rewardData = experimentSteps.length > 0 ? toRewardTrend(experimentStepsToRewardTrend(experimentSteps)) : [];
   const constraintData = experimentSteps.length > 0
     ? experimentStepsToConstraintPressure(experimentSteps)
     : externalSource
       ? deriveConstraintPressureFromVessels(dashboardVessels)
       : experimentStepsToConstraintPressure(localExperimentSteps);
-  const utilizationData = externalSource ? derivePortProximityFromVessels(dashboardVessels) : portUtilization;
+  const utilizationData = runtimePortOps?.portUtilization ?? (externalSource ? [] : portUtilization);
   const timelineData = experimentSteps.length > 0
     ? experimentStepsToTimelineEvents(experimentSteps)
     : externalSource
-      ? externalTimeline(source, dashboardVessels, chmarlSource)
+      ? externalTimeline(source, dashboardVessels, chmarlSource, portOpsSource)
       : experimentStepsToTimelineEvents(localExperimentSteps);
 
   const fileDrivenMetrics = updateMetric(
@@ -228,6 +201,7 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
   return {
     source,
     chmarlSource,
+    portOpsSource,
     chmarlExperimentId: runtimeExperiment?.experimentId ?? experimentSteps[0]?.experimentId,
     chmarlScenarioId: runtimeExperiment?.scenarioId ?? experimentSteps[0]?.scenarioId,
     metrics: fileDrivenMetrics,
