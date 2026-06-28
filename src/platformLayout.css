@@ -1,0 +1,163 @@
+.app-shell {
+  min-height: 100vh;
+  max-height: none;
+  padding: 12px;
+  overflow: auto;
+}
+
+.topbar {
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.brand-title {
+  font-size: clamp(22px, 2.1vw, 34px);
+}
+
+.brand-subtitle {
+  max-width: 680px;
+  margin-top: 6px;
+}
+
+.scenario-bar {
+  max-width: 980px;
+  gap: 6px;
+}
+
+.pill {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.data-health-grid {
+  grid-template-columns: 1.2fr repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.data-health-card {
+  min-height: 64px;
+  padding: 10px 12px;
+}
+
+.data-health-card strong {
+  margin-top: 5px;
+  font-size: 16px;
+}
+
+.data-health-card small {
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+.metrics-grid {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.metric-card {
+  min-height: 74px;
+  padding: 10px;
+}
+
+.metric-label {
+  font-size: 10px;
+}
+
+.metric-value {
+  margin-top: 6px;
+  font-size: 22px;
+}
+
+.metric-trend {
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+.dashboard-grid {
+  grid-template-columns: 300px minmax(520px, 1fr) 360px;
+  grid-template-rows: minmax(0, 1fr) 190px;
+  gap: 10px;
+  height: calc(100vh - 346px);
+  min-height: 480px;
+}
+
+.panel-card {
+  padding: 12px;
+}
+
+.panel-header {
+  margin-bottom: 8px;
+}
+
+.panel-title {
+  font-size: 13px;
+}
+
+.chart-box {
+  min-height: 100px;
+}
+
+.table-scroll {
+  max-height: 128px;
+}
+
+.scene-overlay {
+  inset: 12px;
+}
+
+.overlay-box {
+  max-width: 235px;
+  padding: 10px 12px;
+  font-size: 11px;
+}
+
+@media (max-height: 850px) and (min-width: 1281px) {
+  .brand-subtitle {
+    display: none;
+  }
+
+  .data-health-grid {
+    margin-bottom: 8px;
+  }
+
+  .data-health-card {
+    min-height: 58px;
+    padding: 8px 10px;
+  }
+
+  .metrics-grid {
+    margin-bottom: 8px;
+  }
+
+  .metric-card {
+    min-height: 66px;
+  }
+
+  .dashboard-grid {
+    height: calc(100vh - 300px);
+    min-height: 450px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .dashboard-grid {
+    height: auto;
+    min-height: 0;
+  }
+
+  .data-health-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .scenario-bar {
+    justify-content: flex-start;
+  }
+
+  .data-health-grid {
+    grid-template-columns: 1fr;
+  }
+}
