@@ -1,0 +1,172 @@
+.app-shell {
+  padding: 10px 12px;
+}
+
+.topbar {
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.brand-title {
+  font-size: clamp(22px, 2vw, 32px);
+  line-height: 1.05;
+}
+
+.brand-subtitle {
+  margin-top: 5px;
+  max-width: 680px;
+}
+
+.scenario-bar {
+  width: min(860px, 100%);
+  padding: 7px;
+  gap: 6px;
+  align-content: start;
+}
+
+.status-control-group,
+.scenario-buttons {
+  gap: 5px;
+}
+
+.pill,
+.actions-menu summary {
+  min-height: 28px;
+  padding: 5px 9px;
+  font-size: 10.5px;
+}
+
+.scenario-buttons .pill:disabled {
+  display: none;
+}
+
+.data-health-grid {
+  display: none;
+}
+
+.metrics-grid {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.metric-card {
+  min-height: 72px;
+  padding: 9px 10px;
+  border-radius: 12px;
+}
+
+.metric-label {
+  font-size: 10px;
+  letter-spacing: 0.10em;
+}
+
+.metric-value {
+  margin-top: 5px;
+  font-size: 22px;
+}
+
+.metric-trend {
+  margin-top: 3px;
+  font-size: 10px;
+  line-height: 1.15;
+}
+
+.dashboard-grid {
+  grid-template-columns: 260px minmax(560px, 1fr) 330px;
+  grid-template-rows: minmax(0, 1fr) 190px;
+  gap: 8px;
+  height: calc(100vh - 178px);
+  min-height: 560px;
+}
+
+.panel-card {
+  border-radius: 14px;
+  padding: 10px;
+}
+
+.panel-header {
+  margin-bottom: 6px;
+}
+
+.panel-title {
+  font-size: 13px;
+  letter-spacing: 0.03em;
+}
+
+.panel-tag,
+.panel-focus-button {
+  font-size: 9.5px;
+}
+
+.left-stack,
+.right-stack {
+  gap: 8px;
+}
+
+.scene-panel {
+  padding: 0;
+}
+
+.chart-box {
+  min-height: 110px;
+}
+
+.vessel-table {
+  font-size: 10px;
+}
+
+.vessel-table th,
+.vessel-table td {
+  padding: 6px 5px;
+}
+
+.watchlist-panel {
+  gap: 8px;
+}
+
+.watchlist-recommendation,
+.watchlist-item {
+  padding: 9px;
+  border-radius: 12px;
+}
+
+.watchlist-recommendation strong,
+.watchlist-item strong {
+  line-height: 1.25;
+}
+
+.tile-map-controls {
+  transform: scale(0.92);
+  transform-origin: top left;
+}
+
+@media (max-width: 1440px) {
+  .dashboard-grid {
+    grid-template-columns: 250px minmax(520px, 1fr) 310px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    grid-template-areas:
+      "scene"
+      "left"
+      "right"
+      "vessels";
+    height: auto;
+    overflow: visible;
+  }
+
+  .scene-panel {
+    min-height: 520px;
+  }
+
+  .left-stack,
+  .right-stack {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto;
+  }
+}
