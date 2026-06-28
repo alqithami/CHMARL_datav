@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import type { Metric, RewardTrendPoint, Vessel } from "@/data/chmarlData";
 import { fallbackDashboardData, loadSampleDashboardData, type DashboardData, type DashboardDataSource } from "@/data/loadSampleDashboardData";
 import { exportDashboardSnapshot, exportOperationalReport, exportVesselCsv } from "@/export/dashboardExports";
+import { loadBackendHealth, type BackendHealth } from "@/providers/backendHealthProvider";
 import { scenarioCatalog } from "@/scenarios/scenarioCatalog";
 import ConstraintChart from "./charts/ConstraintChart";
 import MetricCard from "./MetricCard";
@@ -67,6 +68,18 @@ function sourceRefreshMs(source: DashboardDataSource) {
   if (source === "aisstream" || source === "aisstream-waiting") return 5_000;
   if (source === "upstream" || source === "remote") return 15_000;
   return 30_000;
+}
+
+function formatHealthTimestamp(value: string | null | undefined) {
+  if (!value) return "no messages";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleTimeString();
+}
+
+function boundingBoxLabel(health: BackendHealth | null) {
+  const count = health?.aisstream?.boundingBoxes?.length ?? 0;
+  return `${count} box${count === 1 ? "" : "es"}`;
 }
 
 function buildOperationalMetrics(data: DashboardData): Metric[] {
@@ -216,6 +229,7 @@ function FocusModal({ title, children, onClose }: { title: string; children: Rea
 export default function DashboardShell() {
   const [selectedScenarioId, setSelectedScenarioId] = useState("baseline");
   const [baseData, setBaseData] = useState<DashboardData>(fallbackDashboardData);
+  const [backendHealth, setBackendHealth] = useState<BackendHealth | null>(null);
   const [dataSourceStatus, setDataSourceStatus] = useState<LoadStatus>("loading");
   const [lastUpdated, setLastUpdated] = useState("not loaded");
   const [focusPanel, setFocusPanel] = useState<FocusPanel | null>(null);
@@ -224,15 +238,17 @@ export default function DashboardShell() {
 
   const refreshData = useCallback((status: LoadStatus = "refreshing") => {
     setDataSourceStatus(status);
-    return loadSampleDashboardData()
-      .then((data) => {
+    return Promise.all([loadSampleDashboardData(), loadBackendHealth().catch(() => null)])
+      .then(([data, health]) => {
         setBaseData(data);
+        setBackendHealth(health);
         setDataSourceStatus(data.source);
         setLastUpdated(new Date().toLocaleTimeString());
       })
       .catch((error: unknown) => {
         console.error("Failed to load dashboard data. Falling back to bundled data.", error);
         setBaseData(fallbackDashboardData);
+        setBackendHealth(null);
         setDataSourceStatus("fallback");
         setLastUpdated(new Date().toLocaleTimeString());
       });
@@ -267,6 +283,8 @@ export default function DashboardShell() {
   const portPanelTag = liveDataActive ? "proximity" : "capacity";
   const primaryPanelTitle = liveDataActive ? "Vessel Speed Profile" : "CH-MARL Reward Trend";
   const primaryPanelTag = liveDataActive ? sourceLabel(dashboardData.source) : selectedScenarioId;
+  const aisHealth = backendHealth?.aisstream;
+  const showAisDiagnostics = Boolean(aisHealth) || dashboardData.source === "aisstream" || dashboardData.source === "aisstream-waiting";
 
   const focusContent = (() => {
     if (focusPanel === "reward") {
@@ -353,6 +371,31 @@ export default function DashboardShell() {
           <small>{liveDataActive ? "disabled for live vessel feed" : "operational transform active"}</small>
         </div>
       </section>
+
+      {showAisDiagnostics && (
+        <section className="ais-diagnostics-grid" aria-label="AIS backend diagnostics">
+          <div className="ais-diagnostic-card">
+            <span>AIS socket</span>
+            <strong>{aisHealth?.connected ? "Connected" : aisHealth?.enabled ? "Waiting" : "Disabled"}</strong>
+            <small>{aisHealth?.lastError ? `Error: ${aisHealth.lastError}` : "backend /health"}</small>
+          </div>
+          <div className="ais-diagnostic-card">
+            <span>Cache</span>
+            <strong>{aisHealth ? `${aisHealth.cachedVessels}/${aisHealth.cacheLimit}` : "n/a"}</strong>
+            <small>cached vessels / limit</small>
+          </div>
+          <div className="ais-diagnostic-card">
+            <span>Messages</span>
+            <strong>{aisHealth?.messageCount ?? "n/a"}</strong>
+            <small>raw AIS messages received</small>
+          </div>
+          <div className="ais-diagnostic-card">
+            <span>Last AIS</span>
+            <strong>{formatHealthTimestamp(aisHealth?.lastMessageAt)}</strong>
+            <small>{boundingBoxLabel(backendHealth)} · {aisHealth?.trailLimit ?? "n/a"} trail pts</small>
+          </div>
+        </section>
+      )}
 
       <section className="metrics-grid" aria-label="Operational performance metrics">
         {dashboardData.metrics.map((metric) => (
