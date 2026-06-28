@@ -34,6 +34,36 @@ function countStatus(vessels: Vessel[], status: Vessel["status"]) {
   return vessels.filter((vessel) => vessel.status === status).length;
 }
 
+function sourceLabel(source: DashboardDataSource) {
+  if (source === "aisstream") return "Live AIS";
+  if (source === "aisstream-waiting") return "AIS waiting";
+  if (source === "upstream") return "Upstream API";
+  if (source === "remote") return "Remote proxy";
+  if (source === "local-json") return "Local fixtures";
+  return "Fallback validation";
+}
+
+function sourceDescription(source: DashboardDataSource) {
+  if (source === "aisstream") return "live AIS positions cached";
+  if (source === "aisstream-waiting") return "connected; waiting for first AIS position";
+  if (source === "upstream") return "provider endpoint normalized by proxy";
+  if (source === "remote") return "backend proxy endpoint active";
+  if (source === "local-json") return "local fixture validation feed";
+  return "fallback validation feed";
+}
+
+function statusLabel(status: LoadStatus) {
+  if (status === "loading") return "Loading";
+  if (status === "refreshing") return "Refreshing";
+  return sourceLabel(status);
+}
+
+function sourceRefreshMs(source: DashboardDataSource) {
+  if (source === "aisstream" || source === "aisstream-waiting") return 5_000;
+  if (source === "upstream" || source === "remote") return 15_000;
+  return 30_000;
+}
+
 function buildOperationalMetrics(data: DashboardData): Metric[] {
   const vesselCount = data.vessels.length;
   const watchCount = countStatus(data.vessels, "Watch");
@@ -47,7 +77,7 @@ function buildOperationalMetrics(data: DashboardData): Metric[] {
     {
       label: "Tracked vessels",
       value: String(vesselCount),
-      trend: data.source === "remote" ? "remote vessel feed" : `${data.source} source`,
+      trend: sourceLabel(data.source),
     },
     {
       label: "Port events",
@@ -67,7 +97,7 @@ function buildOperationalMetrics(data: DashboardData): Metric[] {
     {
       label: "Avg vessel speed",
       value: speed === undefined ? "n/a" : `${speed.toFixed(1)} kn`,
-      trend: "from vessel state rows",
+      trend: "from current vessel state rows",
     },
     {
       label: "Movement tracks",
@@ -160,18 +190,6 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
   return withOperationalMetrics(base);
 }
 
-function sourceLabel(source: DashboardDataSource) {
-  if (source === "remote") return "Remote proxy";
-  if (source === "local-json") return "Local fixtures";
-  return "Bundled fallback";
-}
-
-function statusLabel(status: LoadStatus) {
-  if (status === "loading") return "Loading";
-  if (status === "refreshing") return "Refreshing";
-  return sourceLabel(status);
-}
-
 function FocusModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return (
     <div className="focus-backdrop" role="dialog" aria-modal="true" aria-label={title}>
@@ -192,6 +210,7 @@ export default function DashboardShell() {
   const [dataSourceStatus, setDataSourceStatus] = useState<LoadStatus>("loading");
   const [lastUpdated, setLastUpdated] = useState("not loaded");
   const [focusPanel, setFocusPanel] = useState<FocusPanel | null>(null);
+  const refreshIntervalMs = sourceRefreshMs(baseData.source);
 
   const refreshData = useCallback((status: LoadStatus = "refreshing") => {
     setDataSourceStatus(status);
@@ -211,30 +230,27 @@ export default function DashboardShell() {
 
   useEffect(() => {
     let active = true;
-    const load = () => {
-      refreshData(active ? "loading" : "refreshing");
-    };
-
-    load();
+    refreshData("loading");
     const interval = window.setInterval(() => {
       if (active) refreshData("refreshing");
-    }, 30_000);
+    }, refreshIntervalMs);
 
     return () => {
       active = false;
       window.clearInterval(interval);
     };
-  }, [refreshData]);
+  }, [refreshData, refreshIntervalMs]);
 
   const dashboardData = useMemo(() => getScenarioDashboardData(baseData, selectedScenarioId), [baseData, selectedScenarioId]);
   const trailCount = dashboardData.vessels.filter((vessel) => vessel.trail && vessel.trail.length > 1).length;
   const eventCount = dashboardData.portEvents.length;
   const providerState = statusLabel(dataSourceStatus);
+  const refreshSeconds = refreshIntervalMs / 1000;
 
   const focusContent = (() => {
     if (focusPanel === "reward") return { title: "CH-MARL Reward Trend", content: <RewardTrend data={dashboardData.rewardTrend} /> };
     if (focusPanel === "constraints") return { title: "Operational Constraint Pressure", content: <ConstraintChart data={dashboardData.constraintPressure} /> };
-    if (focusPanel === "scene") return { title: "Maritime Operations Map", content: <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} /> };
+    if (focusPanel === "scene") return { title: "Maritime Operations Map", content: <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} expanded /> };
     if (focusPanel === "ports") return { title: "Port Utilization", content: <PortUtilizationChart data={dashboardData.portUtilization} /> };
     if (focusPanel === "watchlist") return { title: "Operational Watchlist", content: <OperationalWatchlist data={dashboardData} scenarioId={selectedScenarioId} /> };
     if (focusPanel === "vessels") return { title: "Vessel State Table", content: <VesselTable vessels={dashboardData.vessels} /> };
@@ -252,7 +268,7 @@ export default function DashboardShell() {
           </p>
         </div>
         <div className="scenario-bar" aria-label="Scenario controls">
-          <span className="pill data-pill">Data: {dataSourceStatus}</span>
+          <span className="pill data-pill">Data: {providerState}</span>
           <span className="pill data-pill">Updated: {lastUpdated}</span>
           <button type="button" className="pill" onClick={() => refreshData("refreshing")}>Refresh</button>
           <button type="button" className="pill" onClick={() => exportDashboardSnapshot(dashboardData, selectedScenarioId)}>Export Snapshot</button>
@@ -275,7 +291,7 @@ export default function DashboardShell() {
         <div className="data-health-card primary">
           <span>Provider state</span>
           <strong>{providerState}</strong>
-          <small>{baseData.source === "remote" ? "backend proxy endpoint active" : "using local validation feed"}</small>
+          <small>{sourceDescription(dashboardData.source)}</small>
         </div>
         <div className="data-health-card">
           <span>Vessels</span>
@@ -289,8 +305,8 @@ export default function DashboardShell() {
         </div>
         <div className="data-health-card">
           <span>Refresh cadence</span>
-          <strong>30s</strong>
-          <small>manual refresh available</small>
+          <strong>{refreshSeconds}s</strong>
+          <small>{dashboardData.source === "aisstream" || dashboardData.source === "aisstream-waiting" ? "live AIS polling" : "manual refresh available"}</small>
         </div>
         <div className="data-health-card">
           <span>Scenario</span>
