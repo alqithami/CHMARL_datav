@@ -81,7 +81,8 @@ run("vessel-feed-proxy", "node", ["server/vessel-feed-proxy/index.mjs"], {
 console.log(`Starting dashboard on port ${dashboardPort}`);
 console.log(`Using frontend vessel feed path: ${vesselFeedUrl}`);
 console.log(`Proxying Vite API calls to: ${viteProxyTarget}`);
-run("vite", "pnpm", ["exec", "vite", "--host", "0.0.0.0", "--port", dashboardPort], {
+console.log(`Open the forwarded Codespaces port ${dashboardPort} for the dashboard UI.`);
+run("vite", "pnpm", ["exec", "vite", "--host", "0.0.0.0", "--port", dashboardPort, "--strictPort"], {
   VITE_VESSEL_DATA_URL: vesselFeedUrl,
   VITE_PROXY_TARGET: viteProxyTarget,
 });
