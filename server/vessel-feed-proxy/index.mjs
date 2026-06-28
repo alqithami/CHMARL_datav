@@ -65,6 +65,14 @@ function sendJson(response, statusCode, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function sendHtml(response, statusCode, html) {
+  response.writeHead(statusCode, {
+    "content-type": "text/html; charset=utf-8",
+    "access-control-allow-origin": "*",
+  });
+  response.end(html);
+}
+
 function normalizeStatus(value) {
   const text = String(value ?? "").toLowerCase();
   if (text.includes("constraint") || text.includes("restricted") || text.includes("alert")) return "Constrained";
@@ -285,11 +293,42 @@ async function loadVessels() {
   return { vessels: rows.map(normalizeVessel), source: "upstream" };
 }
 
+function rootHtml() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CH-MARL Vessel Proxy</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: Inter, system-ui, sans-serif; color: #e6f7ff; background: #04111f; }
+    main { max-width: 720px; padding: 28px; border: 1px solid rgba(141,220,255,.18); border-radius: 20px; background: rgba(3,13,24,.72); }
+    h1 { margin: 0 0 10px; font-size: 24px; }
+    p { color: rgba(230,247,255,.72); line-height: 1.5; }
+    code { color: #65e4cb; }
+    a { color: #8ddcff; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>CH-MARL Vessel Feed Proxy</h1>
+    <p>This is the backend proxy on port <code>${PORT}</code>. The dashboard UI runs on Vite port <code>5173</code>; open the forwarded <code>5173</code> URL in Codespaces.</p>
+    <p>Proxy endpoints: <a href="/health">/health</a> and <a href="/api/vessels">/api/vessels</a>.</p>
+  </main>
+</body>
+</html>`;
+}
+
 startAisStream();
 
 createServer(async (request, response) => {
   if (request.method === "OPTIONS") {
     sendJson(response, 204, {});
+    return;
+  }
+
+  if (request.url === "/" || request.url === "") {
+    sendHtml(response, 200, rootHtml());
     return;
   }
 
@@ -306,7 +345,7 @@ createServer(async (request, response) => {
   }
 
   if (request.url !== "/api/vessels") {
-    sendJson(response, 404, { error: "Not found" });
+    sendJson(response, 404, { error: "Not found", availableEndpoints: ["/", "/health", "/api/vessels"] });
     return;
   }
 
@@ -331,5 +370,7 @@ createServer(async (request, response) => {
   }
 }).listen(PORT, () => {
   console.log(`Vessel feed proxy listening at http://localhost:${PORT}/api/vessels`);
+  console.log(`Vessel feed proxy health at http://localhost:${PORT}/health`);
+  console.log("Open the dashboard on the forwarded Vite port 5173, not the proxy port.");
   if (AISSTREAM_API_KEY) console.log("AISStream live mode enabled.");
 });
