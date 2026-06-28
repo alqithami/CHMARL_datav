@@ -1,0 +1,75 @@
+.rail-search-tools {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rail-search-tools input[type="text"],
+.rail-search-tools input:not([type]),
+.rail-search-tools select {
+  width: 100%;
+  min-height: 30px;
+  border-radius: 10px;
+  border: 1px solid rgba(141, 220, 255, 0.16);
+  background: rgba(3, 13, 24, 0.58);
+  color: #e6f7ff;
+  padding: 6px 8px;
+  font-size: 11px;
+  outline: none;
+}
+
+.rail-search-tools input::placeholder {
+  color: rgba(230, 247, 255, 0.42);
+}
+
+.rail-search-tools input:focus,
+.rail-search-tools select:focus {
+  border-color: rgba(101, 228, 203, 0.52);
+}
+
+.rail-search-tools label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 26px;
+  color: rgba(230, 247, 255, 0.72);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.rail-search-tools input[type="checkbox"] {
+  accent-color: #65e4cb;
+}
+
+.rail-search-tools button {
+  min-height: 28px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: rgba(230, 247, 255, 0.82);
+  background: rgba(141, 220, 255, 0.08);
+  border: 1px solid rgba(141, 220, 255, 0.14);
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.rail-search-tools button:hover {
+  background: rgba(101, 228, 203, 0.14);
+  border-color: rgba(101, 228, 203, 0.24);
+  color: #ffffff;
+}
+
+.tile-vessel-list-items button.stale {
+  border-color: rgba(255, 215, 128, 0.26);
+  background: rgba(255, 215, 128, 0.07);
+}
+
+.tile-vessel-list-items button.stale small::after {
+  content: " · stale";
+  color: #ffd780;
+  font-weight: 900;
+}
+
+.expanded-map-rail .tile-vessel-list {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
