@@ -8,6 +8,7 @@ const AISSTREAM_API_KEY = process.env.AISSTREAM_API_KEY;
 const AISSTREAM_URL = process.env.AISSTREAM_URL ?? "wss://stream.aisstream.io/v0/stream";
 const AISSTREAM_BBOX = process.env.AISSTREAM_BBOX ?? "11,32;31,56";
 const AISSTREAM_MAX_VESSELS = Number(process.env.AISSTREAM_MAX_VESSELS ?? 250);
+const AISSTREAM_TRAIL_POINTS = Number(process.env.AISSTREAM_TRAIL_POINTS ?? 24);
 const AISSTREAM_FILTER_TYPES = (process.env.AISSTREAM_FILTER_TYPES ?? "PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport")
   .split(",")
   .map((item) => item.trim())
@@ -21,6 +22,10 @@ const aisState = {
   lastError: null,
   reconnectAttempt: 0,
   boundingBoxes: [],
+  messageCount: 0,
+  cachedVessels: 0,
+  cacheLimit: AISSTREAM_MAX_VESSELS,
+  trailLimit: AISSTREAM_TRAIL_POINTS,
 };
 
 const fallbackVessels = [
@@ -174,7 +179,7 @@ function normalizeAisStreamMessage(raw) {
     id: `MMSI-${mmsi}`,
     mmsi: String(mmsi),
     name: shipName ? String(shipName).trim() : `MMSI ${mmsi}`,
-    route: "AIS position → live track",
+    route: "AIS live position",
     cargo: raw.MessageType ?? "AIS vessel",
     eta: "Live AIS",
     speed: sog === undefined ? "TBD" : `${sog.toFixed(1)} kn`,
@@ -187,10 +192,14 @@ function normalizeAisStreamMessage(raw) {
   };
 }
 
+function sortedAisVessels() {
+  return [...aisCache.values()].sort((a, b) => String(b.timestamp ?? "").localeCompare(String(a.timestamp ?? "")));
+}
+
 function mergeAisVessel(update) {
   const existing = aisCache.get(update.id);
   const priorTrail = existing?.trail ?? [];
-  const nextTrail = [...priorTrail, { latitude: update.latitude, longitude: update.longitude, timestamp: update.timestamp }].slice(-12);
+  const nextTrail = [...priorTrail, { latitude: update.latitude, longitude: update.longitude, timestamp: update.timestamp }].slice(-AISSTREAM_TRAIL_POINTS);
   aisCache.set(update.id, {
     ...existing,
     ...update,
@@ -198,9 +207,11 @@ function mergeAisVessel(update) {
   });
 
   if (aisCache.size > AISSTREAM_MAX_VESSELS) {
-    const oldestKey = [...aisCache.entries()].sort((a, b) => String(a[1].timestamp ?? "").localeCompare(String(b[1].timestamp ?? "")))[0]?.[0];
+    const oldestKey = sortedAisVessels().at(-1)?.id;
     if (oldestKey) aisCache.delete(oldestKey);
   }
+
+  aisState.cachedVessels = aisCache.size;
 }
 
 function startAisStream() {
@@ -216,16 +227,18 @@ function startAisStream() {
   socket.on("open", () => {
     aisState.connected = true;
     aisState.reconnectAttempt = 0;
-    socket.send(JSON.stringify({
+    const subscription = {
       APIKey: AISSTREAM_API_KEY,
       BoundingBoxes: boundingBoxes,
-      FilterMessageTypes: AISSTREAM_FILTER_TYPES,
-    }));
-    console.log(`AISStream connected with ${boundingBoxes.length} bounding box(es).`);
+      ...(AISSTREAM_FILTER_TYPES.length > 0 ? { FilterMessageTypes: AISSTREAM_FILTER_TYPES } : {}),
+    };
+    socket.send(JSON.stringify(subscription));
+    console.log(`AISStream connected with ${boundingBoxes.length} bounding box(es). Cache limit: ${AISSTREAM_MAX_VESSELS}.`);
   });
 
   socket.on("message", (data) => {
     try {
+      aisState.messageCount += 1;
       const raw = JSON.parse(data.toString());
       if (raw.error) {
         aisState.lastError = raw.error;
@@ -254,10 +267,10 @@ function startAisStream() {
 }
 
 async function loadVessels() {
-  const liveAisVessels = [...aisCache.values()];
+  const liveAisVessels = sortedAisVessels();
   if (liveAisVessels.length > 0) return { vessels: liveAisVessels, source: "aisstream" };
 
-  if (!UPSTREAM_URL) return { vessels: fallbackVessels, source: AISSTREAM_API_KEY ? "aisstream-waiting" : "fallback" };
+  if (!UPSTREAM_URL) return { vessels: AISSTREAM_API_KEY ? [] : fallbackVessels, source: AISSTREAM_API_KEY ? "aisstream-waiting" : "fallback" };
 
   const headers = { accept: "application/json" };
   if (UPSTREAM_TOKEN) headers.authorization = `Bearer ${UPSTREAM_TOKEN}`;
@@ -285,12 +298,8 @@ createServer(async (request, response) => {
       ok: true,
       upstreamConfigured: Boolean(UPSTREAM_URL),
       aisstream: {
-        enabled: aisState.enabled,
-        connected: aisState.connected,
+        ...aisState,
         cachedVessels: aisCache.size,
-        lastMessageAt: aisState.lastMessageAt,
-        lastError: aisState.lastError,
-        boundingBoxes: aisState.boundingBoxes,
       },
     });
     return;
@@ -303,12 +312,20 @@ createServer(async (request, response) => {
 
   try {
     const result = await loadVessels();
-    sendJson(response, 200, { vessels: result.vessels, source: result.source, health: aisState });
+    sendJson(response, 200, {
+      vessels: result.vessels,
+      source: result.source,
+      health: {
+        ...aisState,
+        cachedVessels: aisCache.size,
+      },
+    });
   } catch (error) {
     sendJson(response, 502, {
       error: "Failed to load vessel feed",
       detail: error instanceof Error ? error.message : String(error),
-      vessels: fallbackVessels,
+      vessels: AISSTREAM_API_KEY ? [] : fallbackVessels,
+      source: AISSTREAM_API_KEY ? "aisstream-waiting" : "fallback",
       health: aisState,
     });
   }
