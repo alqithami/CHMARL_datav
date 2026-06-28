@@ -234,7 +234,7 @@ export default function ShipScene({ vessels = fallbackVessels, portEvents = [], 
   const selectedShip = selectedShipId ? shipMarkers.find((ship) => ship.vessel.id === selectedShipId) : undefined;
   const hoveredShip = hoveredShipId ? shipMarkers.find((ship) => ship.vessel.id === hoveredShipId) : undefined;
 
-  const mapStyle = selectedShip
+  const mapStyle = selectedShip && !expanded
     ? {
         transformOrigin: `${selectedShip.left}% ${selectedShip.top}%`,
       }
@@ -260,6 +260,38 @@ export default function ShipScene({ vessels = fallbackVessels, portEvents = [], 
     setManualCenter(DEFAULT_CENTER);
     setMapZoom(DEFAULT_ZOOM);
   };
+
+  const vesselDetail = selectedShip ? (
+    <section className="expanded-rail-section vessel-detail-section">
+      <div className="rail-section-header">
+        <span>Selected vessel</span>
+        <strong>{selectedShip.vessel.name}</strong>
+      </div>
+      <span className={`ship-status ${statusClass(selectedShip.vessel.status)}`}>{selectedShip.vessel.status}</span>
+      <dl className="rail-detail-list">
+        <div><dt>ID</dt><dd>{selectedShip.vessel.id}</dd></div>
+        <div><dt>Route</dt><dd>{selectedShip.vessel.route}</dd></div>
+        <div><dt>Cargo</dt><dd>{selectedShip.vessel.cargo}</dd></div>
+        <div><dt>ETA</dt><dd>{selectedShip.vessel.eta}</dd></div>
+        <div><dt>Speed</dt><dd>{selectedShip.vessel.speed}</dd></div>
+        {hasCoordinates(selectedShip.vessel) && (
+          <div><dt>Position</dt><dd>{selectedShip.vessel.latitude.toFixed(3)}, {selectedShip.vessel.longitude.toFixed(3)}</dd></div>
+        )}
+        {selectedShip.vessel.trail && selectedShip.vessel.trail.length > 1 && (
+          <div><dt>Trail</dt><dd>{selectedShip.vessel.trail.length} points</dd></div>
+        )}
+      </dl>
+      <button type="button" className="rail-action-button" onClick={() => setSelectedShipId("")}>Clear selection</button>
+    </section>
+  ) : (
+    <section className="expanded-rail-section vessel-detail-section muted">
+      <div className="rail-section-header">
+        <span>Selected vessel</span>
+        <strong>No vessel selected</strong>
+      </div>
+      <p>Select a ship marker or a vessel row to inspect AIS properties.</p>
+    </section>
+  );
 
   return (
     <div className={expanded ? "scene-container static-map-container expanded-map" : "scene-container static-map-container"}>
@@ -384,63 +416,69 @@ export default function ShipScene({ vessels = fallbackVessels, portEvents = [], 
         <span>Zoom {mapZoom}</span>
       </div>
 
-      <div className="tile-filter-bar" aria-label="Vessel status filter">
-        {filterOptions.map((option) => (
-          <button
-            key={option}
-            type="button"
-            className={filter === option ? "active" : ""}
-            onClick={() => {
-              setFilter(option);
-              setSelectedShipId("");
-              setHoveredShipId("");
-            }}>
-            {option}
-          </button>
-        ))}
-      </div>
-
       {expanded && (
-        <aside className="tile-vessel-list" aria-label="Visible vessel list">
-          <div className="tile-vessel-list-header">
-            <strong>Visible vessels</strong>
-            <span>{visibleVessels.length}</span>
-          </div>
-          <div className="tile-vessel-list-items">
-            {visibleVessels.slice(0, 12).map((vessel) => (
-              <button
-                key={vessel.id}
-                type="button"
-                className={vessel.id === selectedShipId ? "active" : ""}
-                onClick={() => selectVessel(vessel.id)}>
-                <span>{vessel.name}</span>
-                <small>{vessel.status} · {vessel.speed}</small>
-              </button>
-            ))}
-          </div>
-        </aside>
+        <div className="tile-filter-bar" aria-label="Vessel status filter">
+          {filterOptions.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={filter === option ? "active" : ""}
+              onClick={() => {
+                setFilter(option);
+                setSelectedShipId("");
+                setHoveredShipId("");
+              }}>
+              {option}
+            </button>
+          ))}
+        </div>
       )}
 
       {expanded && (
-        <aside className="tile-event-list" aria-label="Port event list">
-          <div className="tile-vessel-list-header">
-            <strong>Port events</strong>
-            <span>{eventMarkers.length}</span>
-          </div>
-          <div className="tile-vessel-list-items">
-            {eventMarkers.slice(0, 8).map(({ event }) => (
-              <button key={event.eventId} type="button">
-                <span>{labelForEvent(event.eventType)}</span>
-                <small>{event.portId} · {event.timestamp}</small>
-              </button>
-            ))}
-          </div>
+        <aside className="expanded-map-rail" aria-label="Expanded map details">
+          {vesselDetail}
+
+          <section className="expanded-rail-section tile-vessel-list" aria-label="Visible vessel list">
+            <div className="tile-vessel-list-header">
+              <strong>Visible vessels</strong>
+              <span>{visibleVessels.length}</span>
+            </div>
+            <div className="tile-vessel-list-items">
+              {visibleVessels.slice(0, 16).map((vessel) => (
+                <button
+                  key={vessel.id}
+                  type="button"
+                  className={vessel.id === selectedShipId ? "active" : ""}
+                  onClick={() => selectVessel(vessel.id)}>
+                  <span>{vessel.name}</span>
+                  <small>{vessel.status} · {vessel.speed}</small>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="expanded-rail-section tile-event-list" aria-label="Port event list">
+            <div className="tile-vessel-list-header">
+              <strong>Port events</strong>
+              <span>{eventMarkers.length}</span>
+            </div>
+            <div className="tile-vessel-list-items">
+              {eventMarkers.length === 0 ? (
+                <p className="rail-empty-state">No port events are connected for this feed.</p>
+              ) : eventMarkers.slice(0, 8).map(({ event }) => (
+                <button key={event.eventId} type="button">
+                  <span>{labelForEvent(event.eventType)}</span>
+                  <small>{event.portId} · {event.timestamp}</small>
+                </button>
+              ))}
+            </div>
+          </section>
         </aside>
       )}
 
       <div className="tile-attribution">© OpenStreetMap contributors</div>
 
-      {selectedShip && (
+      {!expanded && selectedShip && (
         <aside className="ship-inspector-card">
           <div className="ship-inspector-header">
             <div>
