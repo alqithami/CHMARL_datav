@@ -9,6 +9,19 @@ export default function ConstraintChart({ data }: ConstraintChartProps) {
   const option = useMemo(
     () => ({
       grid: { left: 12, right: 18, top: 16, bottom: 6, containLabel: true },
+      graphic: data.length === 0
+        ? {
+            type: "text" as const,
+            left: "center",
+            top: "middle",
+            style: {
+              text: "No vessel-derived constraints available",
+              fill: "rgba(230,247,255,0.62)",
+              fontSize: 13,
+              fontWeight: 700,
+            },
+          }
+        : undefined,
       xAxis: {
         type: "value" as const,
         max: 100,
@@ -32,7 +45,7 @@ export default function ConstraintChart({ data }: ConstraintChartProps) {
             color: "#65e4cb",
           },
           label: {
-            show: true,
+            show: data.length > 0,
             position: "right" as const,
             color: "#dffcff",
             formatter: "{c}%",
