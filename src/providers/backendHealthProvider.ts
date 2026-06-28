@@ -9,11 +9,19 @@ export type AisStreamHealth = {
   cachedVessels: number;
   cacheLimit: number;
   trailLimit: number;
+  cacheEnabled?: boolean;
+  cacheFile?: string | null;
+  cacheFlushMs?: number;
+  cacheLoadedAt?: string | null;
+  cacheSavedAt?: string | null;
+  cacheSaveError?: string | null;
+  restoredVessels?: number;
 };
 
 export type BackendHealth = {
   ok: boolean;
   upstreamConfigured: boolean;
+  staticDashboard?: boolean;
   aisstream?: AisStreamHealth;
 };
 
