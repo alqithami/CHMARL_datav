@@ -28,7 +28,7 @@ export type ChartDatum = {
   value: number;
 };
 
-export type DashboardDataSource = "remote" | "local-json" | "fallback";
+export type DashboardDataSource = "aisstream" | "aisstream-waiting" | "upstream" | "remote" | "local-json" | "fallback";
 
 export type DashboardData = {
   source: DashboardDataSource;
