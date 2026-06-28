@@ -19,6 +19,10 @@ const AISSTREAM_FILTER_TYPES = (process.env.AISSTREAM_FILTER_TYPES ?? "PositionR
   .split(",")
   .map((item) => item.trim())
   .filter(Boolean);
+const CHMARL_EXPERIMENT_URL = process.env.CHMARL_EXPERIMENT_URL;
+const CHMARL_EXPERIMENT_TOKEN = process.env.CHMARL_EXPERIMENT_TOKEN;
+const CHMARL_EXPERIMENT_FILE = process.env.CHMARL_EXPERIMENT_FILE ?? ".runtime/chmarl_episode.json";
+const CHMARL_EXPERIMENT_FILE_PATH = resolve(CHMARL_EXPERIMENT_FILE);
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "dist");
 const STATIC_INDEX = resolve(STATIC_DIR, "index.html");
 
@@ -57,6 +61,18 @@ const aisState = {
   cacheSavedAt: null,
   cacheSaveError: null,
   restoredVessels: 0,
+};
+
+const chmarlState = {
+  enabled: Boolean(CHMARL_EXPERIMENT_URL || CHMARL_EXPERIMENT_FILE),
+  source: CHMARL_EXPERIMENT_URL ? "url" : "file",
+  configuredUrl: Boolean(CHMARL_EXPERIMENT_URL),
+  file: CHMARL_EXPERIMENT_FILE,
+  steps: 0,
+  experimentId: null,
+  scenarioId: null,
+  lastLoadedAt: null,
+  lastError: null,
 };
 
 const fallbackVessels = [
@@ -138,6 +154,16 @@ function extractRows(payload) {
   if (Array.isArray(payload)) return payload;
   if (payload && typeof payload === "object") {
     if (Array.isArray(payload.vessels)) return payload.vessels;
+    if (Array.isArray(payload.data)) return payload.data;
+    if (Array.isArray(payload.items)) return payload.items;
+  }
+  return [];
+}
+
+function extractExperimentSteps(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === "object") {
+    if (Array.isArray(payload.steps)) return payload.steps;
     if (Array.isArray(payload.data)) return payload.data;
     if (Array.isArray(payload.items)) return payload.items;
   }
@@ -332,6 +358,45 @@ function mergeAisVessel(update) {
   scheduleAisCacheSave();
 }
 
+function updateChmarlState(payload, source) {
+  const steps = extractExperimentSteps(payload);
+  chmarlState.source = source;
+  chmarlState.steps = steps.length;
+  chmarlState.experimentId = payload?.experimentId ?? steps[0]?.experimentId ?? null;
+  chmarlState.scenarioId = payload?.scenarioId ?? steps[0]?.scenarioId ?? null;
+  chmarlState.lastLoadedAt = new Date().toISOString();
+  chmarlState.lastError = null;
+  return {
+    source,
+    experimentId: chmarlState.experimentId,
+    scenarioId: chmarlState.scenarioId,
+    steps,
+  };
+}
+
+async function loadChmarlExperiment() {
+  try {
+    if (CHMARL_EXPERIMENT_URL) {
+      const headers = { accept: "application/json" };
+      if (CHMARL_EXPERIMENT_TOKEN) headers.authorization = `Bearer ${CHMARL_EXPERIMENT_TOKEN}`;
+      const response = await fetch(CHMARL_EXPERIMENT_URL, { headers });
+      if (!response.ok) throw new Error(`CH-MARL upstream failed: ${response.status} ${response.statusText}`);
+      return updateChmarlState(await response.json(), "url");
+    }
+
+    if (existsSync(CHMARL_EXPERIMENT_FILE_PATH)) {
+      return updateChmarlState(JSON.parse(readFileSync(CHMARL_EXPERIMENT_FILE_PATH, "utf8")), "file");
+    }
+
+    chmarlState.steps = 0;
+    chmarlState.lastError = null;
+    return null;
+  } catch (error) {
+    chmarlState.lastError = error instanceof Error ? error.message : String(error);
+    return null;
+  }
+}
+
 function startAisStream() {
   if (!AISSTREAM_API_KEY) return;
 
@@ -424,7 +489,7 @@ function rootHtml(staticAvailable) {
     <h1>CH-MARL Vessel Feed Proxy</h1>
     <p>This backend is running on port <code>${PORT}</code>.</p>
     <p>${staticAvailable ? "A production dashboard build is available from this same service." : "No production dashboard build was found. In Codespaces development, open the forwarded Vite port <code>5173</code>."}</p>
-    <p>Proxy endpoints: <a href="/health">/health</a> and <a href="/api/vessels">/api/vessels</a>.</p>
+    <p>Proxy endpoints: <a href="/health">/health</a>, <a href="/api/vessels">/api/vessels</a>, and <a href="/api/chmarl/episode">/api/chmarl/episode</a>.</p>
   </main>
 </body>
 </html>`;
@@ -445,6 +510,22 @@ function staticFileForUrl(requestUrl) {
 
   if (extname(requestedPath)) return { statusCode: 404, path: null };
   return { statusCode: 200, path: STATIC_INDEX };
+}
+
+function healthPayload() {
+  return {
+    ok: true,
+    upstreamConfigured: Boolean(UPSTREAM_URL),
+    staticDashboard: existsSync(STATIC_INDEX),
+    aisstream: {
+      ...aisState,
+      cachedVessels: aisCache.size,
+    },
+    chmarl: {
+      ...chmarlState,
+      active: chmarlState.steps > 0,
+    },
+  };
 }
 
 function shutdown() {
@@ -470,15 +551,24 @@ createServer(async (request, response) => {
   }
 
   if (request.url === "/health") {
-    sendJson(response, 200, {
-      ok: true,
-      upstreamConfigured: Boolean(UPSTREAM_URL),
-      staticDashboard: existsSync(STATIC_INDEX),
-      aisstream: {
-        ...aisState,
-        cachedVessels: aisCache.size,
-      },
-    });
+    await loadChmarlExperiment();
+    sendJson(response, 200, healthPayload());
+    return;
+  }
+
+  if (request.url === "/api/chmarl/episode") {
+    const experiment = await loadChmarlExperiment();
+    if (!experiment || experiment.steps.length === 0) {
+      sendJson(response, 404, {
+        error: "No CH-MARL experiment feed is active",
+        detail: CHMARL_EXPERIMENT_URL
+          ? "Configured CHMARL_EXPERIMENT_URL returned no steps or failed."
+          : `Place a CH-MARL episode JSON file at ${CHMARL_EXPERIMENT_FILE}.`,
+        chmarl: chmarlState,
+      });
+      return;
+    }
+    sendJson(response, 200, experiment);
     return;
   }
 
@@ -521,12 +611,14 @@ createServer(async (request, response) => {
     return;
   }
 
-  sendJson(response, 404, { error: "Not found", availableEndpoints: ["/", "/health", "/api/vessels"] });
+  sendJson(response, 404, { error: "Not found", availableEndpoints: ["/", "/health", "/api/vessels", "/api/chmarl/episode"] });
 }).listen(PORT, () => {
   const staticAvailable = existsSync(STATIC_INDEX);
   console.log(`Vessel feed proxy listening at http://localhost:${PORT}/api/vessels`);
+  console.log(`CH-MARL experiment endpoint at http://localhost:${PORT}/api/chmarl/episode`);
   console.log(`Vessel feed proxy health at http://localhost:${PORT}/health`);
   console.log(staticAvailable ? `Serving production dashboard from ${STATIC_DIR}` : "No dist/ build found; use Vite port 5173 for development.");
   if (AISSTREAM_CACHE_ENABLED) console.log(`AIS cache persistence enabled at ${AISSTREAM_CACHE_FILE}.`);
+  if (CHMARL_EXPERIMENT_URL || existsSync(CHMARL_EXPERIMENT_FILE_PATH)) console.log("CH-MARL experiment feed configured.");
   if (AISSTREAM_API_KEY) console.log("AISStream live mode enabled.");
 });
