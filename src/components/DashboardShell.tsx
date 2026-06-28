@@ -10,6 +10,7 @@ import PanelCard from "./PanelCard";
 import PortUtilizationChart from "./charts/PortUtilizationChart";
 import RewardTrend from "./charts/RewardTrend";
 import ShipScene from "./ShipScene";
+import VesselSpeedProfile from "./charts/VesselSpeedProfile";
 import VesselTable from "./VesselTable";
 
 type FocusPanel = "reward" | "constraints" | "scene" | "ports" | "watchlist" | "vessels";
@@ -90,8 +91,8 @@ function buildOperationalMetrics(data: DashboardData): Metric[] {
     },
     {
       label: "Feasibility score",
-      value: `${(feasibleRatio * 100).toFixed(1)}%`,
-      trend: `${constrainedCount} constrained / ${watchCount} watch`,
+      value: vesselCount === 0 ? "n/a" : `${(feasibleRatio * 100).toFixed(1)}%`,
+      trend: vesselCount === 0 ? "waiting for vessel rows" : `${constrainedCount} constrained / ${watchCount} watch`,
     },
     {
       label: "Reward index",
@@ -257,15 +258,23 @@ export default function DashboardShell() {
   }, [externalSourceActive, selectedScenarioId]);
 
   const dashboardData = useMemo(() => getScenarioDashboardData(baseData, selectedScenarioId), [baseData, selectedScenarioId]);
+  const liveDataActive = isExternalSource(dashboardData.source);
   const trailCount = dashboardData.vessels.filter((vessel) => vessel.trail && vessel.trail.length > 1).length;
   const eventCount = dashboardData.portEvents.length;
   const providerState = statusLabel(dataSourceStatus);
   const refreshSeconds = refreshIntervalMs / 1000;
-  const portPanelTitle = isExternalSource(dashboardData.source) ? "Nearest-Port Vessel Clustering" : "Port Utilization";
-  const portPanelTag = isExternalSource(dashboardData.source) ? "proximity" : "capacity";
+  const portPanelTitle = liveDataActive ? "Nearest-Port Vessel Clustering" : "Port Utilization";
+  const portPanelTag = liveDataActive ? "proximity" : "capacity";
+  const primaryPanelTitle = liveDataActive ? "Vessel Speed Profile" : "CH-MARL Reward Trend";
+  const primaryPanelTag = liveDataActive ? sourceLabel(dashboardData.source) : selectedScenarioId;
 
   const focusContent = (() => {
-    if (focusPanel === "reward") return { title: "CH-MARL Reward Trend", content: <RewardTrend data={dashboardData.rewardTrend} /> };
+    if (focusPanel === "reward") {
+      return {
+        title: primaryPanelTitle,
+        content: liveDataActive ? <VesselSpeedProfile vessels={dashboardData.vessels} /> : <RewardTrend data={dashboardData.rewardTrend} />,
+      };
+    }
     if (focusPanel === "constraints") return { title: "Operational Constraint Pressure", content: <ConstraintChart data={dashboardData.constraintPressure} /> };
     if (focusPanel === "scene") return { title: "Maritime Operations Map", content: <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} expanded /> };
     if (focusPanel === "ports") return { title: portPanelTitle, content: <PortUtilizationChart data={dashboardData.portUtilization} /> };
@@ -331,17 +340,17 @@ export default function DashboardShell() {
         <div className="data-health-card">
           <span>Port events</span>
           <strong>{eventCount}</strong>
-          <small>{isExternalSource(dashboardData.source) ? "not connected for live feed" : "mapped to known ports"}</small>
+          <small>{liveDataActive ? "not connected for live feed" : "mapped to known ports"}</small>
         </div>
         <div className="data-health-card">
           <span>Refresh cadence</span>
           <strong>{refreshSeconds}s</strong>
-          <small>{isExternalSource(dashboardData.source) ? "live feed polling" : "manual refresh available"}</small>
+          <small>{liveDataActive ? "live feed polling" : "manual refresh available"}</small>
         </div>
         <div className="data-health-card">
           <span>Scenario</span>
           <strong>{selectedScenarioId}</strong>
-          <small>{isExternalSource(dashboardData.source) ? "disabled for live vessel feed" : "operational transform active"}</small>
+          <small>{liveDataActive ? "disabled for live vessel feed" : "operational transform active"}</small>
         </div>
       </section>
 
@@ -353,8 +362,8 @@ export default function DashboardShell() {
 
       <section className="dashboard-grid">
         <div className="left-stack">
-          <PanelCard title="CH-MARL Reward Trend" tag={selectedScenarioId} onFocus={() => setFocusPanel("reward")}>
-            <RewardTrend data={dashboardData.rewardTrend} />
+          <PanelCard title={primaryPanelTitle} tag={primaryPanelTag} onFocus={() => setFocusPanel("reward")}>
+            {liveDataActive ? <VesselSpeedProfile vessels={dashboardData.vessels} /> : <RewardTrend data={dashboardData.rewardTrend} />}
           </PanelCard>
           <PanelCard title="Operational Constraint Pressure" tag="constraints" onFocus={() => setFocusPanel("constraints")}>
             <ConstraintChart data={dashboardData.constraintPressure} />
