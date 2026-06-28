@@ -6,6 +6,7 @@ export type PortUtilizationChartProps = {
 };
 
 export default function PortUtilizationChart({ data }: PortUtilizationChartProps) {
+  const total = data.reduce((sum, item) => sum + item.value, 0);
   const option = useMemo(
     () => ({
       tooltip: {
@@ -14,13 +15,30 @@ export default function PortUtilizationChart({ data }: PortUtilizationChartProps
         borderColor: "rgba(141,220,255,0.3)",
         textStyle: { color: "#e6f7ff" },
       },
+      graphic: data.length === 0
+        ? {
+            type: "text" as const,
+            left: "center",
+            top: "middle",
+            style: {
+              text: "No vessels within known port radius",
+              fill: "rgba(230,247,255,0.62)",
+              fontSize: 13,
+              fontWeight: 700,
+            },
+          }
+        : undefined,
       series: [
         {
           type: "pie" as const,
           radius: ["48%", "72%"],
           center: ["50%", "52%"],
           avoidLabelOverlap: true,
-          label: { color: "rgba(230,247,255,0.76)", formatter: "{b}\n{c}%" },
+          label: {
+            show: data.length > 0,
+            color: "rgba(230,247,255,0.76)",
+            formatter: total > 0 ? "{b}\n{c} vessels" : "{b}\n{c}",
+          },
           labelLine: { lineStyle: { color: "rgba(230,247,255,0.28)" } },
           data,
           itemStyle: {
@@ -32,7 +50,7 @@ export default function PortUtilizationChart({ data }: PortUtilizationChartProps
       ],
       color: ["#65e4cb", "#8ddcff", "#ffd780", "#ff9c9c", "#b99cff"],
     }),
-    [data]
+    [data, total]
   );
 
   return <Chart option={option} />;
