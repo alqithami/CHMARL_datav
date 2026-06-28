@@ -6,8 +6,8 @@
   "packageManager": "pnpm@9.15.9",
   "description": "CH-MARL maritime logistics geospatial visualization platform.",
   "scripts": {
-    "dev": "vite",
-    "dev:codespaces": "vite --host 0.0.0.0 --port 5173",
+    "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
+    "dev:codespaces": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "proxy": "node server/vessel-feed-proxy/index.mjs",
     "dev:proxy": "node scripts/dev-with-proxy.mjs",
     "build": "tsc -b && vite build",
