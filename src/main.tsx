@@ -9,6 +9,7 @@ import "./platformLayout.css";
 import "./mapPolish.css";
 import "./commandBar.css";
 import "./aisDiagnostics.css";
+import "./mapRailControls.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
