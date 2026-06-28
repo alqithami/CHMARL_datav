@@ -1,3 +1,32 @@
+.topbar {
+  padding: 2px 0 0;
+}
+
+.scenario-bar {
+  padding: 8px;
+  border: 1px solid rgba(141, 220, 255, 0.10);
+  border-radius: 16px;
+  background: rgba(3, 13, 24, 0.28);
+}
+
+.pill {
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow: none;
+}
+
+.pill:hover {
+  background: rgba(101, 228, 203, 0.12);
+  border-color: rgba(101, 228, 203, 0.24);
+}
+
+.data-pill {
+  background: transparent;
+  border-color: transparent;
+  color: rgba(230, 247, 255, 0.66);
+}
+
 .metric-card,
 .panel-card,
 .data-health-card {
