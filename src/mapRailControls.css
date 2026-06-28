@@ -59,6 +59,12 @@
   color: #ffffff;
 }
 
+.tile-map-controls button.active {
+  color: #04111f;
+  background: #65e4cb;
+  border-color: transparent;
+}
+
 .tile-vessel-list-items button.stale {
   border-color: rgba(255, 215, 128, 0.26);
   background: rgba(255, 215, 128, 0.07);
