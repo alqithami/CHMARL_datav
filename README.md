@@ -60,7 +60,7 @@ The dashboard refreshes vessel data every 30 seconds and also includes a manual 
 | Experiment-log adapter scaffold | Implemented in `src/adapters/experimentLogAdapter.ts` |
 | Scenario catalog | Implemented in `src/scenarios/scenarioCatalog.ts` |
 | Interactive scenario switching | Implemented |
-| Dashboard export tools | Implemented for JSON snapshots and vessel CSV |
+| Dashboard export tools | Implemented for JSON snapshots, vessel CSV, and paper-ready Markdown reports |
 | Provider-specific live AIS connection | Planned behind the proxy |
 
 ## Middle Map
@@ -76,9 +76,10 @@ The dashboard header includes:
 ```text
 Export JSON
 Export CSV
+Export Report
 ```
 
-`Export JSON` downloads a scenario snapshot containing metrics, vessels, port events, reward trends, constraint pressure, port utilization, and timeline events. `Export CSV` downloads the current vessel table with coordinates, status, and trail-count metadata.
+`Export JSON` downloads a scenario snapshot containing metrics, vessels, port events, reward trends, constraint pressure, port utilization, and timeline events. `Export CSV` downloads the current vessel table with coordinates, status, and trail-count metadata. `Export Report` downloads a paper-ready Markdown evidence report summarizing the scenario, KPI table, vessel-status distribution, port-event distribution, constraint pressure, port utilization, and hierarchy decision timeline.
 
 ## Local Data Fixtures
 
