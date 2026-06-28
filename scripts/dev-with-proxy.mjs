@@ -2,7 +2,8 @@ import { spawn } from "node:child_process";
 
 const proxyPort = process.env.PORT ?? "8787";
 const dashboardPort = process.env.VITE_PORT ?? "5173";
-const vesselFeedUrl = process.env.VITE_VESSEL_DATA_URL ?? `http://localhost:${proxyPort}/api/vessels`;
+const vesselFeedUrl = process.env.VITE_VESSEL_DATA_URL ?? "/api/vessels";
+const viteProxyTarget = process.env.VITE_PROXY_TARGET ?? `http://localhost:${proxyPort}`;
 
 const processes = [];
 
@@ -49,7 +50,9 @@ run("vessel-feed-proxy", "node", ["server/vessel-feed-proxy/index.mjs"], {
 });
 
 console.log(`Starting dashboard on port ${dashboardPort}`);
-console.log(`Using vessel feed: ${vesselFeedUrl}`);
+console.log(`Using frontend vessel feed path: ${vesselFeedUrl}`);
+console.log(`Proxying Vite API calls to: ${viteProxyTarget}`);
 run("vite", "pnpm", ["exec", "vite", "--host", "0.0.0.0", "--port", dashboardPort], {
   VITE_VESSEL_DATA_URL: vesselFeedUrl,
+  VITE_PROXY_TARGET: viteProxyTarget,
 });
