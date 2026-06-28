@@ -1,0 +1,109 @@
+.scenario-bar {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  width: min(980px, 100%);
+}
+
+.status-control-group,
+.scenario-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.status-control-group {
+  justify-content: flex-start;
+}
+
+.scenario-buttons {
+  justify-content: flex-end;
+}
+
+.actions-menu {
+  position: relative;
+  z-index: 30;
+}
+
+.actions-menu summary {
+  list-style: none;
+  user-select: none;
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 6px 10px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  color: #dffcff;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.actions-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.actions-menu[open] summary,
+.actions-menu summary:hover {
+  color: #04111f;
+  background: #65e4cb;
+  border-color: transparent;
+}
+
+.actions-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 190px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(141, 220, 255, 0.18);
+  background: rgba(3, 13, 24, 0.96);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(14px);
+}
+
+.actions-menu-panel button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  padding: 8px 9px;
+  border-radius: 10px;
+  color: rgba(230, 247, 255, 0.82);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.actions-menu-panel button:hover {
+  color: #ffffff;
+  border-color: rgba(101, 228, 203, 0.24);
+  background: rgba(101, 228, 203, 0.12);
+}
+
+@media (max-width: 1180px) {
+  .scenario-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .scenario-buttons,
+  .status-control-group {
+    justify-content: flex-start;
+  }
+
+  .actions-menu {
+    justify-self: start;
+  }
+
+  .actions-menu-panel {
+    left: 0;
+    right: auto;
+  }
+}
