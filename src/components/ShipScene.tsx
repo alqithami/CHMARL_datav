@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { routes, vessels as fallbackVessels, type Vessel, type VesselTrailPoint } from "@/data/chmarlData";
 import type { PortEvent } from "@/types/chmarl";
 
@@ -133,6 +133,40 @@ function centerOfVessels(vessels: Vessel[]): GeoPoint | undefined {
   };
 }
 
+function vesselBounds(vessels: Vessel[]) {
+  const points = vessels.filter(hasCoordinates);
+  if (points.length === 0) return undefined;
+
+  return points.reduce(
+    (bounds, vessel) => ({
+      minLat: Math.min(bounds.minLat, vessel.latitude),
+      maxLat: Math.max(bounds.maxLat, vessel.latitude),
+      minLon: Math.min(bounds.minLon, vessel.longitude),
+      maxLon: Math.max(bounds.maxLon, vessel.longitude),
+    }),
+    {
+      minLat: points[0].latitude,
+      maxLat: points[0].latitude,
+      minLon: points[0].longitude,
+      maxLon: points[0].longitude,
+    }
+  );
+}
+
+function zoomForVessels(vessels: Vessel[]) {
+  const bounds = vesselBounds(vessels);
+  if (!bounds) return DEFAULT_ZOOM;
+
+  const latSpan = Math.max(0.1, bounds.maxLat - bounds.minLat);
+  const lonSpan = Math.max(0.1, bounds.maxLon - bounds.minLon);
+  const span = Math.max(latSpan * 1.35, lonSpan);
+
+  if (span > 24) return MIN_ZOOM;
+  if (span > 12) return 6;
+  if (span > 5) return 7;
+  return MAX_ZOOM;
+}
+
 function buildTrailPath(vessel: Vessel, center: GeoPoint, zoom: number) {
   const trail = vessel.trail?.filter(isTrailPoint);
   if (!trail || trail.length < 2) return undefined;
@@ -244,6 +278,7 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
   const [movingOnly, setMovingOnly] = useState(false);
   const [staleOnly, setStaleOnly] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("latest");
+  const [autoFitEnabled, setAutoFitEnabled] = useState(true);
   const sceneVessels = vessels ?? fallbackVessels;
   const query = searchQuery.trim().toLowerCase();
   const visibleVessels = useMemo(() => {
@@ -288,6 +323,14 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
   const selectedShip = selectedShipId ? shipMarkers.find((ship) => ship.vessel.id === selectedShipId) : undefined;
   const hoveredShip = hoveredShipId ? shipMarkers.find((ship) => ship.vessel.id === hoveredShipId) : undefined;
 
+  useEffect(() => {
+    if (!autoFitEnabled || selectedShipId || visibleVessels.length === 0) return;
+    const center = centerOfVessels(visibleVessels);
+    if (!center) return;
+    setManualCenter(center);
+    setMapZoom(zoomForVessels(visibleVessels));
+  }, [autoFitEnabled, selectedShipId, visibleVessels]);
+
   const mapStyle = selectedShip && !expanded
     ? {
         transformOrigin: `${selectedShip.left}% ${selectedShip.top}%`,
@@ -295,6 +338,7 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
     : undefined;
 
   const selectVessel = (vesselId: string) => {
+    setAutoFitEnabled(false);
     setSelectedShipId(vesselId);
     const selected = visibleVessels.find((vessel) => vessel.id === vesselId);
     const center = geoFromVessel(selected);
@@ -305,10 +349,12 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
     const center = centerOfVessels(visibleVessels);
     if (center) setManualCenter(center);
     setSelectedShipId("");
-    setMapZoom(7);
+    setMapZoom(zoomForVessels(visibleVessels));
+    setAutoFitEnabled(true);
   };
 
   const resetOverview = () => {
+    setAutoFitEnabled(false);
     setSelectedShipId("");
     setHoveredShipId("");
     setManualCenter(DEFAULT_CENTER);
@@ -321,6 +367,14 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
     setStaleOnly(false);
     setSortMode("latest");
     setSelectedShipId("");
+  };
+
+  const toggleAutoFit = () => {
+    if (autoFitEnabled) {
+      setAutoFitEnabled(false);
+      return;
+    }
+    fitVisibleVessels();
   };
 
   const vesselDetail = selectedShip ? (
@@ -470,10 +524,11 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
       )}
 
       <div className="tile-map-controls">
-        <button type="button" onClick={() => setMapZoom((zoom) => Math.min(MAX_ZOOM, zoom + 1))}>+</button>
-        <button type="button" onClick={() => setMapZoom((zoom) => Math.max(MIN_ZOOM, zoom - 1))}>−</button>
+        <button type="button" onClick={() => { setAutoFitEnabled(false); setMapZoom((zoom) => Math.min(MAX_ZOOM, zoom + 1)); }}>+</button>
+        <button type="button" onClick={() => { setAutoFitEnabled(false); setMapZoom((zoom) => Math.max(MIN_ZOOM, zoom - 1)); }}>−</button>
         <button type="button" onClick={resetOverview}>Overview</button>
         <button type="button" onClick={fitVisibleVessels}>Fit vessels</button>
+        <button type="button" className={autoFitEnabled ? "active" : ""} onClick={toggleAutoFit}>Auto-fit {autoFitEnabled ? "on" : "off"}</button>
         <span>{visibleVessels.length}/{sceneVessels.length} vessels</span>
         {expanded && <span>{eventMarkers.length} events</span>}
         <span>Zoom {mapZoom}</span>
