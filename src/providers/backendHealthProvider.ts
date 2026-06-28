@@ -18,11 +18,25 @@ export type AisStreamHealth = {
   restoredVessels?: number;
 };
 
+export type ChmarlRuntimeHealth = {
+  enabled: boolean;
+  active: boolean;
+  source: "file" | "url" | string;
+  configuredUrl: boolean;
+  file: string;
+  steps: number;
+  experimentId: string | null;
+  scenarioId: string | null;
+  lastLoadedAt: string | null;
+  lastError: string | null;
+};
+
 export type BackendHealth = {
   ok: boolean;
   upstreamConfigured: boolean;
   staticDashboard?: boolean;
   aisstream?: AisStreamHealth;
+  chmarl?: ChmarlRuntimeHealth;
 };
 
 function healthUrl() {
