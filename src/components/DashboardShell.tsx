@@ -34,6 +34,10 @@ function countStatus(vessels: Vessel[], status: Vessel["status"]) {
   return vessels.filter((vessel) => vessel.status === status).length;
 }
 
+function isExternalSource(source: DashboardDataSource) {
+  return source === "aisstream" || source === "aisstream-waiting" || source === "upstream" || source === "remote";
+}
+
 function sourceLabel(source: DashboardDataSource) {
   if (source === "aisstream") return "Live AIS";
   if (source === "aisstream-waiting") return "AIS waiting";
@@ -82,7 +86,7 @@ function buildOperationalMetrics(data: DashboardData): Metric[] {
     {
       label: "Port events",
       value: String(data.portEvents.length),
-      trend: "normalized operations feed",
+      trend: isExternalSource(data.source) ? "no port-event feed connected" : "normalized operations feed",
     },
     {
       label: "Feasibility score",
@@ -92,7 +96,7 @@ function buildOperationalMetrics(data: DashboardData): Metric[] {
     {
       label: "Reward index",
       value: latestReward === undefined ? "n/a" : latestReward.toFixed(3),
-      trend: "latest CH-MARL episode step",
+      trend: isExternalSource(data.source) ? "no CH-MARL log connected" : "latest CH-MARL episode step",
     },
     {
       label: "Avg vessel speed",
@@ -115,6 +119,10 @@ function withOperationalMetrics(data: DashboardData): DashboardData {
 }
 
 function getScenarioDashboardData(base: DashboardData, scenarioId: string): DashboardData {
+  if (isExternalSource(base.source)) {
+    return withOperationalMetrics(base);
+  }
+
   if (scenarioId === "congestion") {
     return withOperationalMetrics({
       ...base,
@@ -211,6 +219,7 @@ export default function DashboardShell() {
   const [lastUpdated, setLastUpdated] = useState("not loaded");
   const [focusPanel, setFocusPanel] = useState<FocusPanel | null>(null);
   const refreshIntervalMs = sourceRefreshMs(baseData.source);
+  const externalSourceActive = isExternalSource(baseData.source);
 
   const refreshData = useCallback((status: LoadStatus = "refreshing") => {
     setDataSourceStatus(status);
@@ -241,17 +250,25 @@ export default function DashboardShell() {
     };
   }, [refreshData, refreshIntervalMs]);
 
+  useEffect(() => {
+    if (externalSourceActive && selectedScenarioId !== "baseline") {
+      setSelectedScenarioId("baseline");
+    }
+  }, [externalSourceActive, selectedScenarioId]);
+
   const dashboardData = useMemo(() => getScenarioDashboardData(baseData, selectedScenarioId), [baseData, selectedScenarioId]);
   const trailCount = dashboardData.vessels.filter((vessel) => vessel.trail && vessel.trail.length > 1).length;
   const eventCount = dashboardData.portEvents.length;
   const providerState = statusLabel(dataSourceStatus);
   const refreshSeconds = refreshIntervalMs / 1000;
+  const portPanelTitle = isExternalSource(dashboardData.source) ? "Nearest-Port Vessel Clustering" : "Port Utilization";
+  const portPanelTag = isExternalSource(dashboardData.source) ? "proximity" : "capacity";
 
   const focusContent = (() => {
     if (focusPanel === "reward") return { title: "CH-MARL Reward Trend", content: <RewardTrend data={dashboardData.rewardTrend} /> };
     if (focusPanel === "constraints") return { title: "Operational Constraint Pressure", content: <ConstraintChart data={dashboardData.constraintPressure} /> };
     if (focusPanel === "scene") return { title: "Maritime Operations Map", content: <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} expanded /> };
-    if (focusPanel === "ports") return { title: "Port Utilization", content: <PortUtilizationChart data={dashboardData.portUtilization} /> };
+    if (focusPanel === "ports") return { title: portPanelTitle, content: <PortUtilizationChart data={dashboardData.portUtilization} /> };
     if (focusPanel === "watchlist") return { title: "Operational Watchlist", content: <OperationalWatchlist data={dashboardData} scenarioId={selectedScenarioId} /> };
     if (focusPanel === "vessels") return { title: "Vessel State Table", content: <VesselTable vessels={dashboardData.vessels} /> };
     return null;
@@ -274,16 +291,20 @@ export default function DashboardShell() {
             <button type="button" className="pill" onClick={() => refreshData("refreshing")}>Refresh</button>
           </div>
           <div className="scenario-buttons" aria-label="Scenario selection">
-            {scenarioCatalog.map((scenario) => (
-              <button
-                key={scenario.scenarioId}
-                type="button"
-                className={scenario.scenarioId === selectedScenarioId ? "pill active" : "pill"}
-                title={scenario.description}
-                onClick={() => setSelectedScenarioId(scenario.scenarioId)}>
-                {scenario.label}
-              </button>
-            ))}
+            {scenarioCatalog.map((scenario) => {
+              const disabled = externalSourceActive && scenario.scenarioId !== "baseline";
+              return (
+                <button
+                  key={scenario.scenarioId}
+                  type="button"
+                  disabled={disabled}
+                  className={scenario.scenarioId === selectedScenarioId ? "pill active" : "pill"}
+                  title={disabled ? "Scenario overlays require CH-MARL experiment logs; live vessel rows are not altered." : scenario.description}
+                  onClick={() => setSelectedScenarioId(scenario.scenarioId)}>
+                  {scenario.label}
+                </button>
+              );
+            })}
           </div>
           <details className="actions-menu">
             <summary>Exports</summary>
@@ -310,17 +331,17 @@ export default function DashboardShell() {
         <div className="data-health-card">
           <span>Port events</span>
           <strong>{eventCount}</strong>
-          <small>mapped to known ports</small>
+          <small>{isExternalSource(dashboardData.source) ? "not connected for live feed" : "mapped to known ports"}</small>
         </div>
         <div className="data-health-card">
           <span>Refresh cadence</span>
           <strong>{refreshSeconds}s</strong>
-          <small>{dashboardData.source === "aisstream" || dashboardData.source === "aisstream-waiting" ? "live AIS polling" : "manual refresh available"}</small>
+          <small>{isExternalSource(dashboardData.source) ? "live feed polling" : "manual refresh available"}</small>
         </div>
         <div className="data-health-card">
           <span>Scenario</span>
           <strong>{selectedScenarioId}</strong>
-          <small>operational transform active</small>
+          <small>{isExternalSource(dashboardData.source) ? "disabled for live vessel feed" : "operational transform active"}</small>
         </div>
       </section>
 
@@ -345,7 +366,7 @@ export default function DashboardShell() {
         </PanelCard>
 
         <div className="right-stack">
-          <PanelCard title="Port Utilization" tag="capacity" onFocus={() => setFocusPanel("ports")}>
+          <PanelCard title={portPanelTitle} tag={portPanelTag} onFocus={() => setFocusPanel("ports")}>
             <PortUtilizationChart data={dashboardData.portUtilization} />
           </PanelCard>
           <PanelCard title="Operational Watchlist" tag="actions" onFocus={() => setFocusPanel("watchlist")}>
