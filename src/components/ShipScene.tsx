@@ -444,7 +444,7 @@ export default function ShipScene({ vessels = fallbackVessels, portEvents = [], 
               <span>{visibleVessels.length}</span>
             </div>
             <div className="tile-vessel-list-items">
-              {visibleVessels.slice(0, 16).map((vessel) => (
+              {visibleVessels.map((vessel) => (
                 <button
                   key={vessel.id}
                   type="button"
@@ -465,7 +465,7 @@ export default function ShipScene({ vessels = fallbackVessels, portEvents = [], 
             <div className="tile-vessel-list-items">
               {eventMarkers.length === 0 ? (
                 <p className="rail-empty-state">No port events are connected for this feed.</p>
-              ) : eventMarkers.slice(0, 8).map(({ event }) => (
+              ) : eventMarkers.map(({ event }) => (
                 <button key={event.eventId} type="button">
                   <span>{labelForEvent(event.eventType)}</span>
                   <small>{event.portId} · {event.timestamp}</small>
