@@ -10,6 +10,7 @@ import "./mapPolish.css";
 import "./commandBar.css";
 import "./aisDiagnostics.css";
 import "./mapRailControls.css";
+import "./professionalLayout.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
