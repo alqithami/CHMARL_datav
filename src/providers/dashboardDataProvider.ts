@@ -1,3 +1,4 @@
+import type { DashboardDataSource } from "@/data/loadSampleDashboardData";
 import type { Vessel, VesselTrailPoint } from "@/data/chmarlData";
 
 type RemoteTrailPoint = Partial<VesselTrailPoint> & {
@@ -34,8 +35,15 @@ type RemoteVesselRow = Partial<Vessel> & {
   track?: RemoteTrailPoint[];
 };
 
+type RemoteVesselPayload = {
+  source?: string;
+  vessels?: RemoteVesselRow[];
+  data?: RemoteVesselRow[];
+  items?: RemoteVesselRow[];
+};
+
 export type DashboardVesselFeed = {
-  source: "remote";
+  source: DashboardDataSource;
   vessels: Vessel[];
 };
 
@@ -46,12 +54,20 @@ function endpointUrl() {
 function extractRows(payload: unknown): RemoteVesselRow[] {
   if (Array.isArray(payload)) return payload as RemoteVesselRow[];
   if (payload && typeof payload === "object") {
-    const record = payload as Record<string, unknown>;
-    if (Array.isArray(record.vessels)) return record.vessels as RemoteVesselRow[];
-    if (Array.isArray(record.data)) return record.data as RemoteVesselRow[];
-    if (Array.isArray(record.items)) return record.items as RemoteVesselRow[];
+    const record = payload as RemoteVesselPayload;
+    if (Array.isArray(record.vessels)) return record.vessels;
+    if (Array.isArray(record.data)) return record.data;
+    if (Array.isArray(record.items)) return record.items;
   }
   throw new Error("Remote vessel feed must return an array or an object with vessels/data/items array.");
+}
+
+function normalizeSource(value: unknown): DashboardDataSource {
+  if (value === "aisstream") return "aisstream";
+  if (value === "aisstream-waiting") return "aisstream-waiting";
+  if (value === "upstream") return "upstream";
+  if (value === "fallback") return "fallback";
+  return "remote";
 }
 
 function normalizeStatus(value: unknown): Vessel["status"] {
@@ -117,6 +133,7 @@ function toDashboardVessel(row: RemoteVesselRow): Vessel {
     longitude,
     headingDeg: toNumber(row.headingDeg ?? row.heading),
     courseDeg: toNumber(row.courseDeg ?? row.cog),
+    timestamp: row.timestamp,
     trail: normalizeTrail(row.trail ?? row.history ?? row.track),
   };
 }
@@ -130,9 +147,9 @@ export async function loadRemoteDashboardVessels(): Promise<DashboardVesselFeed 
     throw new Error(`Remote vessel feed request failed: ${response.status} ${response.statusText}`);
   }
 
-  const payload = await response.json();
+  const payload = (await response.json()) as RemoteVesselPayload | RemoteVesselRow[];
   return {
-    source: "remote",
+    source: normalizeSource(!Array.isArray(payload) ? payload.source : undefined),
     vessels: extractRows(payload).map(toDashboardVessel),
   };
 }
