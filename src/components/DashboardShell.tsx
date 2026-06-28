@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { Metric, RewardTrendPoint } from "@/data/chmarlData";
+import type { Metric, RewardTrendPoint, Vessel } from "@/data/chmarlData";
 import { fallbackDashboardData, loadSampleDashboardData, type DashboardData, type DashboardDataSource } from "@/data/loadSampleDashboardData";
-import { exportDashboardSnapshot, exportPaperReport, exportVesselCsv } from "@/export/dashboardExports";
+import { exportDashboardSnapshot, exportOperationalReport, exportVesselCsv } from "@/export/dashboardExports";
 import { scenarioCatalog } from "@/scenarios/scenarioCatalog";
 import ConstraintChart from "./charts/ConstraintChart";
 import DecisionTimeline from "./DecisionTimeline";
@@ -12,49 +12,6 @@ import RewardTrend from "./charts/RewardTrend";
 import ShipScene from "./ShipScene";
 import VesselTable from "./VesselTable";
 
-const scenarioMetrics: Record<string, Metric[]> = {
-  baseline: [
-    { label: "Active vessels", value: "128", trend: "simulated regional fleet" },
-    { label: "Port calls", value: "42", trend: "scheduled next 24h" },
-    { label: "Constraint score", value: "96.4%", trend: "safe policy feasible" },
-    { label: "Reward index", value: "0.740", trend: "local episode sample" },
-    { label: "Avg ETA error", value: "18m", trend: "after replanning" },
-    { label: "CO₂ intensity", value: "7.8", trend: "kg / t-nm" },
-  ],
-  congestion: [
-    { label: "Active vessels", value: "174", trend: "+46 surge vessels" },
-    { label: "Port calls", value: "67", trend: "berth pressure high" },
-    { label: "Constraint score", value: "88.1%", trend: "capacity binding" },
-    { label: "Reward index", value: "0.691", trend: "recovery mode" },
-    { label: "Avg ETA error", value: "41m", trend: "queue delay" },
-    { label: "CO₂ intensity", value: "8.9", trend: "kg / t-nm" },
-  ],
-  disruption: [
-    { label: "Active vessels", value: "119", trend: "8 rerouted" },
-    { label: "Port calls", value: "35", trend: "reduced window" },
-    { label: "Constraint score", value: "91.7%", trend: "shield active" },
-    { label: "Reward index", value: "0.656", trend: "safety-first policy" },
-    { label: "Avg ETA error", value: "54m", trend: "route disruption" },
-    { label: "CO₂ intensity", value: "9.4", trend: "kg / t-nm" },
-  ],
-  "emissions-aware": [
-    { label: "Active vessels", value: "126", trend: "slow steaming" },
-    { label: "Port calls", value: "40", trend: "balanced arrivals" },
-    { label: "Constraint score", value: "97.2%", trend: "emissions feasible" },
-    { label: "Reward index", value: "0.762", trend: "fuel trade-off" },
-    { label: "Avg ETA error", value: "24m", trend: "+6m slow speed" },
-    { label: "CO₂ intensity", value: "6.3", trend: "kg / t-nm" },
-  ],
-  "fairness-aware": [
-    { label: "Active vessels", value: "132", trend: "priority rebalance" },
-    { label: "Port calls", value: "44", trend: "balanced service" },
-    { label: "Constraint score", value: "95.8%", trend: "fairness shield" },
-    { label: "Reward index", value: "0.826", trend: "lower service gap" },
-    { label: "Avg ETA error", value: "22m", trend: "variance reduced" },
-    { label: "CO₂ intensity", value: "7.6", trend: "kg / t-nm" },
-  ],
-};
-
 type FocusPanel = "reward" | "constraints" | "scene" | "ports" | "timeline" | "vessels";
 type LoadStatus = "loading" | "refreshing" | DashboardDataSource;
 
@@ -62,26 +19,75 @@ function shiftRewardTrend(data: RewardTrendPoint[], offset: number, slope: numbe
   return data.map(([time, value], index) => [time, Number(Math.max(0.5, value + offset + index * slope).toFixed(3))]);
 }
 
-function scenarioMetricsFor(base: DashboardData, scenarioId: string): Metric[] {
-  const baseMetrics = scenarioMetrics[scenarioId] ?? scenarioMetrics.baseline;
-  return baseMetrics.map((metric) =>
-    metric.label === "Active vessels"
-      ? {
-          ...metric,
-          value: String(base.vessels.length),
-          trend: base.source === "remote" ? "remote vessel feed" : metric.trend,
-        }
-      : metric
-  );
+function parseSpeedKnots(speed: string) {
+  const parsed = Number.parseFloat(speed.replace(/[^0-9.\-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function averageSpeed(vessels: Vessel[]) {
+  const speeds = vessels.map((vessel) => parseSpeedKnots(vessel.speed)).filter((value): value is number => value !== undefined);
+  if (speeds.length === 0) return undefined;
+  return speeds.reduce((sum, value) => sum + value, 0) / speeds.length;
+}
+
+function countStatus(vessels: Vessel[], status: Vessel["status"]) {
+  return vessels.filter((vessel) => vessel.status === status).length;
+}
+
+function buildOperationalMetrics(data: DashboardData): Metric[] {
+  const vesselCount = data.vessels.length;
+  const watchCount = countStatus(data.vessels, "Watch");
+  const constrainedCount = countStatus(data.vessels, "Constrained");
+  const trackCount = data.vessels.filter((vessel) => vessel.trail && vessel.trail.length > 1).length;
+  const latestReward = data.rewardTrend.at(-1)?.[1];
+  const speed = averageSpeed(data.vessels);
+  const feasibleRatio = vesselCount === 0 ? 1 : Math.max(0, (vesselCount - constrainedCount) / vesselCount);
+
+  return [
+    {
+      label: "Tracked vessels",
+      value: String(vesselCount),
+      trend: data.source === "remote" ? "remote vessel feed" : `${data.source} source`,
+    },
+    {
+      label: "Port events",
+      value: String(data.portEvents.length),
+      trend: "normalized operations feed",
+    },
+    {
+      label: "Feasibility score",
+      value: `${(feasibleRatio * 100).toFixed(1)}%`,
+      trend: `${constrainedCount} constrained / ${watchCount} watch`,
+    },
+    {
+      label: "Reward index",
+      value: latestReward === undefined ? "n/a" : latestReward.toFixed(3),
+      trend: "latest CH-MARL episode step",
+    },
+    {
+      label: "Avg vessel speed",
+      value: speed === undefined ? "n/a" : `${speed.toFixed(1)} kn`,
+      trend: "from vessel state rows",
+    },
+    {
+      label: "Movement tracks",
+      value: String(trackCount),
+      trend: "vessels with trail history",
+    },
+  ];
+}
+
+function withOperationalMetrics(data: DashboardData): DashboardData {
+  return {
+    ...data,
+    metrics: buildOperationalMetrics(data),
+  };
 }
 
 function getScenarioDashboardData(base: DashboardData, scenarioId: string): DashboardData {
-  const metrics = scenarioMetricsFor(base, scenarioId);
-
   if (scenarioId === "congestion") {
-    return {
+    return withOperationalMetrics({
       ...base,
-      metrics,
       vessels: base.vessels.map((vessel, index) => ({ ...vessel, status: index < 2 ? ("Watch" as const) : vessel.status })),
       rewardTrend: shiftRewardTrend(base.rewardTrend, -0.04, 0.002),
       constraintPressure: base.constraintPressure.map((item) => ({ ...item, value: Math.min(100, item.value + 18) })),
@@ -96,13 +102,12 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
         { time: "T+00:03", title: "Congestion-aware policy selected", body: "Port agents rebalance arrivals under increased berth pressure." },
         ...base.timelineEvents,
       ],
-    };
+    });
   }
 
   if (scenarioId === "disruption") {
-    return {
+    return withOperationalMetrics({
       ...base,
-      metrics,
       vessels: base.vessels.map((vessel, index) => ({ ...vessel, status: index === 2 ? ("Constrained" as const) : vessel.status })),
       rewardTrend: shiftRewardTrend(base.rewardTrend, -0.04, -0.006),
       constraintPressure: base.constraintPressure.map((item) => ({ ...item, value: item.name === "Channel safety" ? 93 : Math.min(100, item.value + 7) })),
@@ -117,27 +122,25 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
         { time: "T+00:01", title: "Route disruption detected", body: "A high-risk corridor segment was marked unavailable for routing." },
         ...base.timelineEvents,
       ],
-    };
+    });
   }
 
   if (scenarioId === "emissions-aware") {
-    return {
+    return withOperationalMetrics({
       ...base,
-      metrics,
       vessels: base.vessels.map((vessel) => ({ ...vessel, speed: "11.0 kn" })),
       rewardTrend: shiftRewardTrend(base.rewardTrend, -0.02, 0.004),
       constraintPressure: base.constraintPressure.map((item) => ({ ...item, value: item.name === "Emissions cap" ? 35 : Math.max(30, item.value - 8) })),
       timelineEvents: [
-        { time: "T+00:04", title: "Emissions shield enabled", body: "Vessel speeds are reduced to keep fuel and emissions constraints feasible." },
+        { time: "T+00:04", title: "Emissions-aware speed profile applied", body: "Vessel speed targets are reduced to keep fuel and emissions constraints feasible." },
         ...base.timelineEvents,
       ],
-    };
+    });
   }
 
   if (scenarioId === "fairness-aware") {
-    return {
+    return withOperationalMetrics({
       ...base,
-      metrics,
       rewardTrend: shiftRewardTrend(base.rewardTrend, -0.03, 0.003),
       constraintPressure: [...base.constraintPressure.slice(0, 4), { name: "Fairness gap", value: 31 }],
       portUtilization: [
@@ -148,13 +151,13 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
         { name: "KAEC", value: 66 },
       ],
       timelineEvents: [
-        { time: "T+00:05", title: "Fairness-aware policy selected", body: "Service variance is reduced across vessels, ports, and cargo classes." },
+        { time: "T+00:05", title: "Fairness-aware allocation selected", body: "Service variance is reduced across vessels, ports, and cargo classes." },
         ...base.timelineEvents,
       ],
-    };
+    });
   }
 
-  return { ...base, metrics };
+  return withOperationalMetrics(base);
 }
 
 function sourceLabel(source: DashboardDataSource) {
@@ -229,12 +232,12 @@ export default function DashboardShell() {
   const providerState = statusLabel(dataSourceStatus);
 
   const focusContent = (() => {
-    if (focusPanel === "reward") return { title: "Policy Reward Trend", content: <RewardTrend data={dashboardData.rewardTrend} /> };
-    if (focusPanel === "constraints") return { title: "Constraint Pressure", content: <ConstraintChart data={dashboardData.constraintPressure} /> };
-    if (focusPanel === "scene") return { title: "Maritime Operations Scene", content: <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} /> };
+    if (focusPanel === "reward") return { title: "CH-MARL Reward Trend", content: <RewardTrend data={dashboardData.rewardTrend} /> };
+    if (focusPanel === "constraints") return { title: "Operational Constraint Pressure", content: <ConstraintChart data={dashboardData.constraintPressure} /> };
+    if (focusPanel === "scene") return { title: "Maritime Operations Map", content: <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} /> };
     if (focusPanel === "ports") return { title: "Port Utilization", content: <PortUtilizationChart data={dashboardData.portUtilization} /> };
-    if (focusPanel === "timeline") return { title: "Decision Timeline", content: <DecisionTimeline events={dashboardData.timelineEvents} /> };
-    if (focusPanel === "vessels") return { title: "Sample Vessel State Table", content: <VesselTable vessels={dashboardData.vessels} /> };
+    if (focusPanel === "timeline") return { title: "CH-MARL Decision Timeline", content: <DecisionTimeline events={dashboardData.timelineEvents} /> };
+    if (focusPanel === "vessels") return { title: "Vessel State Table", content: <VesselTable vessels={dashboardData.vessels} /> };
     return null;
   })();
 
@@ -243,18 +246,18 @@ export default function DashboardShell() {
       <header className="topbar">
         <div>
           <div className="brand-kicker">CH-MARL Maritime Logistics</div>
-          <h1 className="brand-title">Constrained Hierarchical MARL DataV Platform</h1>
+          <h1 className="brand-title">Operational Vessel Intelligence Dashboard</h1>
           <p className="brand-subtitle">
-            Synthetic regional operations view for policy comparison before live vessel, port, and experiment-log connections.
+            Vessel, port-event, and CH-MARL decision view for scenario evaluation and operational evidence.
           </p>
         </div>
         <div className="scenario-bar" aria-label="Scenario controls">
           <span className="pill data-pill">Data: {dataSourceStatus}</span>
           <span className="pill data-pill">Updated: {lastUpdated}</span>
           <button type="button" className="pill" onClick={() => refreshData("refreshing")}>Refresh</button>
-          <button type="button" className="pill" onClick={() => exportDashboardSnapshot(dashboardData, selectedScenarioId)}>Export JSON</button>
-          <button type="button" className="pill" onClick={() => exportVesselCsv(dashboardData, selectedScenarioId)}>Export CSV</button>
-          <button type="button" className="pill" onClick={() => exportPaperReport(dashboardData, selectedScenarioId)}>Export Report</button>
+          <button type="button" className="pill" onClick={() => exportDashboardSnapshot(dashboardData, selectedScenarioId)}>Export Snapshot</button>
+          <button type="button" className="pill" onClick={() => exportVesselCsv(dashboardData, selectedScenarioId)}>Export Vessels</button>
+          <button type="button" className="pill" onClick={() => exportOperationalReport(dashboardData, selectedScenarioId)}>Export Ops Report</button>
           {scenarioCatalog.map((scenario) => (
             <button
               key={scenario.scenarioId}
@@ -272,31 +275,31 @@ export default function DashboardShell() {
         <div className="data-health-card primary">
           <span>Provider state</span>
           <strong>{providerState}</strong>
-          <small>{baseData.source === "remote" ? "VITE_VESSEL_DATA_URL active" : "Using non-remote data path"}</small>
+          <small>{baseData.source === "remote" ? "backend proxy endpoint active" : "using local validation feed"}</small>
         </div>
         <div className="data-health-card">
           <span>Vessels</span>
           <strong>{dashboardData.vessels.length}</strong>
-          <small>{trailCount} with movement trails</small>
+          <small>{trailCount} with movement tracks</small>
         </div>
         <div className="data-health-card">
           <span>Port events</span>
           <strong>{eventCount}</strong>
-          <small>Mapped to known ports</small>
+          <small>mapped to known ports</small>
         </div>
         <div className="data-health-card">
           <span>Refresh cadence</span>
           <strong>30s</strong>
-          <small>Manual refresh available</small>
+          <small>manual refresh available</small>
         </div>
         <div className="data-health-card">
           <span>Scenario</span>
           <strong>{selectedScenarioId}</strong>
-          <small>UI policy transform active</small>
+          <small>operational transform active</small>
         </div>
       </section>
 
-      <section className="metrics-grid" aria-label="CH-MARL performance metrics">
+      <section className="metrics-grid" aria-label="Operational performance metrics">
         {dashboardData.metrics.map((metric) => (
           <MetricCard key={metric.label} metric={metric} />
         ))}
@@ -304,15 +307,15 @@ export default function DashboardShell() {
 
       <section className="dashboard-grid">
         <div className="left-stack">
-          <PanelCard title="Policy Reward Trend" tag={selectedScenarioId} onFocus={() => setFocusPanel("reward")}>
+          <PanelCard title="CH-MARL Reward Trend" tag={selectedScenarioId} onFocus={() => setFocusPanel("reward")}>
             <RewardTrend data={dashboardData.rewardTrend} />
           </PanelCard>
-          <PanelCard title="Constraint Pressure" tag="shield" onFocus={() => setFocusPanel("constraints")}>
+          <PanelCard title="Operational Constraint Pressure" tag="constraints" onFocus={() => setFocusPanel("constraints")}>
             <ConstraintChart data={dashboardData.constraintPressure} />
           </PanelCard>
         </div>
 
-        <PanelCard title="Maritime Operations Scene" tag="static map" className="scene-panel" onFocus={() => setFocusPanel("scene")}>
+        <PanelCard title="Maritime Operations Map" tag="vessel map" className="scene-panel" onFocus={() => setFocusPanel("scene")}>
           <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} />
         </PanelCard>
 
@@ -320,12 +323,12 @@ export default function DashboardShell() {
           <PanelCard title="Port Utilization" tag="capacity" onFocus={() => setFocusPanel("ports")}>
             <PortUtilizationChart data={dashboardData.portUtilization} />
           </PanelCard>
-          <PanelCard title="Decision Timeline" tag="hierarchy" onFocus={() => setFocusPanel("timeline")}>
+          <PanelCard title="CH-MARL Decision Timeline" tag="hierarchy" onFocus={() => setFocusPanel("timeline")}>
             <DecisionTimeline events={dashboardData.timelineEvents} />
           </PanelCard>
         </div>
 
-        <PanelCard title="Sample Vessel State Table" tag="fixture" onFocus={() => setFocusPanel("vessels")}>
+        <PanelCard title="Vessel State Table" tag="feed" onFocus={() => setFocusPanel("vessels")}>
           <VesselTable vessels={dashboardData.vessels} />
         </PanelCard>
       </section>
