@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { extname, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, extname, resolve } from "node:path";
 import WebSocket from "ws";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -11,6 +11,10 @@ const AISSTREAM_URL = process.env.AISSTREAM_URL ?? "wss://stream.aisstream.io/v0
 const AISSTREAM_BBOX = process.env.AISSTREAM_BBOX ?? "11,32;31,56";
 const AISSTREAM_MAX_VESSELS = Number(process.env.AISSTREAM_MAX_VESSELS ?? 250);
 const AISSTREAM_TRAIL_POINTS = Number(process.env.AISSTREAM_TRAIL_POINTS ?? 24);
+const AISSTREAM_CACHE_ENABLED = process.env.AISSTREAM_CACHE_ENABLED !== "false";
+const AISSTREAM_CACHE_FILE = process.env.AISSTREAM_CACHE_FILE ?? ".runtime/ais-cache.json";
+const AISSTREAM_CACHE_FILE_PATH = resolve(AISSTREAM_CACHE_FILE);
+const AISSTREAM_CACHE_FLUSH_MS = Number(process.env.AISSTREAM_CACHE_FLUSH_MS ?? 15_000);
 const AISSTREAM_FILTER_TYPES = (process.env.AISSTREAM_FILTER_TYPES ?? "PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport")
   .split(",")
   .map((item) => item.trim())
@@ -34,6 +38,7 @@ const contentTypes = {
 };
 
 const aisCache = new Map();
+let cacheSaveTimer;
 const aisState = {
   enabled: Boolean(AISSTREAM_API_KEY),
   connected: false,
@@ -45,6 +50,13 @@ const aisState = {
   cachedVessels: 0,
   cacheLimit: AISSTREAM_MAX_VESSELS,
   trailLimit: AISSTREAM_TRAIL_POINTS,
+  cacheEnabled: AISSTREAM_CACHE_ENABLED,
+  cacheFile: AISSTREAM_CACHE_ENABLED ? AISSTREAM_CACHE_FILE : null,
+  cacheFlushMs: AISSTREAM_CACHE_FLUSH_MS,
+  cacheLoadedAt: null,
+  cacheSavedAt: null,
+  cacheSaveError: null,
+  restoredVessels: 0,
 };
 
 const fallbackVessels = [
@@ -232,6 +244,75 @@ function sortedAisVessels() {
   return [...aisCache.values()].sort((a, b) => String(b.timestamp ?? "").localeCompare(String(a.timestamp ?? "")));
 }
 
+function persistedVessel(row) {
+  if (!row || typeof row !== "object" || !row.id) return null;
+  const normalized = normalizeVessel(row);
+  return {
+    ...row,
+    ...normalized,
+    id: String(row.id),
+    mmsi: row.mmsi ? String(row.mmsi) : undefined,
+  };
+}
+
+function cacheSnapshot() {
+  return {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    source: "aisstream-cache",
+    maxVessels: AISSTREAM_MAX_VESSELS,
+    trailLimit: AISSTREAM_TRAIL_POINTS,
+    vessels: sortedAisVessels().slice(0, AISSTREAM_MAX_VESSELS),
+  };
+}
+
+function loadAisCacheFromDisk() {
+  if (!AISSTREAM_CACHE_ENABLED || !existsSync(AISSTREAM_CACHE_FILE_PATH)) return;
+
+  try {
+    const payload = JSON.parse(readFileSync(AISSTREAM_CACHE_FILE_PATH, "utf8"));
+    const rows = Array.isArray(payload?.vessels) ? payload.vessels : Array.isArray(payload) ? payload : [];
+    let restored = 0;
+
+    for (const row of rows.slice(0, AISSTREAM_MAX_VESSELS)) {
+      const vessel = persistedVessel(row);
+      if (!vessel) continue;
+      aisCache.set(vessel.id, vessel);
+      restored += 1;
+    }
+
+    aisState.restoredVessels = restored;
+    aisState.cachedVessels = aisCache.size;
+    aisState.cacheLoadedAt = new Date().toISOString();
+    aisState.cacheSaveError = null;
+    if (restored > 0) console.log(`Restored ${restored} AIS vessel(s) from ${AISSTREAM_CACHE_FILE}.`);
+  } catch (error) {
+    aisState.cacheSaveError = error instanceof Error ? error.message : String(error);
+    console.error(`Failed to load AIS cache from ${AISSTREAM_CACHE_FILE}:`, error);
+  }
+}
+
+function saveAisCacheToDisk() {
+  if (!AISSTREAM_CACHE_ENABLED) return;
+
+  try {
+    const snapshot = cacheSnapshot();
+    mkdirSync(dirname(AISSTREAM_CACHE_FILE_PATH), { recursive: true });
+    writeFileSync(AISSTREAM_CACHE_FILE_PATH, JSON.stringify(snapshot, null, 2));
+    aisState.cacheSavedAt = snapshot.savedAt;
+    aisState.cacheSaveError = null;
+  } catch (error) {
+    aisState.cacheSaveError = error instanceof Error ? error.message : String(error);
+  }
+}
+
+function scheduleAisCacheSave() {
+  if (!AISSTREAM_CACHE_ENABLED) return;
+  if (cacheSaveTimer) clearTimeout(cacheSaveTimer);
+  cacheSaveTimer = setTimeout(saveAisCacheToDisk, Math.max(1_000, AISSTREAM_CACHE_FLUSH_MS));
+  cacheSaveTimer.unref?.();
+}
+
 function mergeAisVessel(update) {
   const existing = aisCache.get(update.id);
   const priorTrail = existing?.trail ?? [];
@@ -248,6 +329,7 @@ function mergeAisVessel(update) {
   }
 
   aisState.cachedVessels = aisCache.size;
+  scheduleAisCacheSave();
 }
 
 function startAisStream() {
@@ -365,6 +447,20 @@ function staticFileForUrl(requestUrl) {
   return { statusCode: 200, path: STATIC_INDEX };
 }
 
+function shutdown() {
+  saveAisCacheToDisk();
+  process.exit(0);
+}
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+process.on("beforeExit", saveAisCacheToDisk);
+
+loadAisCacheFromDisk();
+if (AISSTREAM_CACHE_ENABLED && AISSTREAM_CACHE_FLUSH_MS > 0) {
+  const interval = setInterval(saveAisCacheToDisk, AISSTREAM_CACHE_FLUSH_MS);
+  interval.unref?.();
+}
 startAisStream();
 
 createServer(async (request, response) => {
@@ -431,5 +527,6 @@ createServer(async (request, response) => {
   console.log(`Vessel feed proxy listening at http://localhost:${PORT}/api/vessels`);
   console.log(`Vessel feed proxy health at http://localhost:${PORT}/health`);
   console.log(staticAvailable ? `Serving production dashboard from ${STATIC_DIR}` : "No dist/ build found; use Vite port 5173 for development.");
+  if (AISSTREAM_CACHE_ENABLED) console.log(`AIS cache persistence enabled at ${AISSTREAM_CACHE_FILE}.`);
   if (AISSTREAM_API_KEY) console.log("AISStream live mode enabled.");
 });
