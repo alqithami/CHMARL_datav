@@ -1,0 +1,57 @@
+.scene-panel .tile-filter-bar {
+  display: none;
+}
+
+.scene-panel .tile-map-controls {
+  max-width: min(420px, calc(100% - 24px));
+  border-radius: 14px;
+  background: rgba(3, 13, 24, 0.70);
+  backdrop-filter: blur(10px);
+}
+
+.scene-panel .tile-map-controls span:last-child {
+  display: none;
+}
+
+.scene-panel .port-event-marker {
+  opacity: 0.72;
+}
+
+.scene-panel .html-port-name {
+  font-size: 10px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
+}
+
+.scene-panel .ship-inspector-card {
+  max-width: 300px;
+  background: rgba(3, 13, 24, 0.90);
+  backdrop-filter: blur(14px);
+}
+
+.focus-content .tile-filter-bar {
+  display: flex;
+}
+
+.focus-content .tile-map-controls {
+  max-width: min(720px, calc(100% - 32px));
+  backdrop-filter: blur(12px);
+}
+
+.expanded-map .tile-vessel-list,
+.expanded-map .tile-event-list {
+  display: block;
+}
+
+.expanded-map .ship-inspector-card {
+  max-width: 340px;
+}
+
+.tile-map-svg image {
+  filter: saturate(0.70) brightness(0.82) contrast(1.02);
+}
+
+.tile-map::after {
+  background:
+    linear-gradient(180deg, rgba(3, 12, 23, 0.12), rgba(3, 12, 23, 0.28)),
+    radial-gradient(circle at 48% 48%, rgba(101, 228, 203, 0.07), transparent 58%);
+}
