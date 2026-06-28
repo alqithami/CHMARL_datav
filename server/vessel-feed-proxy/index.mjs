@@ -1,4 +1,6 @@
 import { createServer } from "node:http";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { extname, resolve } from "node:path";
 import WebSocket from "ws";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -13,6 +15,23 @@ const AISSTREAM_FILTER_TYPES = (process.env.AISSTREAM_FILTER_TYPES ?? "PositionR
   .split(",")
   .map((item) => item.trim())
   .filter(Boolean);
+const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "dist");
+const STATIC_INDEX = resolve(STATIC_DIR, "index.html");
+
+const contentTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".ico": "image/x-icon",
+  ".txt": "text/plain; charset=utf-8",
+};
 
 const aisCache = new Map();
 const aisState = {
@@ -71,6 +90,15 @@ function sendHtml(response, statusCode, html) {
     "access-control-allow-origin": "*",
   });
   response.end(html);
+}
+
+function sendFile(response, filePath) {
+  const ext = extname(filePath).toLowerCase();
+  response.writeHead(200, {
+    "content-type": contentTypes[ext] ?? "application/octet-stream",
+    "cache-control": ext === ".html" ? "no-cache" : "public, max-age=31536000, immutable",
+  });
+  response.end(readFileSync(filePath));
 }
 
 function normalizeStatus(value) {
@@ -293,7 +321,7 @@ async function loadVessels() {
   return { vessels: rows.map(normalizeVessel), source: "upstream" };
 }
 
-function rootHtml() {
+function rootHtml(staticAvailable) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -302,7 +330,7 @@ function rootHtml() {
   <title>CH-MARL Vessel Proxy</title>
   <style>
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: Inter, system-ui, sans-serif; color: #e6f7ff; background: #04111f; }
-    main { max-width: 720px; padding: 28px; border: 1px solid rgba(141,220,255,.18); border-radius: 20px; background: rgba(3,13,24,.72); }
+    main { max-width: 760px; padding: 28px; border: 1px solid rgba(141,220,255,.18); border-radius: 20px; background: rgba(3,13,24,.72); }
     h1 { margin: 0 0 10px; font-size: 24px; }
     p { color: rgba(230,247,255,.72); line-height: 1.5; }
     code { color: #65e4cb; }
@@ -312,11 +340,29 @@ function rootHtml() {
 <body>
   <main>
     <h1>CH-MARL Vessel Feed Proxy</h1>
-    <p>This is the backend proxy on port <code>${PORT}</code>. The dashboard UI runs on Vite port <code>5173</code>; open the forwarded <code>5173</code> URL in Codespaces.</p>
+    <p>This backend is running on port <code>${PORT}</code>.</p>
+    <p>${staticAvailable ? "A production dashboard build is available from this same service." : "No production dashboard build was found. In Codespaces development, open the forwarded Vite port <code>5173</code>."}</p>
     <p>Proxy endpoints: <a href="/health">/health</a> and <a href="/api/vessels">/api/vessels</a>.</p>
   </main>
 </body>
 </html>`;
+}
+
+function staticFileForUrl(requestUrl) {
+  if (!existsSync(STATIC_INDEX)) return null;
+  const url = new URL(requestUrl ?? "/", "http://localhost");
+  const pathname = decodeURIComponent(url.pathname);
+  const requestedPath = pathname === "/" ? "/index.html" : pathname;
+  const candidate = resolve(STATIC_DIR, `.${requestedPath}`);
+
+  if (!candidate.startsWith(STATIC_DIR)) return { statusCode: 403, path: null };
+
+  if (existsSync(candidate) && statSync(candidate).isFile()) {
+    return { statusCode: 200, path: candidate };
+  }
+
+  if (extname(requestedPath)) return { statusCode: 404, path: null };
+  return { statusCode: 200, path: STATIC_INDEX };
 }
 
 startAisStream();
@@ -327,15 +373,11 @@ createServer(async (request, response) => {
     return;
   }
 
-  if (request.url === "/" || request.url === "") {
-    sendHtml(response, 200, rootHtml());
-    return;
-  }
-
   if (request.url === "/health") {
     sendJson(response, 200, {
       ok: true,
       upstreamConfigured: Boolean(UPSTREAM_URL),
+      staticDashboard: existsSync(STATIC_INDEX),
       aisstream: {
         ...aisState,
         cachedVessels: aisCache.size,
@@ -344,33 +386,50 @@ createServer(async (request, response) => {
     return;
   }
 
-  if (request.url !== "/api/vessels") {
-    sendJson(response, 404, { error: "Not found", availableEndpoints: ["/", "/health", "/api/vessels"] });
+  if (request.url === "/api/vessels") {
+    try {
+      const result = await loadVessels();
+      sendJson(response, 200, {
+        vessels: result.vessels,
+        source: result.source,
+        health: {
+          ...aisState,
+          cachedVessels: aisCache.size,
+        },
+      });
+    } catch (error) {
+      sendJson(response, 502, {
+        error: "Failed to load vessel feed",
+        detail: error instanceof Error ? error.message : String(error),
+        vessels: AISSTREAM_API_KEY ? [] : fallbackVessels,
+        source: AISSTREAM_API_KEY ? "aisstream-waiting" : "fallback",
+        health: aisState,
+      });
+    }
     return;
   }
 
-  try {
-    const result = await loadVessels();
-    sendJson(response, 200, {
-      vessels: result.vessels,
-      source: result.source,
-      health: {
-        ...aisState,
-        cachedVessels: aisCache.size,
-      },
-    });
-  } catch (error) {
-    sendJson(response, 502, {
-      error: "Failed to load vessel feed",
-      detail: error instanceof Error ? error.message : String(error),
-      vessels: AISSTREAM_API_KEY ? [] : fallbackVessels,
-      source: AISSTREAM_API_KEY ? "aisstream-waiting" : "fallback",
-      health: aisState,
-    });
+  const staticMatch = staticFileForUrl(request.url);
+  if (staticMatch?.path) {
+    sendFile(response, staticMatch.path);
+    return;
   }
+
+  if (staticMatch?.statusCode === 403) {
+    sendJson(response, 403, { error: "Forbidden" });
+    return;
+  }
+
+  if (request.url === "/" || request.url === "") {
+    sendHtml(response, 200, rootHtml(Boolean(staticMatch)));
+    return;
+  }
+
+  sendJson(response, 404, { error: "Not found", availableEndpoints: ["/", "/health", "/api/vessels"] });
 }).listen(PORT, () => {
+  const staticAvailable = existsSync(STATIC_INDEX);
   console.log(`Vessel feed proxy listening at http://localhost:${PORT}/api/vessels`);
   console.log(`Vessel feed proxy health at http://localhost:${PORT}/health`);
-  console.log("Open the dashboard on the forwarded Vite port 5173, not the proxy port.");
+  console.log(staticAvailable ? `Serving production dashboard from ${STATIC_DIR}` : "No dist/ build found; use Vite port 5173 for development.");
   if (AISSTREAM_API_KEY) console.log("AISStream live mode enabled.");
 });
