@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Metric, RewardTrendPoint, Vessel } from "@/data/chmarlData";
-import { fallbackDashboardData, loadSampleDashboardData, type DashboardData, type DashboardDataSource } from "@/data/loadSampleDashboardData";
+import { fallbackDashboardData, loadSampleDashboardData, type ChmarlDataSource, type DashboardData, type DashboardDataSource } from "@/data/loadSampleDashboardData";
 import { exportDashboardSnapshot, exportOperationalReport, exportVesselCsv } from "@/export/dashboardExports";
 import { loadBackendHealth, type BackendHealth } from "@/providers/backendHealthProvider";
 import { scenarioCatalog } from "@/scenarios/scenarioCatalog";
@@ -47,6 +47,12 @@ function sourceLabel(source: DashboardDataSource) {
   if (source === "remote") return "Remote proxy";
   if (source === "local-json") return "Local fixtures";
   return "Fallback validation";
+}
+
+function chmarlSourceLabel(source: ChmarlDataSource) {
+  if (source === "runtime") return "Runtime CH-MARL";
+  if (source === "local-json") return "Local CH-MARL fixture";
+  return "No CH-MARL log";
 }
 
 function sourceDescription(source: DashboardDataSource) {
@@ -110,7 +116,7 @@ function buildOperationalMetrics(data: DashboardData): Metric[] {
     {
       label: "Reward index",
       value: latestReward === undefined ? "n/a" : latestReward.toFixed(3),
-      trend: isExternalSource(data.source) ? "no CH-MARL log connected" : "latest CH-MARL episode step",
+      trend: chmarlSourceLabel(data.chmarlSource),
     },
     {
       label: "Avg vessel speed",
@@ -275,22 +281,25 @@ export default function DashboardShell() {
 
   const dashboardData = useMemo(() => getScenarioDashboardData(baseData, selectedScenarioId), [baseData, selectedScenarioId]);
   const liveDataActive = isExternalSource(dashboardData.source);
+  const chmarlRuntimeActive = dashboardData.chmarlSource === "runtime" && dashboardData.rewardTrend.length > 0;
   const trailCount = dashboardData.vessels.filter((vessel) => vessel.trail && vessel.trail.length > 1).length;
   const eventCount = dashboardData.portEvents.length;
   const providerState = statusLabel(dataSourceStatus);
   const refreshSeconds = refreshIntervalMs / 1000;
   const portPanelTitle = liveDataActive ? "Nearest-Port Vessel Clustering" : "Port Utilization";
   const portPanelTag = liveDataActive ? "proximity" : "capacity";
-  const primaryPanelTitle = liveDataActive ? "Vessel Speed Profile" : "CH-MARL Reward Trend";
-  const primaryPanelTag = liveDataActive ? sourceLabel(dashboardData.source) : selectedScenarioId;
+  const primaryPanelTitle = chmarlRuntimeActive || !liveDataActive ? "CH-MARL Reward Trend" : "Vessel Speed Profile";
+  const primaryPanelTag = chmarlRuntimeActive ? "runtime" : liveDataActive ? sourceLabel(dashboardData.source) : selectedScenarioId;
   const aisHealth = backendHealth?.aisstream;
+  const chmarlHealth = backendHealth?.chmarl;
   const showAisDiagnostics = Boolean(aisHealth) || dashboardData.source === "aisstream" || dashboardData.source === "aisstream-waiting";
+  const showChmarlDiagnostics = Boolean(chmarlHealth) || dashboardData.chmarlSource === "runtime";
 
   const focusContent = (() => {
     if (focusPanel === "reward") {
       return {
         title: primaryPanelTitle,
-        content: liveDataActive ? <VesselSpeedProfile vessels={dashboardData.vessels} /> : <RewardTrend data={dashboardData.rewardTrend} />,
+        content: chmarlRuntimeActive || !liveDataActive ? <RewardTrend data={dashboardData.rewardTrend} /> : <VesselSpeedProfile vessels={dashboardData.vessels} />,
       };
     }
     if (focusPanel === "constraints") return { title: "Operational Constraint Pressure", content: <ConstraintChart data={dashboardData.constraintPressure} /> };
@@ -314,6 +323,7 @@ export default function DashboardShell() {
         <div className="scenario-bar" aria-label="Scenario controls">
           <div className="status-control-group" aria-label="Data status controls">
             <span className="pill data-pill">Data: {providerState}</span>
+            <span className="pill data-pill">CH-MARL: {chmarlSourceLabel(dashboardData.chmarlSource)}</span>
             <span className="pill data-pill">Updated: {lastUpdated}</span>
             <button type="button" className="pill" onClick={() => refreshData("refreshing")}>Refresh</button>
           </div>
@@ -356,9 +366,9 @@ export default function DashboardShell() {
           <small>{trailCount} with movement tracks</small>
         </div>
         <div className="data-health-card">
-          <span>Port events</span>
-          <strong>{eventCount}</strong>
-          <small>{liveDataActive ? "not connected for live feed" : "mapped to known ports"}</small>
+          <span>CH-MARL</span>
+          <strong>{dashboardData.chmarlSource === "runtime" ? "Active" : dashboardData.chmarlSource === "local-json" ? "Fixture" : "Inactive"}</strong>
+          <small>{dashboardData.chmarlExperimentId ?? chmarlHealth?.lastError ?? "no runtime experiment log"}</small>
         </div>
         <div className="data-health-card">
           <span>Refresh cadence</span>
@@ -367,8 +377,8 @@ export default function DashboardShell() {
         </div>
         <div className="data-health-card">
           <span>Scenario</span>
-          <strong>{selectedScenarioId}</strong>
-          <small>{liveDataActive ? "disabled for live vessel feed" : "operational transform active"}</small>
+          <strong>{dashboardData.chmarlScenarioId ?? selectedScenarioId}</strong>
+          <small>{liveDataActive ? "live vessel rows unchanged" : "operational transform active"}</small>
         </div>
       </section>
 
@@ -397,6 +407,31 @@ export default function DashboardShell() {
         </section>
       )}
 
+      {showChmarlDiagnostics && (
+        <section className="ais-diagnostics-grid" aria-label="CH-MARL runtime diagnostics">
+          <div className="ais-diagnostic-card">
+            <span>CH-MARL runtime</span>
+            <strong>{dashboardData.chmarlSource === "runtime" ? "Active" : "Inactive"}</strong>
+            <small>{chmarlHealth?.lastError ? `Error: ${chmarlHealth.lastError}` : "runtime experiment endpoint"}</small>
+          </div>
+          <div className="ais-diagnostic-card">
+            <span>Experiment</span>
+            <strong>{dashboardData.chmarlExperimentId ?? chmarlHealth?.experimentId ?? "n/a"}</strong>
+            <small>{dashboardData.chmarlScenarioId ?? chmarlHealth?.scenarioId ?? "no scenario"}</small>
+          </div>
+          <div className="ais-diagnostic-card">
+            <span>Steps</span>
+            <strong>{chmarlHealth?.steps ?? dashboardData.rewardTrend.length}</strong>
+            <small>{chmarlHealth?.source ?? dashboardData.chmarlSource}</small>
+          </div>
+          <div className="ais-diagnostic-card">
+            <span>Last log load</span>
+            <strong>{formatHealthTimestamp(chmarlHealth?.lastLoadedAt)}</strong>
+            <small>{chmarlHealth?.configuredUrl ? "remote URL" : chmarlHealth?.file ?? "runtime feed"}</small>
+          </div>
+        </section>
+      )}
+
       <section className="metrics-grid" aria-label="Operational performance metrics">
         {dashboardData.metrics.map((metric) => (
           <MetricCard key={metric.label} metric={metric} />
@@ -406,7 +441,7 @@ export default function DashboardShell() {
       <section className="dashboard-grid">
         <div className="left-stack">
           <PanelCard title={primaryPanelTitle} tag={primaryPanelTag} onFocus={() => setFocusPanel("reward")}>
-            {liveDataActive ? <VesselSpeedProfile vessels={dashboardData.vessels} /> : <RewardTrend data={dashboardData.rewardTrend} />}
+            {chmarlRuntimeActive || !liveDataActive ? <RewardTrend data={dashboardData.rewardTrend} /> : <VesselSpeedProfile vessels={dashboardData.vessels} />}
           </PanelCard>
           <PanelCard title="Operational Constraint Pressure" tag="constraints" onFocus={() => setFocusPanel("constraints")}>
             <ConstraintChart data={dashboardData.constraintPressure} />
