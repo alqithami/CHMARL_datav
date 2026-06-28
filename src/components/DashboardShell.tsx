@@ -268,22 +268,31 @@ export default function DashboardShell() {
           </p>
         </div>
         <div className="scenario-bar" aria-label="Scenario controls">
-          <span className="pill data-pill">Data: {providerState}</span>
-          <span className="pill data-pill">Updated: {lastUpdated}</span>
-          <button type="button" className="pill" onClick={() => refreshData("refreshing")}>Refresh</button>
-          <button type="button" className="pill" onClick={() => exportDashboardSnapshot(dashboardData, selectedScenarioId)}>Export Snapshot</button>
-          <button type="button" className="pill" onClick={() => exportVesselCsv(dashboardData, selectedScenarioId)}>Export Vessels</button>
-          <button type="button" className="pill" onClick={() => exportOperationalReport(dashboardData, selectedScenarioId)}>Export Ops Report</button>
-          {scenarioCatalog.map((scenario) => (
-            <button
-              key={scenario.scenarioId}
-              type="button"
-              className={scenario.scenarioId === selectedScenarioId ? "pill active" : "pill"}
-              title={scenario.description}
-              onClick={() => setSelectedScenarioId(scenario.scenarioId)}>
-              {scenario.label}
-            </button>
-          ))}
+          <div className="status-control-group" aria-label="Data status controls">
+            <span className="pill data-pill">Data: {providerState}</span>
+            <span className="pill data-pill">Updated: {lastUpdated}</span>
+            <button type="button" className="pill" onClick={() => refreshData("refreshing")}>Refresh</button>
+          </div>
+          <div className="scenario-buttons" aria-label="Scenario selection">
+            {scenarioCatalog.map((scenario) => (
+              <button
+                key={scenario.scenarioId}
+                type="button"
+                className={scenario.scenarioId === selectedScenarioId ? "pill active" : "pill"}
+                title={scenario.description}
+                onClick={() => setSelectedScenarioId(scenario.scenarioId)}>
+                {scenario.label}
+              </button>
+            ))}
+          </div>
+          <details className="actions-menu">
+            <summary>Exports</summary>
+            <div className="actions-menu-panel">
+              <button type="button" onClick={() => exportDashboardSnapshot(dashboardData, selectedScenarioId)}>Snapshot JSON</button>
+              <button type="button" onClick={() => exportVesselCsv(dashboardData, selectedScenarioId)}>Vessel CSV</button>
+              <button type="button" onClick={() => exportOperationalReport(dashboardData, selectedScenarioId)}>Ops Report</button>
+            </div>
+          </details>
         </div>
       </header>
 
