@@ -20,6 +20,7 @@ import {
 } from "@/adapters";
 import type { RawAisVesselUpdate } from "@/adapters/aisAdapter";
 import type { RawPortEvent } from "@/adapters/portEventAdapter";
+import { loadRuntimeChmarlExperiment } from "@/providers/chmarlExperimentProvider";
 import { loadRemoteDashboardVessels } from "@/providers/dashboardDataProvider";
 import type { ChmarlExperimentStep, PortEvent } from "@/types/chmarl";
 
@@ -29,9 +30,13 @@ export type ChartDatum = {
 };
 
 export type DashboardDataSource = "aisstream" | "aisstream-waiting" | "upstream" | "remote" | "local-json" | "fallback";
+export type ChmarlDataSource = "runtime" | "local-json" | "none";
 
 export type DashboardData = {
   source: DashboardDataSource;
+  chmarlSource: ChmarlDataSource;
+  chmarlExperimentId?: string;
+  chmarlScenarioId?: string;
   metrics: Metric[];
   vessels: Vessel[];
   portEvents: PortEvent[];
@@ -53,6 +58,7 @@ const knownPorts = [
 
 export const fallbackDashboardData: DashboardData = {
   source: "fallback",
+  chmarlSource: "local-json",
   metrics,
   vessels,
   portEvents: [],
@@ -159,7 +165,7 @@ function derivePortProximityFromVessels(vesselRows: Vessel[]): ChartDatum[] {
     .slice(0, 6);
 }
 
-function externalTimeline(source: DashboardDataSource, vesselRows: Vessel[]): TimelineEvent[] {
+function externalTimeline(source: DashboardDataSource, vesselRows: Vessel[], chmarlSource: ChmarlDataSource): TimelineEvent[] {
   if (source === "aisstream-waiting") {
     return [
       {
@@ -175,15 +181,16 @@ function externalTimeline(source: DashboardDataSource, vesselRows: Vessel[]): Ti
   return [
     {
       time: "live",
-      title: "External vessel feed active",
-      body: `${vesselRows.length} vessel rows are currently loaded from ${source}. No local fixture events are mixed into this operating picture.`,
+      title: chmarlSource === "runtime" ? "Live vessel feed + CH-MARL runtime active" : "External vessel feed active",
+      body: `${vesselRows.length} vessel rows are loaded from ${source}. CH-MARL source: ${chmarlSource}.`,
     },
   ];
 }
 
 export async function loadSampleDashboardData(): Promise<DashboardData> {
-  const [remoteVessels, rawVessels, rawPortEvents, experimentSteps] = await Promise.all([
+  const [remoteVessels, runtimeExperiment, rawVessels, rawPortEvents, localExperimentSteps] = await Promise.all([
     loadRemoteDashboardVessels().catch(() => null),
+    loadRuntimeChmarlExperiment().catch(() => null),
     fetchJson<RawAisVesselUpdate[]>("vessels.sample.json"),
     fetchJson<RawPortEvent[]>("port_events.sample.json"),
     fetchJson<ChmarlExperimentStep[]>("chmarl_episode.sample.json"),
@@ -194,26 +201,39 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
   const dashboardVessels = remoteVessels?.vessels ?? localVessels;
   const source: DashboardDataSource = remoteVessels?.source ?? "local-json";
   const externalSource = isExternalSource(source);
+  const experimentSteps = runtimeExperiment?.steps ?? (externalSource ? [] : localExperimentSteps);
+  const chmarlSource: ChmarlDataSource = runtimeExperiment ? "runtime" : externalSource ? "none" : "local-json";
 
   const normalizedPortEvents = externalSource ? [] : normalizePortEventBatch(rawPortEvents);
-  const rewardData = externalSource ? [] : toRewardTrend(experimentStepsToRewardTrend(experimentSteps));
-  const constraintData = externalSource ? deriveConstraintPressureFromVessels(dashboardVessels) : experimentStepsToConstraintPressure(experimentSteps);
+  const rewardData = experimentSteps.length > 0 ? toRewardTrend(experimentStepsToRewardTrend(experimentSteps)) : [];
+  const constraintData = experimentSteps.length > 0
+    ? experimentStepsToConstraintPressure(experimentSteps)
+    : externalSource
+      ? deriveConstraintPressureFromVessels(dashboardVessels)
+      : experimentStepsToConstraintPressure(localExperimentSteps);
   const utilizationData = externalSource ? derivePortProximityFromVessels(dashboardVessels) : portUtilization;
-  const timelineData = externalSource ? externalTimeline(source, dashboardVessels) : experimentStepsToTimelineEvents(experimentSteps);
+  const timelineData = experimentSteps.length > 0
+    ? experimentStepsToTimelineEvents(experimentSteps)
+    : externalSource
+      ? externalTimeline(source, dashboardVessels, chmarlSource)
+      : experimentStepsToTimelineEvents(localExperimentSteps);
 
   const fileDrivenMetrics = updateMetric(
     updateMetric(metrics, "Active vessels", String(dashboardVessels.length), source),
     "Reward index",
-    rewardData.at(-1)?.[1].toFixed(3) ?? (externalSource ? "n/a" : metrics[3].value),
-    externalSource ? "no CH-MARL log connected" : "from local CH-MARL episode"
+    rewardData.at(-1)?.[1].toFixed(3) ?? "n/a",
+    chmarlSource === "runtime" ? "runtime CH-MARL log active" : chmarlSource === "local-json" ? "from local CH-MARL episode" : "no CH-MARL log connected"
   );
 
   return {
     source,
+    chmarlSource,
+    chmarlExperimentId: runtimeExperiment?.experimentId ?? experimentSteps[0]?.experimentId,
+    chmarlScenarioId: runtimeExperiment?.scenarioId ?? experimentSteps[0]?.scenarioId,
     metrics: fileDrivenMetrics,
     vessels: dashboardVessels,
     portEvents: normalizedPortEvents,
-    rewardTrend: rewardData.length > 0 ? rewardData : externalSource ? [] : rewardTrend,
+    rewardTrend: rewardData.length > 0 ? rewardData : chmarlSource === "none" ? [] : rewardTrend,
     constraintPressure: constraintData.length > 0 ? constraintData : externalSource ? [] : constraintPressure,
     portUtilization: utilizationData,
     timelineEvents: timelineData.length > 0 ? timelineData : externalSource ? [] : timelineEvents,
