@@ -14,6 +14,11 @@ dist
 build
 coverage
 
+# Runtime cache / generated state
+.runtime
+runtime
+*.cache.json
+
 # Environment files
 .env
 .env.local
