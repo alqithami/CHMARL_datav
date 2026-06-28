@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Metric, RewardTrendPoint } from "@/data/chmarlData";
 import { fallbackDashboardData, loadSampleDashboardData, type DashboardData, type DashboardDataSource } from "@/data/loadSampleDashboardData";
-import { exportDashboardSnapshot, exportVesselCsv } from "@/export/dashboardExports";
+import { exportDashboardSnapshot, exportPaperReport, exportVesselCsv } from "@/export/dashboardExports";
 import { scenarioCatalog } from "@/scenarios/scenarioCatalog";
 import ConstraintChart from "./charts/ConstraintChart";
 import DecisionTimeline from "./DecisionTimeline";
@@ -254,6 +254,7 @@ export default function DashboardShell() {
           <button type="button" className="pill" onClick={() => refreshData("refreshing")}>Refresh</button>
           <button type="button" className="pill" onClick={() => exportDashboardSnapshot(dashboardData, selectedScenarioId)}>Export JSON</button>
           <button type="button" className="pill" onClick={() => exportVesselCsv(dashboardData, selectedScenarioId)}>Export CSV</button>
+          <button type="button" className="pill" onClick={() => exportPaperReport(dashboardData, selectedScenarioId)}>Export Report</button>
           {scenarioCatalog.map((scenario) => (
             <button
               key={scenario.scenarioId}
