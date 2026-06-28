@@ -10,6 +10,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api/vessels": backendTarget,
+      "/api/chmarl": backendTarget,
       "/health": backendTarget,
     },
   },
