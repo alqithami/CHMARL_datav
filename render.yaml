@@ -23,3 +23,15 @@ services:
         value: 24
       - key: AISSTREAM_FILTER_TYPES
         value: PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport
+      - key: AISSTREAM_CACHE_ENABLED
+        value: true
+      - key: AISSTREAM_CACHE_FILE
+        value: /tmp/chmarl-ais-cache.json
+      - key: AISSTREAM_CACHE_FLUSH_MS
+        value: 15000
+      - key: CHMARL_EXPERIMENT_URL
+        sync: false
+      - key: CHMARL_EXPERIMENT_TOKEN
+        sync: false
+      - key: CHMARL_EXPERIMENT_FILE
+        value: /tmp/chmarl_episode.json
