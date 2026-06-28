@@ -35,3 +35,7 @@ services:
         sync: false
       - key: CHMARL_EXPERIMENT_FILE
         value: /tmp/chmarl_episode.json
+      - key: PORT_EVENTS_URL
+        sync: false
+      - key: PORT_EVENTS_FILE
+        value: /tmp/port_events.json
