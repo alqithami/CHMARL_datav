@@ -23,6 +23,10 @@ const CHMARL_EXPERIMENT_URL = process.env.CHMARL_EXPERIMENT_URL;
 const CHMARL_EXPERIMENT_TOKEN = process.env.CHMARL_EXPERIMENT_TOKEN;
 const CHMARL_EXPERIMENT_FILE = process.env.CHMARL_EXPERIMENT_FILE ?? ".runtime/chmarl_episode.json";
 const CHMARL_EXPERIMENT_FILE_PATH = resolve(CHMARL_EXPERIMENT_FILE);
+const PORT_EVENTS_URL = process.env.PORT_EVENTS_URL;
+const PORT_EVENTS_TOKEN = process.env.PORT_EVENTS_TOKEN;
+const PORT_EVENTS_FILE = process.env.PORT_EVENTS_FILE ?? ".runtime/port_events.json";
+const PORT_EVENTS_FILE_PATH = resolve(PORT_EVENTS_FILE);
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "dist");
 const STATIC_INDEX = resolve(STATIC_DIR, "index.html");
 
@@ -71,6 +75,18 @@ const chmarlState = {
   steps: 0,
   experimentId: null,
   scenarioId: null,
+  lastLoadedAt: null,
+  lastError: null,
+};
+
+const portOpsState = {
+  enabled: Boolean(PORT_EVENTS_URL || PORT_EVENTS_FILE),
+  source: PORT_EVENTS_URL ? "url" : "file",
+  configuredUrl: Boolean(PORT_EVENTS_URL),
+  file: PORT_EVENTS_FILE,
+  events: 0,
+  utilizationRows: 0,
+  queueRows: 0,
   lastLoadedAt: null,
   lastError: null,
 };
@@ -160,14 +176,17 @@ function extractRows(payload) {
   return [];
 }
 
-function extractExperimentSteps(payload) {
+function rowsFrom(payload, keys) {
   if (Array.isArray(payload)) return payload;
-  if (payload && typeof payload === "object") {
-    if (Array.isArray(payload.steps)) return payload.steps;
-    if (Array.isArray(payload.data)) return payload.data;
-    if (Array.isArray(payload.items)) return payload.items;
+  if (!payload || typeof payload !== "object") return [];
+  for (const key of keys) {
+    if (Array.isArray(payload[key])) return payload[key];
   }
   return [];
+}
+
+function extractExperimentSteps(payload) {
+  return rowsFrom(payload, ["steps", "data", "items"]);
 }
 
 function normalizeTrail(points) {
@@ -204,6 +223,66 @@ function normalizeVessel(row) {
     courseDeg: optionalNumber(row.courseDeg ?? row.cog),
     timestamp: row.timestamp,
     trail: normalizeTrail(row.trail ?? row.history ?? row.track),
+  };
+}
+
+function normalizePortEventType(value) {
+  const text = String(value ?? "arrival").toLowerCase().replace(/[\s-]+/g, "_");
+  if (text === "departure") return "departure";
+  if (text === "anchorage_entry") return "anchorage_entry";
+  if (text === "anchorage_exit") return "anchorage_exit";
+  if (text === "berth_assigned") return "berth_assigned";
+  if (text === "service_started") return "service_started";
+  if (text === "service_completed") return "service_completed";
+  return "arrival";
+}
+
+function normalizePortEvent(row, index) {
+  if (!row || typeof row !== "object") return null;
+  const portId = String(row.portId ?? row.port_id ?? row.port ?? row.portName ?? row.unlocode ?? "").trim();
+  if (!portId) return null;
+  const eventType = normalizePortEventType(row.eventType ?? row.event_type ?? row.type ?? row.status);
+  const timestamp = String(row.timestamp ?? row.time ?? row.updatedAt ?? new Date().toISOString());
+  return {
+    eventId: String(row.eventId ?? row.event_id ?? row.id ?? `${portId}-${eventType}-${index}`),
+    vesselId: row.vesselId || row.vessel_id || row.mmsi ? String(row.vesselId ?? row.vessel_id ?? row.mmsi) : undefined,
+    portId,
+    berthId: row.berthId || row.berth_id || row.berth ? String(row.berthId ?? row.berth_id ?? row.berth) : undefined,
+    eventType,
+    timestamp,
+    metadata: row.metadata && typeof row.metadata === "object" ? row.metadata : undefined,
+  };
+}
+
+function normalizePortUtilization(row) {
+  if (!row || typeof row !== "object") return null;
+  const name = String(row.name ?? row.portName ?? row.port_name ?? row.portId ?? row.port_id ?? row.port ?? "").trim();
+  if (!name) return null;
+  const value = optionalNumber(
+    row.value ??
+      row.utilizationPct ??
+      row.utilization_pct ??
+      row.utilization ??
+      row.berthUtilizationPct ??
+      row.berth_utilization_pct ??
+      row.berthUtilization ??
+      row.queueLength ??
+      row.waitingVessels
+  );
+  return { name, value: value ?? 0 };
+}
+
+function normalizeQueueStatus(row) {
+  if (!row || typeof row !== "object") return null;
+  const portId = String(row.portId ?? row.port_id ?? row.port ?? row.name ?? "").trim();
+  if (!portId) return null;
+  return {
+    portId,
+    berthId: row.berthId || row.berth_id || row.berth ? String(row.berthId ?? row.berth_id ?? row.berth) : undefined,
+    queueLength: optionalNumber(row.queueLength ?? row.queue_length ?? row.queue),
+    waitingVessels: optionalNumber(row.waitingVessels ?? row.waiting_vessels ?? row.waiting),
+    utilizationPct: optionalNumber(row.utilizationPct ?? row.utilization_pct ?? row.berthUtilizationPct ?? row.berth_utilization_pct),
+    timestamp: row.timestamp || row.time || row.updatedAt ? String(row.timestamp ?? row.time ?? row.updatedAt) : undefined,
   };
 }
 
@@ -294,19 +373,16 @@ function cacheSnapshot() {
 
 function loadAisCacheFromDisk() {
   if (!AISSTREAM_CACHE_ENABLED || !existsSync(AISSTREAM_CACHE_FILE_PATH)) return;
-
   try {
     const payload = JSON.parse(readFileSync(AISSTREAM_CACHE_FILE_PATH, "utf8"));
     const rows = Array.isArray(payload?.vessels) ? payload.vessels : Array.isArray(payload) ? payload : [];
     let restored = 0;
-
     for (const row of rows.slice(0, AISSTREAM_MAX_VESSELS)) {
       const vessel = persistedVessel(row);
       if (!vessel) continue;
       aisCache.set(vessel.id, vessel);
       restored += 1;
     }
-
     aisState.restoredVessels = restored;
     aisState.cachedVessels = aisCache.size;
     aisState.cacheLoadedAt = new Date().toISOString();
@@ -320,7 +396,6 @@ function loadAisCacheFromDisk() {
 
 function saveAisCacheToDisk() {
   if (!AISSTREAM_CACHE_ENABLED) return;
-
   try {
     const snapshot = cacheSnapshot();
     mkdirSync(dirname(AISSTREAM_CACHE_FILE_PATH), { recursive: true });
@@ -348,12 +423,10 @@ function mergeAisVessel(update) {
     ...update,
     trail: nextTrail.length > 1 ? nextTrail : undefined,
   });
-
   if (aisCache.size > AISSTREAM_MAX_VESSELS) {
     const oldestKey = sortedAisVessels().at(-1)?.id;
     if (oldestKey) aisCache.delete(oldestKey);
   }
-
   aisState.cachedVessels = aisCache.size;
   scheduleAisCacheSave();
 }
@@ -374,6 +447,27 @@ function updateChmarlState(payload, source) {
   };
 }
 
+function updatePortOpsState(payload, source) {
+  const portEvents = rowsFrom(payload, ["portEvents", "port_events", "events", "data", "items"])
+    .map(normalizePortEvent)
+    .filter(Boolean);
+  const portUtilization = rowsFrom(payload, ["portUtilization", "port_utilization", "utilization", "ports"])
+    .map(normalizePortUtilization)
+    .filter(Boolean);
+  const queueStatus = rowsFrom(payload, ["queueStatus", "queue_status", "queues", "berths"])
+    .map(normalizeQueueStatus)
+    .filter(Boolean);
+
+  portOpsState.source = source;
+  portOpsState.events = portEvents.length;
+  portOpsState.utilizationRows = portUtilization.length;
+  portOpsState.queueRows = queueStatus.length;
+  portOpsState.lastLoadedAt = new Date().toISOString();
+  portOpsState.lastError = null;
+
+  return { source, portEvents, portUtilization, queueStatus, portOps: portOpsState };
+}
+
 async function loadChmarlExperiment() {
   try {
     if (CHMARL_EXPERIMENT_URL) {
@@ -383,11 +477,9 @@ async function loadChmarlExperiment() {
       if (!response.ok) throw new Error(`CH-MARL upstream failed: ${response.status} ${response.statusText}`);
       return updateChmarlState(await response.json(), "url");
     }
-
     if (existsSync(CHMARL_EXPERIMENT_FILE_PATH)) {
       return updateChmarlState(JSON.parse(readFileSync(CHMARL_EXPERIMENT_FILE_PATH, "utf8")), "file");
     }
-
     chmarlState.steps = 0;
     chmarlState.lastError = null;
     return null;
@@ -397,16 +489,36 @@ async function loadChmarlExperiment() {
   }
 }
 
+async function loadPortOperations() {
+  try {
+    if (PORT_EVENTS_URL) {
+      const headers = { accept: "application/json" };
+      if (PORT_EVENTS_TOKEN) headers.authorization = `Bearer ${PORT_EVENTS_TOKEN}`;
+      const response = await fetch(PORT_EVENTS_URL, { headers });
+      if (!response.ok) throw new Error(`Port operations upstream failed: ${response.status} ${response.statusText}`);
+      return updatePortOpsState(await response.json(), "url");
+    }
+    if (existsSync(PORT_EVENTS_FILE_PATH)) {
+      return updatePortOpsState(JSON.parse(readFileSync(PORT_EVENTS_FILE_PATH, "utf8")), "file");
+    }
+    portOpsState.events = 0;
+    portOpsState.utilizationRows = 0;
+    portOpsState.queueRows = 0;
+    portOpsState.lastError = null;
+    return null;
+  } catch (error) {
+    portOpsState.lastError = error instanceof Error ? error.message : String(error);
+    return null;
+  }
+}
+
 function startAisStream() {
   if (!AISSTREAM_API_KEY) return;
-
   const boundingBoxes = safeParseBoundingBoxes();
   aisState.boundingBoxes = boundingBoxes;
   if (boundingBoxes.length === 0) return;
-
   const socket = new WebSocket(AISSTREAM_URL);
   aisState.lastError = null;
-
   socket.on("open", () => {
     aisState.connected = true;
     aisState.reconnectAttempt = 0;
@@ -418,7 +530,6 @@ function startAisStream() {
     socket.send(JSON.stringify(subscription));
     console.log(`AISStream connected with ${boundingBoxes.length} bounding box(es). Cache limit: ${AISSTREAM_MAX_VESSELS}.`);
   });
-
   socket.on("message", (data) => {
     try {
       aisState.messageCount += 1;
@@ -435,14 +546,12 @@ function startAisStream() {
       aisState.lastError = error instanceof Error ? error.message : String(error);
     }
   });
-
   socket.on("close", () => {
     aisState.connected = false;
     const delay = Math.min(30_000, 2_000 * 2 ** aisState.reconnectAttempt);
     aisState.reconnectAttempt += 1;
     setTimeout(startAisStream, delay);
   });
-
   socket.on("error", (error) => {
     aisState.connected = false;
     aisState.lastError = error.message;
@@ -452,17 +561,11 @@ function startAisStream() {
 async function loadVessels() {
   const liveAisVessels = sortedAisVessels();
   if (liveAisVessels.length > 0) return { vessels: liveAisVessels, source: "aisstream" };
-
   if (!UPSTREAM_URL) return { vessels: AISSTREAM_API_KEY ? [] : fallbackVessels, source: AISSTREAM_API_KEY ? "aisstream-waiting" : "fallback" };
-
   const headers = { accept: "application/json" };
   if (UPSTREAM_TOKEN) headers.authorization = `Bearer ${UPSTREAM_TOKEN}`;
-
   const response = await fetch(UPSTREAM_URL, { headers });
-  if (!response.ok) {
-    throw new Error(`Upstream request failed: ${response.status} ${response.statusText}`);
-  }
-
+  if (!response.ok) throw new Error(`Upstream request failed: ${response.status} ${response.statusText}`);
   const payload = await response.json();
   const rows = extractRows(payload);
   return { vessels: rows.map(normalizeVessel), source: "upstream" };
@@ -471,28 +574,9 @@ async function loadVessels() {
 function rootHtml(staticAvailable) {
   return `<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CH-MARL Vessel Proxy</title>
-  <style>
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: Inter, system-ui, sans-serif; color: #e6f7ff; background: #04111f; }
-    main { max-width: 760px; padding: 28px; border: 1px solid rgba(141,220,255,.18); border-radius: 20px; background: rgba(3,13,24,.72); }
-    h1 { margin: 0 0 10px; font-size: 24px; }
-    p { color: rgba(230,247,255,.72); line-height: 1.5; }
-    code { color: #65e4cb; }
-    a { color: #8ddcff; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>CH-MARL Vessel Feed Proxy</h1>
-    <p>This backend is running on port <code>${PORT}</code>.</p>
-    <p>${staticAvailable ? "A production dashboard build is available from this same service." : "No production dashboard build was found. In Codespaces development, open the forwarded Vite port <code>5173</code>."}</p>
-    <p>Proxy endpoints: <a href="/health">/health</a>, <a href="/api/vessels">/api/vessels</a>, and <a href="/api/chmarl/episode">/api/chmarl/episode</a>.</p>
-  </main>
-</body>
-</html>`;
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>CH-MARL Vessel Proxy</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:Inter,system-ui,sans-serif;color:#e6f7ff;background:#04111f}main{max-width:760px;padding:28px;border:1px solid rgba(141,220,255,.18);border-radius:20px;background:rgba(3,13,24,.72)}h1{margin:0 0 10px;font-size:24px}p{color:rgba(230,247,255,.72);line-height:1.5}code{color:#65e4cb}a{color:#8ddcff}</style>
+</head><body><main><h1>CH-MARL Vessel Feed Proxy</h1><p>This backend is running on port <code>${PORT}</code>.</p><p>${staticAvailable ? "A production dashboard build is available from this same service." : "No production dashboard build was found. In Codespaces development, open the forwarded Vite port <code>5173</code>."}</p><p>Proxy endpoints: <a href="/health">/health</a>, <a href="/api/vessels">/api/vessels</a>, <a href="/api/chmarl/episode">/api/chmarl/episode</a>, and <a href="/api/port-events">/api/port-events</a>.</p></main></body></html>`;
 }
 
 function staticFileForUrl(requestUrl) {
@@ -501,13 +585,8 @@ function staticFileForUrl(requestUrl) {
   const pathname = decodeURIComponent(url.pathname);
   const requestedPath = pathname === "/" ? "/index.html" : pathname;
   const candidate = resolve(STATIC_DIR, `.${requestedPath}`);
-
   if (!candidate.startsWith(STATIC_DIR)) return { statusCode: 403, path: null };
-
-  if (existsSync(candidate) && statSync(candidate).isFile()) {
-    return { statusCode: 200, path: candidate };
-  }
-
+  if (existsSync(candidate) && statSync(candidate).isFile()) return { statusCode: 200, path: candidate };
   if (extname(requestedPath)) return { statusCode: 404, path: null };
   return { statusCode: 200, path: STATIC_INDEX };
 }
@@ -517,14 +596,9 @@ function healthPayload() {
     ok: true,
     upstreamConfigured: Boolean(UPSTREAM_URL),
     staticDashboard: existsSync(STATIC_INDEX),
-    aisstream: {
-      ...aisState,
-      cachedVessels: aisCache.size,
-    },
-    chmarl: {
-      ...chmarlState,
-      active: chmarlState.steps > 0,
-    },
+    aisstream: { ...aisState, cachedVessels: aisCache.size },
+    chmarl: { ...chmarlState, active: chmarlState.steps > 0 },
+    portOps: { ...portOpsState, active: portOpsState.events > 0 || portOpsState.utilizationRows > 0 || portOpsState.queueRows > 0 },
   };
 }
 
@@ -549,21 +623,17 @@ createServer(async (request, response) => {
     sendJson(response, 204, {});
     return;
   }
-
   if (request.url === "/health") {
-    await loadChmarlExperiment();
+    await Promise.all([loadChmarlExperiment(), loadPortOperations()]);
     sendJson(response, 200, healthPayload());
     return;
   }
-
   if (request.url === "/api/chmarl/episode") {
     const experiment = await loadChmarlExperiment();
     if (!experiment || experiment.steps.length === 0) {
       sendJson(response, 404, {
         error: "No CH-MARL experiment feed is active",
-        detail: CHMARL_EXPERIMENT_URL
-          ? "Configured CHMARL_EXPERIMENT_URL returned no steps or failed."
-          : `Place a CH-MARL episode JSON file at ${CHMARL_EXPERIMENT_FILE}.`,
+        detail: CHMARL_EXPERIMENT_URL ? "Configured CHMARL_EXPERIMENT_URL returned no steps or failed." : `Place a CH-MARL episode JSON file at ${CHMARL_EXPERIMENT_FILE}.`,
         chmarl: chmarlState,
       });
       return;
@@ -571,18 +641,23 @@ createServer(async (request, response) => {
     sendJson(response, 200, experiment);
     return;
   }
-
+  if (request.url === "/api/port-events") {
+    const portOps = await loadPortOperations();
+    if (!portOps) {
+      sendJson(response, 404, {
+        error: "No port operations feed is active",
+        detail: PORT_EVENTS_URL ? "Configured PORT_EVENTS_URL returned no rows or failed." : `Place a port operations JSON file at ${PORT_EVENTS_FILE}.`,
+        portOps: portOpsState,
+      });
+      return;
+    }
+    sendJson(response, 200, portOps);
+    return;
+  }
   if (request.url === "/api/vessels") {
     try {
       const result = await loadVessels();
-      sendJson(response, 200, {
-        vessels: result.vessels,
-        source: result.source,
-        health: {
-          ...aisState,
-          cachedVessels: aisCache.size,
-        },
-      });
+      sendJson(response, 200, { vessels: result.vessels, source: result.source, health: { ...aisState, cachedVessels: aisCache.size } });
     } catch (error) {
       sendJson(response, 502, {
         error: "Failed to load vessel feed",
@@ -594,31 +669,29 @@ createServer(async (request, response) => {
     }
     return;
   }
-
   const staticMatch = staticFileForUrl(request.url);
   if (staticMatch?.path) {
     sendFile(response, staticMatch.path);
     return;
   }
-
   if (staticMatch?.statusCode === 403) {
     sendJson(response, 403, { error: "Forbidden" });
     return;
   }
-
   if (request.url === "/" || request.url === "") {
     sendHtml(response, 200, rootHtml(Boolean(staticMatch)));
     return;
   }
-
-  sendJson(response, 404, { error: "Not found", availableEndpoints: ["/", "/health", "/api/vessels", "/api/chmarl/episode"] });
+  sendJson(response, 404, { error: "Not found", availableEndpoints: ["/", "/health", "/api/vessels", "/api/chmarl/episode", "/api/port-events"] });
 }).listen(PORT, () => {
   const staticAvailable = existsSync(STATIC_INDEX);
   console.log(`Vessel feed proxy listening at http://localhost:${PORT}/api/vessels`);
+  console.log(`Port operations endpoint at http://localhost:${PORT}/api/port-events`);
   console.log(`CH-MARL experiment endpoint at http://localhost:${PORT}/api/chmarl/episode`);
   console.log(`Vessel feed proxy health at http://localhost:${PORT}/health`);
   console.log(staticAvailable ? `Serving production dashboard from ${STATIC_DIR}` : "No dist/ build found; use Vite port 5173 for development.");
   if (AISSTREAM_CACHE_ENABLED) console.log(`AIS cache persistence enabled at ${AISSTREAM_CACHE_FILE}.`);
+  if (PORT_EVENTS_URL || existsSync(PORT_EVENTS_FILE_PATH)) console.log("Port operations feed configured.");
   if (CHMARL_EXPERIMENT_URL || existsSync(CHMARL_EXPERIMENT_FILE_PATH)) console.log("CH-MARL experiment feed configured.");
   if (AISSTREAM_API_KEY) console.log("AISStream live mode enabled.");
 });
