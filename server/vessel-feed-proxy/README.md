@@ -1,52 +1,65 @@
-# Vessel Feed Proxy Example
+# Vessel Feed Proxy
 
-This folder contains a minimal Node.js proxy for feeding vessel rows into the CH-MARL dashboard.
+This folder contains the backend vessel-feed proxy used by the CH-MARL dashboard.
 
-It is intentionally dependency-free and uses Node's built-in HTTP server.
+The proxy can run in three modes:
 
-## Run the proxy locally
+1. local fallback vessels when no external source is configured;
+2. a generic upstream JSON endpoint through `UPSTREAM_VESSEL_DATA_URL`;
+3. live AISStream websocket mode through `AISSTREAM_API_KEY`.
+
+## One-terminal dashboard demo
+
+From Codespaces or local development:
 
 ```bash
-node server/vessel-feed-proxy/index.mjs
+pnpm dev:proxy
 ```
 
-The endpoint will be available at:
+This starts:
 
 ```text
 http://localhost:8787/api/vessels
+http://localhost:5173/
 ```
 
-Then create `.env.local` in the project root:
-
-```env
-VITE_VESSEL_DATA_URL=http://localhost:8787/api/vessels
-```
-
-Restart the dashboard:
+## Generic upstream JSON source
 
 ```bash
-pnpm dev -- --host 0.0.0.0 --port 5173
-```
-
-The dashboard header should show:
-
-```text
-Data: remote
-```
-
-## Connect an upstream source
-
-The proxy can read from another JSON endpoint when these backend-only environment variables are set:
-
-```bash
-UPSTREAM_VESSEL_DATA_URL=https://example.com/provider/vessels
-UPSTREAM_VESSEL_DATA_TOKEN=replace-with-server-side-token
+UPSTREAM_VESSEL_DATA_URL=https://example.com/provider/vessels \
+UPSTREAM_VESSEL_DATA_TOKEN=replace-with-server-side-token \
 node server/vessel-feed-proxy/index.mjs
 ```
 
-Do not put upstream provider credentials in frontend `.env` files.
+## AISStream live source
 
-## Endpoint response expected by the frontend
+```bash
+AISSTREAM_API_KEY=replace-with-server-side-key \
+AISSTREAM_BBOX='11,32;31,56' \
+node server/vessel-feed-proxy/index.mjs
+```
+
+`AISSTREAM_BBOX` uses:
+
+```text
+lat1,lon1;lat2,lon2
+```
+
+Multiple boxes can be separated with `|`.
+
+The proxy keeps the AIS key server-side, subscribes to live position messages, normalizes them into dashboard vessel rows, and serves the current cache through:
+
+```text
+GET /api/vessels
+```
+
+Health information is available through:
+
+```text
+GET /health
+```
+
+## Frontend response shape
 
 ```json
 {
@@ -58,8 +71,12 @@ Do not put upstream provider credentials in frontend `.env` files.
       "cargo": "Containers",
       "eta": "04:20 UTC",
       "speed": "14.8 kn",
-      "status": "Nominal"
+      "status": "Nominal",
+      "latitude": 21.45,
+      "longitude": 39.12,
+      "courseDeg": 322
     }
-  ]
+  ],
+  "source": "aisstream"
 }
 ```
