@@ -5,6 +5,7 @@ import type { PortEvent } from "@/types/chmarl";
 type ShipSceneProps = {
   vessels?: Vessel[];
   portEvents?: PortEvent[];
+  expanded?: boolean;
 };
 
 type GeoPoint = {
@@ -189,7 +190,7 @@ function eventClass(eventType: PortEvent["eventType"]) {
 
 const filterOptions: VesselFilter[] = ["All", "Nominal", "Watch", "Constrained"];
 
-export default function ShipScene({ vessels = fallbackVessels, portEvents = [] }: ShipSceneProps) {
+export default function ShipScene({ vessels = fallbackVessels, portEvents = [], expanded = false }: ShipSceneProps) {
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [manualCenter, setManualCenter] = useState<GeoPoint>(DEFAULT_CENTER);
   const [selectedShipId, setSelectedShipId] = useState("");
@@ -261,7 +262,7 @@ export default function ShipScene({ vessels = fallbackVessels, portEvents = [] }
   };
 
   return (
-    <div className="scene-container static-map-container">
+    <div className={expanded ? "scene-container static-map-container expanded-map" : "scene-container static-map-container"}>
       <div
         className={selectedShip ? "regional-map tile-map is-inspecting" : "regional-map tile-map"}
         style={mapStyle}
@@ -379,7 +380,7 @@ export default function ShipScene({ vessels = fallbackVessels, portEvents = [] }
         <button type="button" onClick={resetOverview}>Overview</button>
         <button type="button" onClick={fitVisibleVessels}>Fit vessels</button>
         <span>{visibleVessels.length}/{sceneVessels.length} vessels</span>
-        <span>{eventMarkers.length} events</span>
+        {expanded && <span>{eventMarkers.length} events</span>}
         <span>Zoom {mapZoom}</span>
       </div>
 
@@ -399,39 +400,43 @@ export default function ShipScene({ vessels = fallbackVessels, portEvents = [] }
         ))}
       </div>
 
-      <aside className="tile-vessel-list" aria-label="Visible vessel list">
-        <div className="tile-vessel-list-header">
-          <strong>Visible vessels</strong>
-          <span>{visibleVessels.length}</span>
-        </div>
-        <div className="tile-vessel-list-items">
-          {visibleVessels.slice(0, 8).map((vessel) => (
-            <button
-              key={vessel.id}
-              type="button"
-              className={vessel.id === selectedShipId ? "active" : ""}
-              onClick={() => selectVessel(vessel.id)}>
-              <span>{vessel.name}</span>
-              <small>{vessel.status} · {vessel.speed}</small>
-            </button>
-          ))}
-        </div>
-      </aside>
+      {expanded && (
+        <aside className="tile-vessel-list" aria-label="Visible vessel list">
+          <div className="tile-vessel-list-header">
+            <strong>Visible vessels</strong>
+            <span>{visibleVessels.length}</span>
+          </div>
+          <div className="tile-vessel-list-items">
+            {visibleVessels.slice(0, 12).map((vessel) => (
+              <button
+                key={vessel.id}
+                type="button"
+                className={vessel.id === selectedShipId ? "active" : ""}
+                onClick={() => selectVessel(vessel.id)}>
+                <span>{vessel.name}</span>
+                <small>{vessel.status} · {vessel.speed}</small>
+              </button>
+            ))}
+          </div>
+        </aside>
+      )}
 
-      <aside className="tile-event-list" aria-label="Port event list">
-        <div className="tile-vessel-list-header">
-          <strong>Port events</strong>
-          <span>{eventMarkers.length}</span>
-        </div>
-        <div className="tile-vessel-list-items">
-          {eventMarkers.slice(0, 6).map(({ event }) => (
-            <button key={event.eventId} type="button">
-              <span>{labelForEvent(event.eventType)}</span>
-              <small>{event.portId} · {event.timestamp}</small>
-            </button>
-          ))}
-        </div>
-      </aside>
+      {expanded && (
+        <aside className="tile-event-list" aria-label="Port event list">
+          <div className="tile-vessel-list-header">
+            <strong>Port events</strong>
+            <span>{eventMarkers.length}</span>
+          </div>
+          <div className="tile-vessel-list-items">
+            {eventMarkers.slice(0, 8).map(({ event }) => (
+              <button key={event.eventId} type="button">
+                <span>{labelForEvent(event.eventType)}</span>
+                <small>{event.portId} · {event.timestamp}</small>
+              </button>
+            ))}
+          </div>
+        </aside>
+      )}
 
       <div className="tile-attribution">© OpenStreetMap contributors</div>
 
@@ -457,20 +462,9 @@ export default function ShipScene({ vessels = fallbackVessels, portEvents = [] }
               <div><dt>Trail</dt><dd>{selectedShip.vessel.trail.length} points</dd></div>
             )}
           </dl>
-          <button type="button" onClick={() => setSelectedShipId("")}>Reset overview</button>
+          <button type="button" onClick={() => setSelectedShipId("")}>Clear selection</button>
         </aside>
       )}
-
-      <div className="scene-overlay compact">
-        <div className="overlay-box">
-          <strong>Tile map view</strong>
-          Select a ship marker to focus the map and show vessel properties.
-        </div>
-        <div className="overlay-box">
-          <strong>Vessels + port events</strong>
-          Inspect movement trails and operational port events together.
-        </div>
-      </div>
     </div>
   );
 }
