@@ -25,6 +25,36 @@ function endpointUrl() {
   return import.meta.env.VITE_PORT_EVENTS_URL?.trim() || "/api/port-events";
 }
 
+function codespacesBackendUrl(path: string) {
+  if (typeof window === "undefined") return undefined;
+  const { protocol, hostname } = window.location;
+  if (!hostname.includes(".app.github.dev") || !hostname.includes("-5173")) return undefined;
+  return `${protocol}//${hostname.replace("-5173", "-8787")}${path}`;
+}
+
+function candidateUrls() {
+  const primary = endpointUrl();
+  const candidates = [primary];
+  if (primary.startsWith("/")) {
+    const backendUrl = codespacesBackendUrl(primary);
+    if (backendUrl) candidates.push(backendUrl);
+  }
+  return candidates;
+}
+
+async function fetchPayload() {
+  for (const url of candidateUrls()) {
+    try {
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok) continue;
+      return await response.json();
+    } catch {
+      // Try the next candidate URL.
+    }
+  }
+  return null;
+}
+
 function normalizeEventType(value: unknown): PortEvent["eventType"] {
   const text = String(value ?? "arrival").toLowerCase().replace(/[\s-]+/g, "_");
   if (text === "departure") return "departure";
@@ -109,10 +139,9 @@ function normalizeQueueStatus(row: unknown): PortQueueStatus | null {
 }
 
 export async function loadRuntimePortOperations(): Promise<PortOperationsFeed | null> {
-  const response = await fetch(endpointUrl(), { headers: { Accept: "application/json" } });
-  if (!response.ok) return null;
+  const payload = await fetchPayload();
+  if (!payload) return null;
 
-  const payload = await response.json();
   const portEvents = rowsFrom(payload, ["portEvents", "port_events", "events", "data", "items"])
     .map(normalizePortEvent)
     .filter((event): event is PortEvent => event !== null);
