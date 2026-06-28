@@ -31,12 +31,26 @@ export type ChmarlRuntimeHealth = {
   lastError: string | null;
 };
 
+export type PortOperationsHealth = {
+  enabled: boolean;
+  active: boolean;
+  source: "file" | "url" | string;
+  configuredUrl: boolean;
+  file: string;
+  events: number;
+  utilizationRows: number;
+  queueRows: number;
+  lastLoadedAt: string | null;
+  lastError: string | null;
+};
+
 export type BackendHealth = {
   ok: boolean;
   upstreamConfigured: boolean;
   staticDashboard?: boolean;
   aisstream?: AisStreamHealth;
   chmarl?: ChmarlRuntimeHealth;
+  portOps?: PortOperationsHealth;
 };
 
 function healthUrl() {
