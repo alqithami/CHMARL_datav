@@ -6,6 +6,7 @@ import "./tileMap.css";
 import "./statusPanel.css";
 import "./operationalWatchlist.css";
 import "./platformLayout.css";
+import "./mapPolish.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
