@@ -1,3 +1,23 @@
+.metric-card,
+.panel-card,
+.data-health-card {
+  border-color: rgba(141, 220, 255, 0.10);
+  background: linear-gradient(180deg, rgba(7, 27, 44, 0.78), rgba(4, 16, 29, 0.90));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.20);
+}
+
+.metric-card::before,
+.panel-card::before,
+.data-health-card::before {
+  opacity: 0.32;
+}
+
+.panel-card,
+.data-health-card,
+.metric-card {
+  border-radius: 14px;
+}
+
 .scene-panel .tile-filter-bar {
   display: none;
 }
@@ -5,7 +25,7 @@
 .scene-panel .tile-map-controls {
   max-width: min(420px, calc(100% - 24px));
   border-radius: 14px;
-  background: rgba(3, 13, 24, 0.70);
+  background: rgba(3, 13, 24, 0.68);
   backdrop-filter: blur(10px);
 }
 
@@ -28,22 +48,169 @@
   backdrop-filter: blur(14px);
 }
 
-.focus-content .tile-filter-bar {
-  display: flex;
+.focus-content .scene-container.expanded-map {
+  min-height: 0;
+  height: 100%;
 }
 
-.focus-content .tile-map-controls {
-  max-width: min(720px, calc(100% - 32px));
+.expanded-map {
+  background: #04111f;
+}
+
+.expanded-map .regional-map {
+  right: 360px;
+  border-radius: 16px 0 0 16px;
+}
+
+.expanded-map .regional-map.is-inspecting {
+  transform: none;
+  filter: saturate(1.06) brightness(1.02);
+}
+
+.expanded-map .tile-filter-bar {
+  display: flex;
+  left: 16px;
+  right: auto;
+  top: 58px;
+  max-width: calc(100% - 392px);
+  border-radius: 14px;
+  background: rgba(3, 13, 24, 0.74);
   backdrop-filter: blur(12px);
 }
 
-.expanded-map .tile-vessel-list,
-.expanded-map .tile-event-list {
-  display: block;
+.expanded-map .tile-map-controls {
+  left: 16px;
+  top: 16px;
+  max-width: calc(100% - 392px);
+  border-radius: 14px;
+  backdrop-filter: blur(12px);
 }
 
-.expanded-map .ship-inspector-card {
-  max-width: 340px;
+.expanded-map .tile-attribution {
+  left: 16px;
+  bottom: 14px;
+}
+
+.expanded-map-rail {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  width: 360px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) minmax(124px, 0.45fr);
+  gap: 10px;
+  padding: 14px;
+  border-left: 1px solid rgba(141, 220, 255, 0.12);
+  background: linear-gradient(180deg, rgba(3, 13, 24, 0.96), rgba(5, 20, 34, 0.98));
+  box-shadow: -22px 0 42px rgba(0, 0, 0, 0.30);
+  pointer-events: auto;
+}
+
+.expanded-rail-section {
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(141, 220, 255, 0.14);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.expanded-rail-section.vessel-detail-section {
+  padding: 12px;
+}
+
+.expanded-rail-section.vessel-detail-section.muted p {
+  margin: 10px 0 0;
+  color: rgba(230, 247, 255, 0.60);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.rail-section-header {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+
+.rail-section-header span {
+  color: rgba(101, 228, 203, 0.76);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.rail-section-header strong {
+  color: #ffffff;
+  font-size: 15px;
+  line-height: 1.18;
+}
+
+.rail-detail-list {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 12px;
+}
+
+.rail-detail-list div {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.rail-detail-list dt {
+  color: rgba(230, 247, 255, 0.52);
+}
+
+.rail-detail-list dd {
+  margin: 0;
+  color: #ffffff;
+  font-weight: 760;
+  word-break: break-word;
+}
+
+.rail-action-button {
+  border-radius: 999px;
+  padding: 7px 11px;
+  background: rgba(141, 220, 255, 0.12);
+  border: 1px solid rgba(141, 220, 255, 0.20);
+  color: #dffcff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.rail-action-button:hover {
+  background: rgba(101, 228, 203, 0.18);
+  color: #ffffff;
+}
+
+.expanded-map-rail .tile-vessel-list,
+.expanded-map-rail .tile-event-list {
+  position: static;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: auto;
+  max-height: none;
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.expanded-map-rail .tile-vessel-list-items,
+.expanded-map-rail .tile-event-list .tile-vessel-list-items {
+  max-height: none;
+  min-height: 0;
+  overflow: auto;
+}
+
+.rail-empty-state {
+  margin: 0;
+  padding: 10px;
+  color: rgba(230, 247, 255, 0.58);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .tile-map-svg image {
@@ -54,4 +221,29 @@
   background:
     linear-gradient(180deg, rgba(3, 12, 23, 0.12), rgba(3, 12, 23, 0.28)),
     radial-gradient(circle at 48% 48%, rgba(101, 228, 203, 0.07), transparent 58%);
+}
+
+@media (max-width: 980px) {
+  .expanded-map .regional-map {
+    right: 0;
+    bottom: 360px;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .expanded-map-rail {
+    top: auto;
+    left: 0;
+    width: auto;
+    height: 360px;
+    grid-template-columns: minmax(220px, 0.9fr) minmax(220px, 1fr) minmax(200px, 0.8fr);
+    grid-template-rows: 1fr;
+    border-left: 0;
+    border-top: 1px solid rgba(141, 220, 255, 0.12);
+    overflow-x: auto;
+  }
+
+  .expanded-map .tile-map-controls,
+  .expanded-map .tile-filter-bar {
+    max-width: calc(100% - 32px);
+  }
 }
