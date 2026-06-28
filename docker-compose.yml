@@ -13,6 +13,8 @@ services:
       STATIC_DIR: dist
       VITE_VESSEL_DATA_URL: /api/vessels
       AISSTREAM_CACHE_FILE: /app/.runtime/ais-cache.json
+      CHMARL_EXPERIMENT_FILE: /app/.runtime/chmarl_episode.json
+      PORT_EVENTS_FILE: /app/.runtime/port_events.json
     ports:
       - "8787:8787"
     volumes:
