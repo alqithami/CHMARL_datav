@@ -34,6 +34,7 @@ type Tile = {
 };
 
 type VesselFilter = "All" | Vessel["status"];
+type SortMode = "latest" | "name" | "speed";
 
 const DEFAULT_CENTER: GeoPoint = { lat: 18.9, lon: 35.4 };
 const DEFAULT_ZOOM = 6;
@@ -188,19 +189,72 @@ function eventClass(eventType: PortEvent["eventType"]) {
   return "arrival";
 }
 
+function speedKnots(vessel: Vessel) {
+  const parsed = Number.parseFloat(vessel.speed.replace(/[^0-9.\-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function vesselTimestampMs(vessel: Vessel) {
+  if (!vessel.timestamp) return 0;
+  const parsed = Date.parse(vessel.timestamp);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isMoving(vessel: Vessel) {
+  const speed = speedKnots(vessel);
+  return speed !== undefined && speed > 0.5;
+}
+
+function isStale(vessel: Vessel) {
+  const timestamp = vesselTimestampMs(vessel);
+  if (timestamp === 0) return false;
+  return Date.now() - timestamp > 30 * 60 * 1000;
+}
+
+function formatTimestamp(vessel: Vessel) {
+  if (!vessel.timestamp) return "No timestamp";
+  const timestamp = vesselTimestampMs(vessel);
+  if (timestamp === 0) return vessel.timestamp;
+  return new Date(timestamp).toLocaleTimeString();
+}
+
+function matchesQuery(vessel: Vessel, query: string) {
+  if (!query) return true;
+  const haystack = `${vessel.name} ${vessel.id} ${vessel.route} ${vessel.cargo}`.toLowerCase();
+  return haystack.includes(query);
+}
+
+function sortVessels(vessels: Vessel[], mode: SortMode) {
+  return [...vessels].sort((a, b) => {
+    if (mode === "name") return a.name.localeCompare(b.name);
+    if (mode === "speed") return (speedKnots(b) ?? -1) - (speedKnots(a) ?? -1);
+    return vesselTimestampMs(b) - vesselTimestampMs(a);
+  });
+}
+
 const filterOptions: VesselFilter[] = ["All", "Nominal", "Watch", "Constrained"];
 
-export default function ShipScene({ vessels = fallbackVessels, portEvents = [], expanded = false }: ShipSceneProps) {
+export default function ShipScene({ vessels, portEvents = [], expanded = false }: ShipSceneProps) {
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
   const [manualCenter, setManualCenter] = useState<GeoPoint>(DEFAULT_CENTER);
   const [selectedShipId, setSelectedShipId] = useState("");
   const [hoveredShipId, setHoveredShipId] = useState("");
   const [filter, setFilter] = useState<VesselFilter>("All");
-  const sceneVessels = vessels.length > 0 ? vessels : fallbackVessels;
-  const visibleVessels = useMemo(
-    () => (filter === "All" ? sceneVessels : sceneVessels.filter((vessel) => vessel.status === filter)),
-    [filter, sceneVessels]
-  );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [movingOnly, setMovingOnly] = useState(false);
+  const [staleOnly, setStaleOnly] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>("latest");
+  const sceneVessels = vessels ?? fallbackVessels;
+  const query = searchQuery.trim().toLowerCase();
+  const visibleVessels = useMemo(() => {
+    const statusFiltered = filter === "All" ? sceneVessels : sceneVessels.filter((vessel) => vessel.status === filter);
+    return sortVessels(
+      statusFiltered.filter((vessel) =>
+        matchesQuery(vessel, query) && (!movingOnly || isMoving(vessel)) && (!staleOnly || isStale(vessel))
+      ),
+      sortMode
+    );
+  }, [filter, movingOnly, query, sceneVessels, sortMode, staleOnly]);
   const selectedVessel = selectedShipId ? visibleVessels.find((vessel) => vessel.id === selectedShipId) : undefined;
   const mapCenter = geoFromVessel(selectedVessel) ?? manualCenter;
   const tileGrid = useMemo(() => buildTileGrid(mapCenter, mapZoom), [mapCenter, mapZoom]);
@@ -261,6 +315,14 @@ export default function ShipScene({ vessels = fallbackVessels, portEvents = [], 
     setMapZoom(DEFAULT_ZOOM);
   };
 
+  const resetRailFilters = () => {
+    setSearchQuery("");
+    setMovingOnly(false);
+    setStaleOnly(false);
+    setSortMode("latest");
+    setSelectedShipId("");
+  };
+
   const vesselDetail = selectedShip ? (
     <section className="expanded-rail-section vessel-detail-section">
       <div className="rail-section-header">
@@ -274,6 +336,7 @@ export default function ShipScene({ vessels = fallbackVessels, portEvents = [], 
         <div><dt>Cargo</dt><dd>{selectedShip.vessel.cargo}</dd></div>
         <div><dt>ETA</dt><dd>{selectedShip.vessel.eta}</dd></div>
         <div><dt>Speed</dt><dd>{selectedShip.vessel.speed}</dd></div>
+        <div><dt>Updated</dt><dd>{formatTimestamp(selectedShip.vessel)}</dd></div>
         {hasCoordinates(selectedShip.vessel) && (
           <div><dt>Position</dt><dd>{selectedShip.vessel.latitude.toFixed(3)}, {selectedShip.vessel.longitude.toFixed(3)}</dd></div>
         )}
@@ -441,17 +504,43 @@ export default function ShipScene({ vessels = fallbackVessels, portEvents = [], 
           <section className="expanded-rail-section tile-vessel-list" aria-label="Visible vessel list">
             <div className="tile-vessel-list-header">
               <strong>Visible vessels</strong>
-              <span>{visibleVessels.length}</span>
+              <span>{visibleVessels.length}/{sceneVessels.length}</span>
+            </div>
+            <div className="rail-search-tools">
+              <input
+                value={searchQuery}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setSelectedShipId("");
+                }}
+                placeholder="Search name, MMSI, route"
+                aria-label="Search vessels" />
+              <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)} aria-label="Sort vessels">
+                <option value="latest">Latest update</option>
+                <option value="name">Name</option>
+                <option value="speed">Speed</option>
+              </select>
+              <label>
+                <input type="checkbox" checked={movingOnly} onChange={(event) => setMovingOnly(event.target.checked)} />
+                Moving only
+              </label>
+              <label>
+                <input type="checkbox" checked={staleOnly} onChange={(event) => setStaleOnly(event.target.checked)} />
+                Stale only
+              </label>
+              <button type="button" onClick={resetRailFilters}>Reset filters</button>
             </div>
             <div className="tile-vessel-list-items">
-              {visibleVessels.map((vessel) => (
+              {visibleVessels.length === 0 ? (
+                <p className="rail-empty-state">No vessels match the current search and filters.</p>
+              ) : visibleVessels.map((vessel) => (
                 <button
                   key={vessel.id}
                   type="button"
-                  className={vessel.id === selectedShipId ? "active" : ""}
+                  className={`${vessel.id === selectedShipId ? "active" : ""} ${isStale(vessel) ? "stale" : ""}`}
                   onClick={() => selectVessel(vessel.id)}>
                   <span>{vessel.name}</span>
-                  <small>{vessel.status} · {vessel.speed}</small>
+                  <small>{vessel.status} · {vessel.speed} · {formatTimestamp(vessel)}</small>
                 </button>
               ))}
             </div>
@@ -493,6 +582,7 @@ export default function ShipScene({ vessels = fallbackVessels, portEvents = [], 
             <div><dt>Cargo</dt><dd>{selectedShip.vessel.cargo}</dd></div>
             <div><dt>ETA</dt><dd>{selectedShip.vessel.eta}</dd></div>
             <div><dt>Speed</dt><dd>{selectedShip.vessel.speed}</dd></div>
+            <div><dt>Updated</dt><dd>{formatTimestamp(selectedShip.vessel)}</dd></div>
             {hasCoordinates(selectedShip.vessel) && (
               <div><dt>Position</dt><dd>{selectedShip.vessel.latitude.toFixed(3)}, {selectedShip.vessel.longitude.toFixed(3)}</dd></div>
             )}
