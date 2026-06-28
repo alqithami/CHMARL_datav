@@ -20,6 +20,7 @@ const aisState = {
   lastMessageAt: null,
   lastError: null,
   reconnectAttempt: 0,
+  boundingBoxes: [],
 };
 
 const fallbackVessels = [
@@ -139,6 +140,15 @@ function parseBoundingBoxes(value) {
     });
 }
 
+function safeParseBoundingBoxes() {
+  try {
+    return parseBoundingBoxes(AISSTREAM_BBOX);
+  } catch (error) {
+    aisState.lastError = error instanceof Error ? error.message : String(error);
+    return [];
+  }
+}
+
 function getMessageBody(message) {
   if (!message || typeof message !== "object") return {};
   const messageType = message.MessageType;
@@ -196,13 +206,9 @@ function mergeAisVessel(update) {
 function startAisStream() {
   if (!AISSTREAM_API_KEY) return;
 
-  let boundingBoxes;
-  try {
-    boundingBoxes = parseBoundingBoxes(AISSTREAM_BBOX);
-  } catch (error) {
-    aisState.lastError = error instanceof Error ? error.message : String(error);
-    return;
-  }
+  const boundingBoxes = safeParseBoundingBoxes();
+  aisState.boundingBoxes = boundingBoxes;
+  if (boundingBoxes.length === 0) return;
 
   const socket = new WebSocket(AISSTREAM_URL);
   aisState.lastError = null;
@@ -284,7 +290,7 @@ createServer(async (request, response) => {
         cachedVessels: aisCache.size,
         lastMessageAt: aisState.lastMessageAt,
         lastError: aisState.lastError,
-        boundingBoxes: AISSTREAM_API_KEY ? parseBoundingBoxes(AISSTREAM_BBOX) : [],
+        boundingBoxes: aisState.boundingBoxes,
       },
     });
     return;
