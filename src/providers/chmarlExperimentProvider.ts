@@ -11,6 +11,11 @@ function endpointUrl() {
   return import.meta.env.VITE_CHMARL_EXPERIMENT_URL?.trim() || "/api/chmarl/episode";
 }
 
+function sampleUrl() {
+  const baseUrl = import.meta.env.BASE_URL || "/";
+  return `${baseUrl}data/chmarl_episode.sample.json`;
+}
+
 function extractSteps(payload: unknown): ChmarlExperimentStep[] {
   if (Array.isArray(payload)) return payload as ChmarlExperimentStep[];
   if (payload && typeof payload === "object") {
@@ -28,11 +33,13 @@ function extractString(payload: unknown, key: string) {
   return typeof value === "string" ? value : undefined;
 }
 
-export async function loadRuntimeChmarlExperiment(): Promise<ChmarlExperimentFeed | null> {
-  const response = await fetch(endpointUrl(), { headers: { Accept: "application/json" } });
+async function fetchExperimentPayload(url: string) {
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
   if (!response.ok) return null;
+  return response.json();
+}
 
-  const payload = await response.json();
+function toFeed(payload: unknown): ChmarlExperimentFeed | null {
   const steps = extractSteps(payload);
   if (steps.length === 0) return null;
 
@@ -42,4 +49,16 @@ export async function loadRuntimeChmarlExperiment(): Promise<ChmarlExperimentFee
     experimentId: extractString(payload, "experimentId") ?? steps[0]?.experimentId,
     scenarioId: extractString(payload, "scenarioId") ?? steps[0]?.scenarioId,
   };
+}
+
+export async function loadRuntimeChmarlExperiment(): Promise<ChmarlExperimentFeed | null> {
+  const runtimePayload = await fetchExperimentPayload(endpointUrl()).catch(() => null);
+  const runtimeFeed = toFeed(runtimePayload);
+  if (runtimeFeed) return runtimeFeed;
+
+  // Keep the CH-MARL panels functional during live AIS operation even before a
+  // real experiment logger is connected. Replace this bundled sample by placing
+  // a real log at CHMARL_EXPERIMENT_FILE or by setting CHMARL_EXPERIMENT_URL.
+  const samplePayload = await fetchExperimentPayload(sampleUrl()).catch(() => null);
+  return toFeed(samplePayload);
 }
