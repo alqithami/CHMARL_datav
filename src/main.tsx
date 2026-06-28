@@ -7,6 +7,7 @@ import "./statusPanel.css";
 import "./operationalWatchlist.css";
 import "./platformLayout.css";
 import "./mapPolish.css";
+import "./commandBar.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
