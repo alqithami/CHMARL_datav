@@ -2,7 +2,7 @@
 
 A Vite + React + TypeScript dashboard for CH-MARL maritime logistics experiments.
 
-The project is structured as a runnable CH-MARL interface scaffold with local JSON/GeoJSON sample fixtures, typed data contracts, adapter stubs, interactive scenario switching, remote vessel-feed support, refresh controls, and a documented roadmap for vessel, port-event, GeoJSON, experiment-log, scenario, and export integrations.
+The project is structured as a runnable CH-MARL interface scaffold with local JSON/GeoJSON sample fixtures, typed data contracts, adapter stubs, interactive scenario switching, remote vessel-feed support, refresh controls, export utilities, and a documented roadmap for vessel, port-event, GeoJSON, experiment-log, scenario, and export integrations.
 
 ## Quick Start
 
@@ -47,7 +47,7 @@ The dashboard refreshes vessel data every 30 seconds and also includes a manual 
 | Area | Status |
 | --- | --- |
 | Dashboard shell | Implemented |
-| Vessel inspection map | Implemented with map tiles, clickable ship markers, vessel trails, hover cards, filters, fit controls, and detail cards |
+| Vessel inspection map | Implemented with map tiles, clickable ship markers, vessel trails, hover cards, filters, fit controls, port-event markers, and detail cards |
 | KPI, reward, constraint, port, timeline, and vessel-table panels | Implemented |
 | Local JSON sample data layer | Implemented in `public/data/` |
 | Remote vessel feed | Implemented through `VITE_VESSEL_DATA_URL` |
@@ -60,14 +60,25 @@ The dashboard refreshes vessel data every 30 seconds and also includes a manual 
 | Experiment-log adapter scaffold | Implemented in `src/adapters/experimentLogAdapter.ts` |
 | Scenario catalog | Implemented in `src/scenarios/scenarioCatalog.ts` |
 | Interactive scenario switching | Implemented |
+| Dashboard export tools | Implemented for JSON snapshots and vessel CSV |
 | Provider-specific live AIS connection | Planned behind the proxy |
-| Dashboard export tools | Planned |
 
 ## Middle Map
 
-The center panel now uses a tile-based maritime map centered on the Red Sea region, with port markers, route overlays, clickable vessel figurines, hover cards, status filters, fit-to-vessels control, recent movement trails, and an inspection card for each selected vessel.
+The center panel now uses a tile-based maritime map centered on the Red Sea region, with port markers, port-event markers, route overlays, clickable vessel figurines, hover cards, status filters, fit-to-vessels control, recent movement trails, and an inspection card for each selected vessel.
 
 The current tile layer uses OpenStreetMap map tiles with visible attribution. A Google Maps layer can be added later if a Google Maps Platform API key and billing project are available.
+
+## Export Tools
+
+The dashboard header includes:
+
+```text
+Export JSON
+Export CSV
+```
+
+`Export JSON` downloads a scenario snapshot containing metrics, vessels, port events, reward trends, constraint pressure, port utilization, and timeline events. `Export CSV` downloads the current vessel table with coordinates, status, and trail-count metadata.
 
 ## Local Data Fixtures
 
