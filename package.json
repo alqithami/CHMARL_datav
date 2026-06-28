@@ -12,8 +12,8 @@
     "dev:proxy": "node scripts/dev-with-proxy.mjs",
     "build": "tsc -b && vite build",
     "build:prod": "VITE_VESSEL_DATA_URL=/api/vessels pnpm build",
-    "start": "node server/vessel-feed-proxy/index.mjs",
-    "start:prod": "node server/vessel-feed-proxy/index.mjs",
+    "start": "node scripts/start-prod.mjs",
+    "start:prod": "node scripts/start-prod.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
