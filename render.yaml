@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: chmarl-datav
+    env: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8787
+      - key: STATIC_DIR
+        value: dist
+      - key: AISSTREAM_API_KEY
+        sync: false
+      - key: AISSTREAM_BBOX
+        value: 11,32;31,56
+      - key: AISSTREAM_MAX_VESSELS
+        value: 250
+      - key: AISSTREAM_TRAIL_POINTS
+        value: 24
+      - key: AISSTREAM_FILTER_TYPES
+        value: PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport
