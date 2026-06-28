@@ -1,0 +1,101 @@
+.watchlist-panel {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  min-height: 0;
+  height: calc(100% - 2px);
+}
+
+.watchlist-recommendation {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(101, 228, 203, 0.24);
+  background: rgba(101, 228, 203, 0.08);
+}
+
+.watchlist-recommendation span {
+  display: block;
+  color: rgba(101, 228, 203, 0.82);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+
+.watchlist-recommendation strong {
+  display: block;
+  margin-top: 6px;
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.watchlist-items {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding-right: 2px;
+}
+
+.watchlist-item {
+  padding: 9px 10px;
+  border-radius: 13px;
+  border: 1px solid rgba(141, 220, 255, 0.14);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.watchlist-item span,
+.watchlist-item strong,
+.watchlist-item small {
+  display: block;
+}
+
+.watchlist-item span {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.watchlist-item strong {
+  margin-top: 4px;
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.watchlist-item small {
+  margin-top: 3px;
+  color: rgba(230, 247, 255, 0.62);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.watchlist-item.critical {
+  border-color: rgba(255, 116, 116, 0.26);
+  background: rgba(255, 116, 116, 0.08);
+}
+
+.watchlist-item.critical span {
+  color: #ff9c9c;
+}
+
+.watchlist-item.warning {
+  border-color: rgba(255, 215, 128, 0.24);
+  background: rgba(255, 215, 128, 0.075);
+}
+
+.watchlist-item.warning span {
+  color: #ffd780;
+}
+
+.watchlist-item.normal span {
+  color: #65e4cb;
+}
+
+.focus-content .watchlist-panel {
+  min-height: 580px;
+}
