@@ -39,6 +39,10 @@ function countBy<T extends string>(values: T[]) {
   }, {});
 }
 
+function latestReward(data: DashboardData) {
+  return data.rewardTrend.at(-1)?.[1];
+}
+
 export function exportDashboardSnapshot(data: DashboardData, scenarioId: string) {
   const createdAt = new Date().toISOString();
   const payload = {
@@ -103,27 +107,29 @@ export function exportVesselCsv(data: DashboardData, scenarioId: string) {
   );
 }
 
-export function exportPaperReport(data: DashboardData, scenarioId: string) {
+export function exportOperationalReport(data: DashboardData, scenarioId: string) {
   const createdAt = new Date().toISOString();
   const vesselStatusCounts = countBy(data.vessels.map((vessel) => vessel.status));
   const portEventCounts = countBy(data.portEvents.map((event) => event.eventType));
-  const latestReward = data.rewardTrend.at(-1)?.[1] ?? "n/a";
+  const rewardValue = latestReward(data);
   const trailCount = data.vessels.filter((vessel) => vessel.trail && vessel.trail.length > 1).length;
+  const constrainedCount = vesselStatusCounts.Constrained ?? 0;
+  const watchCount = vesselStatusCounts.Watch ?? 0;
 
   const sections = [
-    `# CH-MARL Dashboard Evidence Report`,
+    `# CH-MARL Operational Situation Report`,
     ``,
     `**Created:** ${createdAt}`,
     `**Scenario:** ${scenarioId}`,
     `**Data source:** ${data.source}`,
     ``,
-    `## Executive Summary`,
+    `## Situation Summary`,
     ``,
-    `This dashboard snapshot contains ${data.vessels.length} vessel records, ${data.portEvents.length} port events, ${trailCount} vessel movement trails, and ${data.timelineEvents.length} hierarchy-level timeline events. The latest reward-trend value is ${latestReward}.`,
+    `The current operating picture contains ${data.vessels.length} vessel records, ${data.portEvents.length} port events, and ${trailCount} vessel tracks. The current risk posture includes ${watchCount} watch vessels and ${constrainedCount} constrained vessels. The latest CH-MARL reward value is ${rewardValue === undefined ? "not available" : rewardValue.toFixed(3)}.`,
     ``,
-    `## KPI Metrics`,
+    `## Operational KPIs`,
     ``,
-    markdownTable(["Metric", "Value", "Trend"], data.metrics.map((metric) => [metric.label, metric.value, metric.trend])),
+    markdownTable(["Metric", "Value", "Operational interpretation"], data.metrics.map((metric) => [metric.label, metric.value, metric.trend])),
     ``,
     `## Vessel Status Distribution`,
     ``,
@@ -141,17 +147,17 @@ export function exportPaperReport(data: DashboardData, scenarioId: string) {
     ``,
     markdownTable(["Port", "Utilization"], data.portUtilization.map((item) => [item.name, item.value])),
     ``,
-    `## Decision Timeline`,
+    `## CH-MARL Decision Timeline`,
     ``,
-    markdownTable(["Time", "Decision", "Evidence"], data.timelineEvents.map((event) => [event.time, event.title, event.body])),
+    markdownTable(["Time", "Decision", "Operational evidence"], data.timelineEvents.map((event) => [event.time, event.title, event.body])),
     ``,
-    `## Notes`,
+    `## Operational Notes`,
     ``,
-    `This report is generated from the current dashboard state and is intended as paper-ready supporting evidence for screenshots, demonstrations, and CH-MARL experiment documentation.`,
+    `This report is generated from the current dashboard state. Treat local-json and fallback data as validation fixtures; treat remote data as the active backend/proxy feed only when the provider state indicates remote mode.`,
   ];
 
   downloadTextFile(
-    `chmarl-report-${safeFileSegment(scenarioId)}-${createdAt.slice(0, 10)}.md`,
+    `chmarl-ops-report-${safeFileSegment(scenarioId)}-${createdAt.slice(0, 10)}.md`,
     sections.join("\n"),
     "text/markdown;charset=utf-8"
   );
