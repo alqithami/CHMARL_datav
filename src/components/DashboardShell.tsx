@@ -61,6 +61,7 @@ function chmarlSourceLabel(source: ChmarlDataSource) {
 
 function portOpsSourceLabel(source: DashboardData["portOpsSource"]) {
   if (source === "runtime") return "Runtime port ops";
+  if (source === "demo") return "Kpler-like demo events";
   if (source === "local-json") return "Port fixture";
   return "Port feed required";
 }
@@ -85,6 +86,7 @@ function sourceRefreshMs(source: DashboardDataSource) {
 
 function portEventsTrend(data: DashboardData) {
   if (data.portOpsSource === "runtime") return "runtime berth/queue feed";
+  if (data.portOpsSource === "demo") return "Kpler-like demo event shape";
   if (data.portOpsSource === "local-json") return "normalized operations feed";
   return "connect PORT_EVENTS_URL";
 }
@@ -137,7 +139,7 @@ function withOperationalMetrics(data: DashboardData): DashboardData {
 }
 
 function scenarioPortUtilization(base: DashboardData, fallbackValues: { name: string; value: number }[]) {
-  if (base.portOpsSource === "runtime") return base.portUtilization;
+  if (base.portOpsSource === "runtime" || base.portOpsSource === "demo") return base.portUtilization;
   if (isExternalSource(base.source)) return [];
   return fallbackValues;
 }
@@ -288,14 +290,15 @@ export default function DashboardShell() {
 
   const dashboardData = useMemo(() => getScenarioDashboardData(baseData, selectedScenarioId), [baseData, selectedScenarioId]);
   const liveDataActive = isExternalSource(dashboardData.source);
-  const portOpsRuntimeActive = dashboardData.portOpsSource === "runtime";
+  const portOpsActive = dashboardData.portOpsSource === "runtime" || dashboardData.portOpsSource === "demo";
+  const portOpsDemoActive = dashboardData.portOpsSource === "demo";
   const chmarlRuntimeActive = dashboardData.chmarlSource === "runtime" && dashboardData.rewardTrend.length > 0;
   const providerState = statusLabel(dataSourceStatus);
-  const portPanelTitle = portOpsRuntimeActive ? "Port Queue / Berth Utilization" : "Port Operations Setup";
-  const portPanelTag = portOpsRuntimeActive ? "berth/queue" : "provider required";
+  const portPanelTitle = portOpsActive ? portOpsDemoActive ? "Kpler-like Port Call Events" : "Port Queue / Berth Utilization" : "Port Operations Setup";
+  const portPanelTag = portOpsActive ? portOpsDemoActive ? "demo events" : "berth/queue" : "provider required";
   const primaryPanelTitle = chmarlRuntimeActive || !liveDataActive ? "CH-MARL Reward Trend" : "Vessel Speed Profile";
   const primaryPanelTag = chmarlRuntimeActive ? "online" : liveDataActive ? sourceLabel(dashboardData.source) : selectedScenarioId;
-  const portPanelContent = portOpsRuntimeActive
+  const portPanelContent = portOpsActive
     ? <PortUtilizationChart data={dashboardData.portUtilization} />
     : <PortOpsSetup />;
 
