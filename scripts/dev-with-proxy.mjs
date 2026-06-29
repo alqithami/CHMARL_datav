@@ -1,3 +1,4 @@
+import { createServer } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
@@ -50,10 +51,60 @@ async function probe(name, url) {
   }
 }
 
+async function readRequestBody(request) {
+  if (request.method === "GET" || request.method === "HEAD") return undefined;
+  const chunks = [];
+  for await (const chunk of request) chunks.push(chunk);
+  return chunks.length > 0 ? Buffer.concat(chunks) : undefined;
+}
+
+function filteredHeaders(headers) {
+  const next = {};
+  for (const [key, value] of headers.entries()) {
+    const lower = key.toLowerCase();
+    if (["connection", "content-encoding", "content-length", "transfer-encoding"].includes(lower)) continue;
+    next[key] = value;
+  }
+  return next;
+}
+
+function startDashboardMirror() {
+  const mirrorPort = Number(process.env.VITE_MIRROR_PORT ?? 3000);
+  if (!mirrorPort || String(mirrorPort) === String(dashboardPort)) return;
+
+  const server = createServer(async (request, response) => {
+    const target = `http://127.0.0.1:${dashboardPort}${request.url ?? "/"}`;
+    try {
+      const body = await readRequestBody(request);
+      const upstream = await fetch(target, {
+        method: request.method,
+        headers: request.headers,
+        body,
+        redirect: "manual",
+      });
+      const payload = Buffer.from(await upstream.arrayBuffer());
+      response.writeHead(upstream.status, filteredHeaders(upstream.headers));
+      response.end(payload);
+    } catch (error) {
+      response.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
+      response.end(`Dashboard mirror could not reach Vite on ${dashboardPort}: ${error instanceof Error ? error.message : String(error)}\n`);
+    }
+  });
+
+  server.listen(mirrorPort, "0.0.0.0", () => {
+    const mirrorForwardUrl = codespacesUrl(mirrorPort);
+    console.log(`Dashboard mirror listening on port ${mirrorPort}`);
+    if (mirrorForwardUrl) console.log(`Dashboard mirror forwarded URL: ${mirrorForwardUrl}/`);
+  });
+
+  processes.push({ killed: false, kill: () => server.close() });
+}
+
 function scheduleReadinessProbes() {
   setTimeout(() => {
     void probe("Backend", `http://127.0.0.1:${proxyPort}/health`);
     void probe("Dashboard", `http://127.0.0.1:${dashboardPort}/`);
+    if (process.env.VITE_MIRROR_PORT !== "false") void probe("Dashboard mirror", `http://127.0.0.1:${process.env.VITE_MIRROR_PORT ?? 3000}/`);
   }, 2500).unref?.();
 }
 
@@ -62,6 +113,7 @@ loadEnvFile(".env.local");
 
 process.env.PORT ??= "8787";
 process.env.VITE_PORT ??= "5173";
+process.env.VITE_MIRROR_PORT ??= "3000";
 process.env.VITE_PROXY_TARGET ??= `http://localhost:${process.env.PORT}`;
 process.env.VITE_VESSEL_DATA_URL ??= "/api/vessels";
 process.env.VITE_CHMARL_EXPERIMENT_URL ??= "/api/chmarl/episode";
@@ -157,4 +209,5 @@ run("vite", "pnpm", ["exec", "vite", "--host", "0.0.0.0", "--port", dashboardPor
   VITE_PROXY_TARGET: viteProxyTarget,
 });
 
+startDashboardMirror();
 scheduleReadinessProbes();
