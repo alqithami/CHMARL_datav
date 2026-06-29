@@ -101,7 +101,7 @@ function hasPosition(vessel: Vessel) {
 }
 
 function speedKnots(vessel: Vessel) {
-  const parsed = Number.parseFloat(vessel.speed.replace(/[^0-9.\-]/g, ""));
+  const parsed = Number.parseFloat(vessel.speed.replace(/[^0-9.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
