@@ -37,14 +37,30 @@ function loadEnvFile(fileName) {
 loadEnvFile(".env");
 loadEnvFile(".env.local");
 
+process.env.PORT ??= "8787";
+process.env.VITE_PORT ??= "5173";
+process.env.VITE_PROXY_TARGET ??= `http://localhost:${process.env.PORT}`;
+process.env.VITE_VESSEL_DATA_URL ??= "/api/vessels";
+process.env.VITE_CHMARL_EXPERIMENT_URL ??= "/api/chmarl/episode";
+process.env.VITE_PORT_EVENTS_URL ??= "/api/port-events";
+process.env.VITE_WEATHER_URL ??= "/api/weather";
+process.env.VITE_ALLOW_SAMPLE_DATA ??= "false";
+process.env.VITE_ALLOW_SAMPLE_CHMARL ??= "false";
+process.env.VITE_PORT_EVENTS_DEMO_ENABLED ??= "true";
+process.env.CHMARL_RUNTIME_ENABLED ??= "true";
+process.env.PORT_EVENTS_FILE_ENABLED ??= "false";
+process.env.WEATHER_FILE_ENABLED ??= "false";
+process.env.AISSTREAM_MAX_VESSELS ??= "750";
+process.env.AISSTREAM_MAX_AGE_MS ??= String(6 * 60 * 60 * 1000);
+
 if (process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES !== "false") {
+  process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES = "true";
   process.env.AISSTREAM_BBOX = SAUDI_PORT_AIS_BBOX;
 }
 
-const proxyPort = process.env.PORT ?? "8787";
-const dashboardPort = process.env.VITE_PORT ?? "5173";
-const vesselFeedUrl = process.env.VITE_VESSEL_DATA_URL ?? "/api/vessels";
-const viteProxyTarget = process.env.VITE_PROXY_TARGET ?? `http://localhost:${proxyPort}`;
+const proxyPort = process.env.PORT;
+const dashboardPort = process.env.VITE_PORT;
+const viteProxyTarget = process.env.VITE_PROXY_TARGET;
 
 const processes = [];
 
@@ -85,18 +101,27 @@ process.on("exit", () => {
   }
 });
 
-console.log(`Starting vessel proxy on port ${proxyPort}`);
-if (process.env.AISSTREAM_API_KEY) console.log("AISStream API key loaded from environment.");
+console.log(`Starting CH-MARL backend on port ${proxyPort}`);
+console.log(process.env.AISSTREAM_API_KEY ? "AISStream API key loaded from environment." : "AISStream API key is missing; vessel feed will wait until configured.");
 console.log(`AISStream bounding boxes: ${process.env.AISSTREAM_BBOX?.split("|").length ?? 0}`);
+console.log(`Port event demo: ${process.env.VITE_PORT_EVENTS_DEMO_ENABLED}`);
 run("vessel-feed-proxy", "node", ["server/vessel-feed-proxy/index.mjs"], {
   PORT: proxyPort,
 });
 
 console.log(`Starting dashboard on port ${dashboardPort}`);
-console.log(`Using frontend vessel feed path: ${vesselFeedUrl}`);
+console.log(`Using frontend vessel feed path: ${process.env.VITE_VESSEL_DATA_URL}`);
 console.log(`Proxying Vite API calls to: ${viteProxyTarget}`);
 console.log(`Open the forwarded Codespaces port ${dashboardPort} for the dashboard UI.`);
 run("vite", "pnpm", ["exec", "vite", "--host", "0.0.0.0", "--port", dashboardPort, "--strictPort"], {
-  VITE_VESSEL_DATA_URL: vesselFeedUrl,
+  VITE_VESSEL_DATA_URL: process.env.VITE_VESSEL_DATA_URL,
+  VITE_CHMARL_EXPERIMENT_URL: process.env.VITE_CHMARL_EXPERIMENT_URL,
+  VITE_PORT_EVENTS_URL: process.env.VITE_PORT_EVENTS_URL,
+  VITE_PORT_EVENTS_DEMO_ENABLED: process.env.VITE_PORT_EVENTS_DEMO_ENABLED,
+  VITE_WEATHER_URL: process.env.VITE_WEATHER_URL,
+  VITE_WEATHER_CACHE_MS: process.env.VITE_WEATHER_CACHE_MS ?? "600000",
+  VITE_WEATHER_TIMEOUT_MS: process.env.VITE_WEATHER_TIMEOUT_MS ?? "3000",
+  VITE_ALLOW_SAMPLE_DATA: process.env.VITE_ALLOW_SAMPLE_DATA,
+  VITE_ALLOW_SAMPLE_CHMARL: process.env.VITE_ALLOW_SAMPLE_CHMARL,
   VITE_PROXY_TARGET: viteProxyTarget,
 });
