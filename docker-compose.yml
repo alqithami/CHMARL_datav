@@ -14,6 +14,7 @@ services:
       VITE_VESSEL_DATA_URL: /api/vessels
       VITE_CHMARL_EXPERIMENT_URL: /api/chmarl/episode
       VITE_PORT_EVENTS_URL: /api/port-events
+      VITE_PORT_EVENTS_DEMO_ENABLED: "true"
       VITE_WEATHER_URL: /api/weather
       VITE_ALLOW_SAMPLE_DATA: "false"
       VITE_ALLOW_SAMPLE_CHMARL: "false"
