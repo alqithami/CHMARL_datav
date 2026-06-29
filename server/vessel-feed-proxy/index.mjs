@@ -7,6 +7,7 @@ const PORT = Number(process.env.PORT ?? 8787);
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "dist");
 const STATIC_INDEX = resolve(STATIC_DIR, "index.html");
 
+const REGIONAL_AIS_BBOX = "11,32;31,56";
 const SAUDI_PORT_BBOX = [
   "20.70,38.35;22.95,39.85",
   "23.25,37.15;24.90,38.90",
@@ -30,7 +31,7 @@ const UPSTREAM_URL = process.env.UPSTREAM_VESSEL_DATA_URL;
 const UPSTREAM_TOKEN = process.env.UPSTREAM_VESSEL_DATA_TOKEN;
 const AISSTREAM_API_KEY = process.env.AISSTREAM_API_KEY;
 const AISSTREAM_URL = process.env.AISSTREAM_URL ?? "wss://stream.aisstream.io/v0/stream";
-const AISSTREAM_BBOX = process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "false" ? (process.env.AISSTREAM_BBOX ?? SAUDI_PORT_BBOX) : SAUDI_PORT_BBOX;
+const AISSTREAM_BBOX = process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "true" ? SAUDI_PORT_BBOX : (process.env.AISSTREAM_BBOX ?? REGIONAL_AIS_BBOX);
 const AISSTREAM_MAX_VESSELS = Number(process.env.AISSTREAM_MAX_VESSELS ?? 750);
 const AISSTREAM_TRAIL_POINTS = Number(process.env.AISSTREAM_TRAIL_POINTS ?? 24);
 const AISSTREAM_MAX_AGE_MS = Number(process.env.AISSTREAM_MAX_AGE_MS ?? 6 * 60 * 60 * 1000);
@@ -38,7 +39,7 @@ const AISSTREAM_CACHE_ENABLED = process.env.AISSTREAM_CACHE_ENABLED !== "false";
 const AISSTREAM_CACHE_FILE = process.env.AISSTREAM_CACHE_FILE ?? ".runtime/ais-cache.json";
 const AISSTREAM_CACHE_FILE_PATH = resolve(AISSTREAM_CACHE_FILE);
 const AISSTREAM_CACHE_FLUSH_MS = Number(process.env.AISSTREAM_CACHE_FLUSH_MS ?? 15_000);
-const AISSTREAM_FILTER_TYPES = (process.env.AISSTREAM_FILTER_TYPES ?? "PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport").split(",").map((item) => item.trim()).filter(Boolean);
+const AISSTREAM_FILTER_TYPES = (process.env.AISSTREAM_FILTER_TYPES ?? "").split(",").map((item) => item.trim()).filter(Boolean);
 
 const CHMARL_RUNTIME_ENABLED = process.env.CHMARL_RUNTIME_ENABLED !== "false";
 const CHMARL_EXPERIMENT_URL = process.env.CHMARL_EXPERIMENT_URL;
