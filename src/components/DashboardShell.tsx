@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import type { Metric, RewardTrendPoint, Vessel } from "@/data/chmarlData";
 import { fallbackDashboardData, loadSampleDashboardData, type ChmarlDataSource, type DashboardData, type DashboardDataSource } from "@/data/loadSampleDashboardData";
 import { exportDashboardSnapshot, exportOperationalReport, exportVesselCsv } from "@/export/dashboardExports";
-import { loadBackendHealth, type BackendHealth } from "@/providers/backendHealthProvider";
 import { scenarioCatalog } from "@/scenarios/scenarioCatalog";
 import ConstraintChart from "./charts/ConstraintChart";
+import DecisionTimeline from "./DecisionTimeline";
 import MetricCard from "./MetricCard";
 import OperationalWatchlist from "./OperationalWatchlist";
 import PanelCard from "./PanelCard";
@@ -51,23 +51,14 @@ function sourceLabel(source: DashboardDataSource) {
 
 function chmarlSourceLabel(source: ChmarlDataSource) {
   if (source === "runtime") return "Runtime CH-MARL";
-  if (source === "local-json") return "Local CH-MARL fixture";
+  if (source === "local-json") return "CH-MARL fixture";
   return "No CH-MARL log";
 }
 
 function portOpsSourceLabel(source: DashboardData["portOpsSource"]) {
   if (source === "runtime") return "Runtime port ops";
-  if (source === "local-json") return "Local port fixture";
-  return "No port feed";
-}
-
-function sourceDescription(source: DashboardDataSource) {
-  if (source === "aisstream") return "live AIS positions cached";
-  if (source === "aisstream-waiting") return "connected; waiting for first AIS position";
-  if (source === "upstream") return "provider endpoint normalized by proxy";
-  if (source === "remote") return "backend proxy endpoint active";
-  if (source === "local-json") return "local fixture validation feed";
-  return "fallback validation feed";
+  if (source === "local-json") return "Port fixture";
+  return "Port feed pending";
 }
 
 function statusLabel(status: LoadStatus) {
@@ -82,22 +73,10 @@ function sourceRefreshMs(source: DashboardDataSource) {
   return 30_000;
 }
 
-function formatHealthTimestamp(value: string | null | undefined) {
-  if (!value) return "no messages";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleTimeString();
-}
-
-function boundingBoxLabel(health: BackendHealth | null) {
-  const count = health?.aisstream?.boundingBoxes?.length ?? 0;
-  return `${count} box${count === 1 ? "" : "es"}`;
-}
-
 function portEventsTrend(data: DashboardData) {
   if (data.portOpsSource === "runtime") return "runtime berth/queue feed";
   if (data.portOpsSource === "local-json") return "normalized operations feed";
-  return "no port operations feed connected";
+  return "awaiting real port operations feed";
 }
 
 function buildOperationalMetrics(data: DashboardData): Metric[] {
@@ -108,18 +87,11 @@ function buildOperationalMetrics(data: DashboardData): Metric[] {
   const latestReward = data.rewardTrend.at(-1)?.[1];
   const speed = averageSpeed(data.vessels);
   const feasibleRatio = vesselCount === 0 ? 1 : Math.max(0, (vesselCount - constrainedCount) / vesselCount);
+  const external = isExternalSource(data.source);
 
   return [
-    {
-      label: "Tracked vessels",
-      value: String(vesselCount),
-      trend: sourceLabel(data.source),
-    },
-    {
-      label: "Port events",
-      value: String(data.portEvents.length),
-      trend: portEventsTrend(data),
-    },
+    { label: "Tracked vessels", value: String(vesselCount), trend: sourceLabel(data.source) },
+    { label: "Port events", value: String(data.portEvents.length), trend: portEventsTrend(data) },
     {
       label: "Feasibility score",
       value: vesselCount === 0 ? "n/a" : `${(feasibleRatio * 100).toFixed(1)}%`,
@@ -131,29 +103,20 @@ function buildOperationalMetrics(data: DashboardData): Metric[] {
       trend: chmarlSourceLabel(data.chmarlSource),
     },
     {
-      label: isExternalSource(data.source) ? "Avg AIS SOG" : "Avg vessel speed",
+      label: external ? "Avg AIS SOG" : "Avg vessel speed",
       value: speed === undefined ? "n/a" : `${speed.toFixed(1)} kn`,
-      trend: isExternalSource(data.source) ? "from AIS rows with valid SOG" : "from current vessel state rows",
+      trend: external ? "from AIS rows with valid SOG" : "from current vessel state rows",
     },
-    {
-      label: "Movement tracks",
-      value: String(trackCount),
-      trend: "vessels with trail history",
-    },
+    { label: "Movement tracks", value: String(trackCount), trend: "vessels with trail history" },
   ];
 }
 
 function withOperationalMetrics(data: DashboardData): DashboardData {
-  return {
-    ...data,
-    metrics: buildOperationalMetrics(data),
-  };
+  return { ...data, metrics: buildOperationalMetrics(data) };
 }
 
 function getScenarioDashboardData(base: DashboardData, scenarioId: string): DashboardData {
-  if (isExternalSource(base.source)) {
-    return withOperationalMetrics(base);
-  }
+  if (isExternalSource(base.source)) return withOperationalMetrics(base);
 
   if (scenarioId === "congestion") {
     return withOperationalMetrics({
@@ -247,7 +210,6 @@ function FocusModal({ title, children, onClose }: { title: string; children: Rea
 export default function DashboardShell() {
   const [selectedScenarioId, setSelectedScenarioId] = useState("baseline");
   const [baseData, setBaseData] = useState<DashboardData>(fallbackDashboardData);
-  const [backendHealth, setBackendHealth] = useState<BackendHealth | null>(null);
   const [dataSourceStatus, setDataSourceStatus] = useState<LoadStatus>("loading");
   const [lastUpdated, setLastUpdated] = useState("not loaded");
   const [focusPanel, setFocusPanel] = useState<FocusPanel | null>(null);
@@ -256,17 +218,15 @@ export default function DashboardShell() {
 
   const refreshData = useCallback((status: LoadStatus = "refreshing") => {
     setDataSourceStatus(status);
-    return Promise.all([loadSampleDashboardData(), loadBackendHealth().catch(() => null)])
-      .then(([data, health]) => {
+    return loadSampleDashboardData()
+      .then((data) => {
         setBaseData(data);
-        setBackendHealth(health);
         setDataSourceStatus(data.source);
         setLastUpdated(new Date().toLocaleTimeString());
       })
       .catch((error: unknown) => {
         console.error("Failed to load dashboard data. Falling back to bundled data.", error);
         setBaseData(fallbackDashboardData);
-        setBackendHealth(null);
         setDataSourceStatus("fallback");
         setLastUpdated(new Date().toLocaleTimeString());
       });
@@ -278,7 +238,6 @@ export default function DashboardShell() {
     const interval = window.setInterval(() => {
       if (active) refreshData("refreshing");
     }, refreshIntervalMs);
-
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -286,29 +245,21 @@ export default function DashboardShell() {
   }, [refreshData, refreshIntervalMs]);
 
   useEffect(() => {
-    if (externalSourceActive && selectedScenarioId !== "baseline") {
-      setSelectedScenarioId("baseline");
-    }
+    if (externalSourceActive && selectedScenarioId !== "baseline") setSelectedScenarioId("baseline");
   }, [externalSourceActive, selectedScenarioId]);
 
   const dashboardData = useMemo(() => getScenarioDashboardData(baseData, selectedScenarioId), [baseData, selectedScenarioId]);
   const liveDataActive = isExternalSource(dashboardData.source);
   const portOpsRuntimeActive = dashboardData.portOpsSource === "runtime";
   const chmarlRuntimeActive = dashboardData.chmarlSource === "runtime" && dashboardData.rewardTrend.length > 0;
-  const trailCount = dashboardData.vessels.filter((vessel) => vessel.trail && vessel.trail.length > 1).length;
-  const eventCount = dashboardData.portEvents.length;
   const providerState = statusLabel(dataSourceStatus);
-  const refreshSeconds = refreshIntervalMs / 1000;
-  const portPanelTitle = portOpsRuntimeActive ? "Port Queue / Berth Utilization" : liveDataActive ? "Port Operations Feed" : "Port Utilization";
-  const portPanelTag = portOpsRuntimeActive ? "berth/queue" : liveDataActive ? "not connected" : "capacity";
+  const portPanelTitle = portOpsRuntimeActive ? "Port Queue / Berth Utilization" : "CH-MARL Decision Timeline";
+  const portPanelTag = portOpsRuntimeActive ? "berth/queue" : dashboardData.chmarlSource === "runtime" ? "runtime" : "policy";
   const primaryPanelTitle = chmarlRuntimeActive || !liveDataActive ? "CH-MARL Reward Trend" : "Vessel Speed Profile";
   const primaryPanelTag = chmarlRuntimeActive ? "runtime" : liveDataActive ? sourceLabel(dashboardData.source) : selectedScenarioId;
-  const aisHealth = backendHealth?.aisstream;
-  const chmarlHealth = backendHealth?.chmarl;
-  const portOpsHealth = backendHealth?.portOps;
-  const showAisDiagnostics = Boolean(aisHealth) || dashboardData.source === "aisstream" || dashboardData.source === "aisstream-waiting";
-  const showChmarlDiagnostics = Boolean(chmarlHealth) || dashboardData.chmarlSource === "runtime";
-  const showPortOpsDiagnostics = Boolean(portOpsHealth) || portOpsRuntimeActive;
+  const portPanelContent = portOpsRuntimeActive
+    ? <PortUtilizationChart data={dashboardData.portUtilization} />
+    : <DecisionTimeline events={dashboardData.timelineEvents} />;
 
   const focusContent = (() => {
     if (focusPanel === "reward") {
@@ -319,7 +270,7 @@ export default function DashboardShell() {
     }
     if (focusPanel === "constraints") return { title: "Operational Constraint Pressure", content: <ConstraintChart data={dashboardData.constraintPressure} /> };
     if (focusPanel === "scene") return { title: "Maritime Operations Map", content: <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} expanded /> };
-    if (focusPanel === "ports") return { title: portPanelTitle, content: <PortUtilizationChart data={dashboardData.portUtilization} /> };
+    if (focusPanel === "ports") return { title: portPanelTitle, content: portPanelContent };
     if (focusPanel === "watchlist") return { title: "Operational Watchlist", content: <OperationalWatchlist data={dashboardData} scenarioId={selectedScenarioId} /> };
     if (focusPanel === "vessels") return { title: "Vessel State Table", content: <VesselTable vessels={dashboardData.vessels} /> };
     return null;
@@ -331,9 +282,7 @@ export default function DashboardShell() {
         <div>
           <div className="brand-kicker">CH-MARL Maritime Logistics</div>
           <h1 className="brand-title">Operational Vessel Intelligence Dashboard</h1>
-          <p className="brand-subtitle">
-            Vessel, port-event, and CH-MARL decision view for scenario evaluation and operational evidence.
-          </p>
+          <p className="brand-subtitle">Vessel, port-event, and CH-MARL decision view for scenario evaluation and operational evidence.</p>
         </div>
         <div className="scenario-bar" aria-label="Scenario controls">
           <div className="status-control-group" aria-label="Data status controls">
@@ -370,113 +319,8 @@ export default function DashboardShell() {
         </div>
       </header>
 
-      <section className="data-health-grid" aria-label="Provider and data health">
-        <div className="data-health-card primary">
-          <span>Provider state</span>
-          <strong>{providerState}</strong>
-          <small>{sourceDescription(dashboardData.source)}</small>
-        </div>
-        <div className="data-health-card">
-          <span>Vessels</span>
-          <strong>{dashboardData.vessels.length}</strong>
-          <small>{trailCount} with movement tracks</small>
-        </div>
-        <div className="data-health-card">
-          <span>Port ops</span>
-          <strong>{portOpsRuntimeActive ? "Active" : dashboardData.portOpsSource === "local-json" ? "Fixture" : "Inactive"}</strong>
-          <small>{portOpsRuntimeActive ? `${eventCount} events from berth/queue feed` : portOpsHealth?.lastError ?? "no runtime port feed"}</small>
-        </div>
-        <div className="data-health-card">
-          <span>CH-MARL</span>
-          <strong>{dashboardData.chmarlSource === "runtime" ? "Active" : dashboardData.chmarlSource === "local-json" ? "Fixture" : "Inactive"}</strong>
-          <small>{dashboardData.chmarlExperimentId ?? chmarlHealth?.lastError ?? "no runtime experiment log"}</small>
-        </div>
-        <div className="data-health-card">
-          <span>Scenario</span>
-          <strong>{dashboardData.chmarlScenarioId ?? selectedScenarioId}</strong>
-          <small>{liveDataActive ? `${refreshSeconds}s live polling` : "operational transform active"}</small>
-        </div>
-      </section>
-
-      {showAisDiagnostics && (
-        <section className="ais-diagnostics-grid" aria-label="AIS backend diagnostics">
-          <div className="ais-diagnostic-card">
-            <span>AIS socket</span>
-            <strong>{aisHealth?.connected ? "Connected" : aisHealth?.enabled ? "Waiting" : "Disabled"}</strong>
-            <small>{aisHealth?.lastError ? `Error: ${aisHealth.lastError}` : "backend /health"}</small>
-          </div>
-          <div className="ais-diagnostic-card">
-            <span>Cache</span>
-            <strong>{aisHealth ? `${aisHealth.cachedVessels}/${aisHealth.cacheLimit}` : "n/a"}</strong>
-            <small>cached vessels / limit</small>
-          </div>
-          <div className="ais-diagnostic-card">
-            <span>Messages</span>
-            <strong>{aisHealth?.messageCount ?? "n/a"}</strong>
-            <small>raw AIS messages received</small>
-          </div>
-          <div className="ais-diagnostic-card">
-            <span>Last AIS</span>
-            <strong>{formatHealthTimestamp(aisHealth?.lastMessageAt)}</strong>
-            <small>{boundingBoxLabel(backendHealth)} · {aisHealth?.trailLimit ?? "n/a"} trail pts</small>
-          </div>
-        </section>
-      )}
-
-      {showPortOpsDiagnostics && (
-        <section className="ais-diagnostics-grid" aria-label="Port operations diagnostics">
-          <div className="ais-diagnostic-card">
-            <span>Port ops runtime</span>
-            <strong>{portOpsRuntimeActive ? "Active" : "Inactive"}</strong>
-            <small>{portOpsHealth?.lastError ? `Error: ${portOpsHealth.lastError}` : "runtime berth/queue endpoint"}</small>
-          </div>
-          <div className="ais-diagnostic-card">
-            <span>Port events</span>
-            <strong>{portOpsHealth?.events ?? dashboardData.portEvents.length}</strong>
-            <small>{portOpsHealth?.source ?? dashboardData.portOpsSource}</small>
-          </div>
-          <div className="ais-diagnostic-card">
-            <span>Utilization rows</span>
-            <strong>{portOpsHealth?.utilizationRows ?? dashboardData.portUtilization.length}</strong>
-            <small>berth/terminal utilization feed</small>
-          </div>
-          <div className="ais-diagnostic-card">
-            <span>Queue rows</span>
-            <strong>{portOpsHealth?.queueRows ?? "n/a"}</strong>
-            <small>{portOpsHealth?.configuredUrl ? "remote URL" : portOpsHealth?.file ?? "runtime feed"}</small>
-          </div>
-        </section>
-      )}
-
-      {showChmarlDiagnostics && (
-        <section className="ais-diagnostics-grid" aria-label="CH-MARL runtime diagnostics">
-          <div className="ais-diagnostic-card">
-            <span>CH-MARL runtime</span>
-            <strong>{dashboardData.chmarlSource === "runtime" ? "Active" : "Inactive"}</strong>
-            <small>{chmarlHealth?.lastError ? `Error: ${chmarlHealth.lastError}` : "runtime experiment endpoint"}</small>
-          </div>
-          <div className="ais-diagnostic-card">
-            <span>Experiment</span>
-            <strong>{dashboardData.chmarlExperimentId ?? chmarlHealth?.experimentId ?? "n/a"}</strong>
-            <small>{dashboardData.chmarlScenarioId ?? chmarlHealth?.scenarioId ?? "no scenario"}</small>
-          </div>
-          <div className="ais-diagnostic-card">
-            <span>Steps</span>
-            <strong>{chmarlHealth?.steps ?? dashboardData.rewardTrend.length}</strong>
-            <small>{chmarlHealth?.source ?? dashboardData.chmarlSource}</small>
-          </div>
-          <div className="ais-diagnostic-card">
-            <span>Last log load</span>
-            <strong>{formatHealthTimestamp(chmarlHealth?.lastLoadedAt)}</strong>
-            <small>{chmarlHealth?.configuredUrl ? "remote URL" : chmarlHealth?.file ?? "runtime feed"}</small>
-          </div>
-        </section>
-      )}
-
       <section className="metrics-grid" aria-label="Operational performance metrics">
-        {dashboardData.metrics.map((metric) => (
-          <MetricCard key={metric.label} metric={metric} />
-        ))}
+        {dashboardData.metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}
       </section>
 
       <section className="dashboard-grid">
@@ -495,7 +339,7 @@ export default function DashboardShell() {
 
         <div className="right-stack">
           <PanelCard title={portPanelTitle} tag={portPanelTag} onFocus={() => setFocusPanel("ports")}>
-            <PortUtilizationChart data={dashboardData.portUtilization} />
+            {portPanelContent}
           </PanelCard>
           <PanelCard title="Operational Watchlist" tag="actions" onFocus={() => setFocusPanel("watchlist")}>
             <OperationalWatchlist data={dashboardData} scenarioId={selectedScenarioId} />
