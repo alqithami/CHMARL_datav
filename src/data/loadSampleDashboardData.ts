@@ -22,6 +22,7 @@ import type { RawAisVesselUpdate } from "@/adapters/aisAdapter";
 import type { RawPortEvent } from "@/adapters/portEventAdapter";
 import { loadRuntimeChmarlExperiment } from "@/providers/chmarlExperimentProvider";
 import { loadRemoteDashboardVessels } from "@/providers/dashboardDataProvider";
+import { loadMarineWeather, type MarineWeatherPoint } from "@/providers/weatherProvider";
 import { loadRuntimePortOperations } from "@/providers/portOperationsProvider";
 import type { ChmarlExperimentStep, PortEvent } from "@/types/chmarl";
 
@@ -33,11 +34,14 @@ export type ChartDatum = {
 export type DashboardDataSource = "aisstream" | "aisstream-waiting" | "upstream" | "remote" | "local-json" | "fallback";
 export type ChmarlDataSource = "runtime" | "local-json" | "none";
 export type PortOpsDataSource = "runtime" | "local-json" | "none";
+export type WeatherDataSource = "open-meteo" | "runtime" | "none";
 
 export type DashboardData = {
   source: DashboardDataSource;
   chmarlSource: ChmarlDataSource;
   portOpsSource: PortOpsDataSource;
+  weatherSource: WeatherDataSource;
+  weatherPoints: MarineWeatherPoint[];
   chmarlExperimentId?: string;
   chmarlScenarioId?: string;
   metrics: Metric[];
@@ -53,6 +57,8 @@ export const fallbackDashboardData: DashboardData = {
   source: "fallback",
   chmarlSource: "local-json",
   portOpsSource: "local-json",
+  weatherSource: "none",
+  weatherPoints: [],
   metrics,
   vessels,
   portEvents: [],
@@ -151,10 +157,11 @@ function externalTimeline(source: DashboardDataSource, vesselRows: Vessel[], chm
 }
 
 export async function loadSampleDashboardData(): Promise<DashboardData> {
-  const [remoteVessels, runtimeExperiment, runtimePortOps, rawVessels, rawPortEvents, localExperimentSteps] = await Promise.all([
+  const [remoteVessels, runtimeExperiment, runtimePortOps, marineWeather, rawVessels, rawPortEvents, localExperimentSteps] = await Promise.all([
     loadRemoteDashboardVessels().catch(() => null),
     loadRuntimeChmarlExperiment().catch(() => null),
     loadRuntimePortOperations().catch(() => null),
+    loadMarineWeather().catch(() => null),
     fetchJson<RawAisVesselUpdate[]>("vessels.sample.json"),
     fetchJson<RawPortEvent[]>("port_events.sample.json"),
     fetchJson<ChmarlExperimentStep[]>("chmarl_episode.sample.json"),
@@ -176,6 +183,8 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     : externalSource
       ? "none"
       : "local-json";
+  const weatherSource: WeatherDataSource = marineWeather?.source ?? "none";
+  const weatherPoints = marineWeather?.points ?? [];
 
   const normalizedPortEvents = runtimePortOps?.portEvents ?? (externalSource ? [] : normalizePortEventBatch(rawPortEvents));
   const rewardData = experimentSteps.length > 0 ? toRewardTrend(experimentStepsToRewardTrend(experimentSteps)) : [];
@@ -202,6 +211,8 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     source,
     chmarlSource,
     portOpsSource,
+    weatherSource,
+    weatherPoints,
     chmarlExperimentId: runtimeExperiment?.experimentId ?? experimentSteps[0]?.experimentId,
     chmarlScenarioId: runtimeExperiment?.scenarioId ?? experimentSteps[0]?.scenarioId,
     metrics: fileDrivenMetrics,
