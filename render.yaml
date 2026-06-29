@@ -19,6 +19,8 @@ services:
         value: /api/chmarl/episode
       - key: VITE_PORT_EVENTS_URL
         value: /api/port-events
+      - key: VITE_PORT_EVENTS_DEMO_ENABLED
+        value: true
       - key: VITE_WEATHER_URL
         value: /api/weather
       - key: VITE_ALLOW_SAMPLE_DATA
