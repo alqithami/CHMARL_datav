@@ -26,12 +26,9 @@ import { loadMarineWeather, type MarineWeatherPoint } from "@/providers/weatherP
 import { loadRuntimePortOperations } from "@/providers/portOperationsProvider";
 import type { ChmarlExperimentStep, PortEvent } from "@/types/chmarl";
 
-export type ChartDatum = {
-  name: string;
-  value: number;
-};
+export type ChartDatum = { name: string; value: number };
 
-export type DashboardDataSource = "aisstream" | "aisstream-waiting" | "upstream" | "remote" | "local-json" | "fallback";
+export type DashboardDataSource = "aisstream" | "aisstream-waiting" | "upstream" | "remote" | "local-json" | "fallback" | "none";
 export type ChmarlDataSource = "runtime" | "local-json" | "none";
 export type PortOpsDataSource = "runtime" | "local-json" | "none";
 export type WeatherDataSource = "open-meteo" | "runtime" | "none";
@@ -55,13 +52,22 @@ export type DashboardData = {
 
 const allowSampleData = import.meta.env.VITE_ALLOW_SAMPLE_DATA === "true";
 
+const realOnlyMetrics: Metric[] = [
+  { label: "Tracked vessels", value: "0", trend: "awaiting AIS/provider rows" },
+  { label: "Port events", value: "0", trend: "connect PORT_EVENTS_URL" },
+  { label: "Feasibility score", value: "n/a", trend: "awaiting live CH-MARL state" },
+  { label: "Reward index", value: "n/a", trend: "awaiting online CH-MARL" },
+  { label: "Avg AIS SOG", value: "n/a", trend: "awaiting valid AIS speed" },
+  { label: "Sea state", value: "n/a", trend: "awaiting marine weather" },
+];
+
 export const fallbackDashboardData: DashboardData = {
-  source: "fallback",
+  source: allowSampleData ? "local-json" : "none",
   chmarlSource: allowSampleData ? "local-json" : "none",
   portOpsSource: allowSampleData ? "local-json" : "none",
   weatherSource: "none",
   weatherPoints: [],
-  metrics,
+  metrics: allowSampleData ? metrics : realOnlyMetrics,
   vessels: allowSampleData ? vessels : [],
   portEvents: [],
   rewardTrend: allowSampleData ? rewardTrend : [],
@@ -74,18 +80,12 @@ async function fetchJson<T>(fileName: string): Promise<T> {
   if (!allowSampleData) return [] as unknown as T;
   const baseUrl = import.meta.env.BASE_URL || "/";
   const response = await fetch(`${baseUrl}data/${fileName}`);
-
-  if (!response.ok) {
-    throw new Error(`Failed to load ${fileName}: ${response.status} ${response.statusText}`);
-  }
-
+  if (!response.ok) throw new Error(`Failed to load ${fileName}: ${response.status} ${response.statusText}`);
   return response.json() as Promise<T>;
 }
 
 function updateMetric(metricsList: Metric[], label: string, value: string, trend?: string) {
-  return metricsList.map((metric) =>
-    metric.label === label ? { ...metric, value, trend: trend ?? metric.trend } : metric
-  );
+  return metricsList.map((metric) => metric.label === label ? { ...metric, value, trend: trend ?? metric.trend } : metric);
 }
 
 function toRewardTrend(points: (string | number)[][]): RewardTrendPoint[] {
@@ -127,7 +127,6 @@ function deriveConstraintPressureFromVessels(vesselRows: Vessel[]): ChartDatum[]
   }).length;
   const watch = vesselRows.filter((vessel) => vessel.status === "Watch").length;
   const constrained = vesselRows.filter((vessel) => vessel.status === "Constrained").length;
-
   return [
     { name: "Constrained vessels", value: pct(constrained, total) },
     { name: "Watch vessels", value: pct(watch, total) },
@@ -139,24 +138,10 @@ function deriveConstraintPressureFromVessels(vesselRows: Vessel[]): ChartDatum[]
 
 function externalTimeline(source: DashboardDataSource, vesselRows: Vessel[], chmarlSource: ChmarlDataSource, portOpsSource: PortOpsDataSource): TimelineEvent[] {
   if (source === "aisstream-waiting") {
-    return [
-      {
-        time: "live",
-        title: "AIS connected, waiting for position messages",
-        body: "The backend socket is active but no AIS position rows have been cached for the selected bounding box yet.",
-      },
-    ];
+    return [{ time: "live", title: "AIS connected, waiting for position messages", body: "The backend socket is active, but no vessel positions have been cached for the selected bounding boxes yet." }];
   }
-
-  if (!isExternalSource(source)) return timelineEvents;
-
-  return [
-    {
-      time: "live",
-      title: chmarlSource !== "none" ? "Live vessel feed + CH-MARL active" : "External vessel feed active",
-      body: `${vesselRows.length} vessel rows are loaded from ${source}. CH-MARL source: ${chmarlSource}. Port operations source: ${portOpsSource}.`,
-    },
-  ];
+  if (!isExternalSource(source)) return [];
+  return [{ time: "live", title: chmarlSource !== "none" ? "Live vessel feed + online CH-MARL active" : "External vessel feed active", body: `${vesselRows.length} vessel rows are loaded from ${source}. CH-MARL source: ${chmarlSource}. Port operations source: ${portOpsSource}.` }];
 }
 
 export async function loadSampleDashboardData(): Promise<DashboardData> {
@@ -173,41 +158,25 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
 
   const localVessels = allowSampleData ? normalizeAisBatch(rawVessels).map(vesselStateToDashboardRow) : [];
   const dashboardVessels = remoteVessels?.vessels ?? localVessels;
-  const source: DashboardDataSource = remoteVessels?.source ?? "local-json";
+  const source: DashboardDataSource = remoteVessels?.source ?? (allowSampleData ? "local-json" : "none");
   const externalSource = isExternalSource(source);
   const experimentSteps = runtimeExperiment?.steps ?? (allowSampleData ? localExperimentSteps : []);
-  const chmarlSource: ChmarlDataSource = runtimeExperiment
-    ? "runtime"
-    : allowSampleData && localExperimentSteps.length > 0
-      ? "local-json"
-      : "none";
-  const portOpsSource: PortOpsDataSource = runtimePortOps
-    ? "runtime"
-    : externalSource || !allowSampleData
-      ? "none"
-      : "local-json";
+  const chmarlSource: ChmarlDataSource = runtimeExperiment ? "runtime" : allowSampleData && localExperimentSteps.length > 0 ? "local-json" : "none";
+  const portOpsSource: PortOpsDataSource = runtimePortOps ? "runtime" : externalSource || !allowSampleData ? "none" : "local-json";
   const weatherSource: WeatherDataSource = marineWeather?.source ?? "none";
   const weatherPoints = marineWeather?.points ?? [];
 
   const normalizedPortEvents = runtimePortOps?.portEvents ?? (externalSource || !allowSampleData ? [] : normalizePortEventBatch(rawPortEvents));
   const rewardData = experimentSteps.length > 0 ? toRewardTrend(experimentStepsToRewardTrend(experimentSteps)) : [];
-  const constraintData = experimentSteps.length > 0
-    ? experimentStepsToConstraintPressure(experimentSteps)
-    : externalSource
-      ? deriveConstraintPressureFromVessels(dashboardVessels)
-      : [];
+  const constraintData = experimentSteps.length > 0 ? experimentStepsToConstraintPressure(experimentSteps) : externalSource ? deriveConstraintPressureFromVessels(dashboardVessels) : [];
   const utilizationData = runtimePortOps?.portUtilization ?? (externalSource || !allowSampleData ? [] : portUtilization);
-  const timelineData = experimentSteps.length > 0
-    ? experimentStepsToTimelineEvents(experimentSteps)
-    : externalSource
-      ? externalTimeline(source, dashboardVessels, chmarlSource, portOpsSource)
-      : [];
+  const timelineData = experimentSteps.length > 0 ? experimentStepsToTimelineEvents(experimentSteps) : externalSource ? externalTimeline(source, dashboardVessels, chmarlSource, portOpsSource) : [];
 
   const fileDrivenMetrics = updateMetric(
-    updateMetric(allowSampleData ? metrics : fallbackDashboardData.metrics, "Active vessels", String(dashboardVessels.length), source),
+    updateMetric(allowSampleData ? metrics : realOnlyMetrics, "Active vessels", String(dashboardVessels.length), source),
     "Reward index",
     rewardData.at(-1)?.[1].toFixed(3) ?? "n/a",
-    chmarlSource === "runtime" ? "runtime CH-MARL log active" : chmarlSource === "local-json" ? "from local CH-MARL episode" : "no CH-MARL log connected"
+    chmarlSource === "runtime" ? "online CH-MARL active" : chmarlSource === "local-json" ? "from local CH-MARL episode" : "no CH-MARL log connected"
   );
 
   return {
