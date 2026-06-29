@@ -5,7 +5,29 @@ export type RewardTrendProps = {
   data: (string | number)[][];
 };
 
+function numericRewards(data: (string | number)[][]) {
+  return data
+    .map((item) => Number(item[1]))
+    .filter((value) => Number.isFinite(value));
+}
+
+function rewardRange(data: (string | number)[][]) {
+  const values = numericRewards(data);
+  if (values.length === 0) return { min: 0, max: 1 };
+
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const span = Math.max(0.05, maxValue - minValue);
+  const padding = span * 0.12;
+
+  return {
+    min: Number((minValue - padding).toFixed(3)),
+    max: Number((maxValue + padding).toFixed(3)),
+  };
+}
+
 export default function RewardTrend({ data }: RewardTrendProps) {
+  const axisRange = useMemo(() => rewardRange(data), [data]);
   const option = useMemo(
     () => ({
       grid: { left: 12, right: 16, top: 20, bottom: 18, containLabel: true },
@@ -38,8 +60,8 @@ export default function RewardTrend({ data }: RewardTrendProps) {
       },
       yAxis: {
         type: "value" as const,
-        min: 0.5,
-        max: 0.95,
+        min: axisRange.min,
+        max: axisRange.max,
         axisLabel: { color: "rgba(230,247,255,0.56)" },
         splitLine: { lineStyle: { color: "rgba(255,255,255,0.08)" } },
       },
@@ -55,7 +77,7 @@ export default function RewardTrend({ data }: RewardTrendProps) {
         },
       ],
     }),
-    [data]
+    [axisRange.max, axisRange.min, data]
   );
 
   return <Chart option={option} />;
