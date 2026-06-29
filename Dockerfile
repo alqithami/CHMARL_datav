@@ -3,10 +3,15 @@ WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json ./
+RUN pnpm install --no-frozen-lockfile
 COPY . .
 ENV VITE_VESSEL_DATA_URL=/api/vessels
+ENV VITE_CHMARL_EXPERIMENT_URL=/api/chmarl/episode
+ENV VITE_PORT_EVENTS_URL=/api/port-events
+ENV VITE_WEATHER_URL=/api/weather
+ENV VITE_ALLOW_SAMPLE_DATA=false
+ENV VITE_ALLOW_SAMPLE_CHMARL=false
 RUN pnpm build
 
 FROM node:20-slim AS runtime
@@ -17,8 +22,8 @@ ENV STATIC_DIR=dist
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --prod --frozen-lockfile
+COPY package.json ./
+RUN pnpm install --prod --no-frozen-lockfile
 COPY --from=build /app/dist ./dist
 COPY server ./server
 EXPOSE 8787
