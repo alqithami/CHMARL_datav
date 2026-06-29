@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 
+const REGIONAL_AIS_BBOX = "11,32;31,56";
 const SAUDI_PORT_AIS_BBOX = [
   "20.70,38.35;22.95,39.85", // Jeddah + King Abdullah Port
   "23.25,37.15;24.90,38.90", // Yanbu
@@ -52,10 +53,13 @@ process.env.PORT_EVENTS_FILE_ENABLED ??= "false";
 process.env.WEATHER_FILE_ENABLED ??= "false";
 process.env.AISSTREAM_MAX_VESSELS ??= "750";
 process.env.AISSTREAM_MAX_AGE_MS ??= String(6 * 60 * 60 * 1000);
+process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES ??= "false";
+process.env.AISSTREAM_FILTER_TYPES ??= "";
 
-if (process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES !== "false") {
-  process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES = "true";
+if (process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "true") {
   process.env.AISSTREAM_BBOX = SAUDI_PORT_AIS_BBOX;
+} else {
+  process.env.AISSTREAM_BBOX ??= REGIONAL_AIS_BBOX;
 }
 
 const proxyPort = process.env.PORT;
@@ -104,6 +108,7 @@ process.on("exit", () => {
 console.log(`Starting CH-MARL backend on port ${proxyPort}`);
 console.log(process.env.AISSTREAM_API_KEY ? "AISStream API key loaded from environment." : "AISStream API key is missing; vessel feed will wait until configured.");
 console.log(`AISStream bounding boxes: ${process.env.AISSTREAM_BBOX?.split("|").length ?? 0}`);
+console.log(`AISStream filters: ${process.env.AISSTREAM_FILTER_TYPES || "none"}`);
 console.log(`Port event demo: ${process.env.VITE_PORT_EVENTS_DEMO_ENABLED}`);
 run("vessel-feed-proxy", "node", ["server/vessel-feed-proxy/index.mjs"], {
   PORT: proxyPort,
