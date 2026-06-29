@@ -36,10 +36,19 @@ function messageType(payload) {
   return payload.MessageType ?? payload.messageType ?? payload.type ?? "unknown";
 }
 
+function printSummary(opened, received, seenTypes, lastError) {
+  console.log("-".repeat(64));
+  console.log(`Opened: ${opened ? "yes" : "no"}`);
+  console.log(`Messages received: ${received}`);
+  console.log(`Types: ${[...seenTypes.entries()].map(([type, count]) => `${type}:${count}`).join(", ") || "none"}`);
+  if (lastError) console.log(`Last error: ${lastError}`);
+}
+
 loadEnvFile(".env");
 loadEnvFile(".env.local");
 
-const defaultBbox = [
+const regionalBbox = "11,32;31,56";
+const focusedBbox = [
   "20.70,38.35;22.95,39.85",
   "23.25,37.15;24.90,38.90",
   "16.15,41.75;17.55,43.35",
@@ -50,12 +59,13 @@ const defaultBbox = [
 
 const apiKey = process.env.AISSTREAM_API_KEY;
 const url = process.env.AISSTREAM_URL ?? "wss://stream.aisstream.io/v0/stream";
-const bboxText = process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "false" ? (process.env.AISSTREAM_BBOX ?? defaultBbox) : defaultBbox;
-const filterTypes = (process.env.AISSTREAM_FILTER_TYPES ?? "PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport")
+const bboxText = process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "true" ? focusedBbox : (process.env.AISSTREAM_BBOX ?? regionalBbox);
+const filterTypes = (process.env.AISSTREAM_FILTER_TYPES ?? "")
   .split(",")
   .map((item) => item.trim())
   .filter(Boolean);
 const timeoutMs = Number(process.env.AISSTREAM_DIAGNOSTIC_MS ?? 30000);
+const passAfterMessages = Math.max(1, Number(process.env.AISSTREAM_DIAGNOSTIC_PASS_MESSAGES ?? 1));
 
 console.log("AISStream direct diagnostic");
 console.log("-".repeat(64));
@@ -78,6 +88,7 @@ try {
 console.log(`Bounding boxes: ${boxes.length}`);
 console.log(`Message filters: ${filterTypes.join(", ") || "none"}`);
 console.log(`Timeout: ${timeoutMs} ms`);
+console.log(`Pass threshold: ${passAfterMessages} message(s)`);
 console.log("-".repeat(64));
 
 let opened = false;
@@ -88,13 +99,10 @@ const socket = new WebSocket(url);
 
 const timer = setTimeout(() => {
   socket.close();
-  console.log("-".repeat(64));
-  console.log(`Opened: ${opened ? "yes" : "no"}`);
-  console.log(`Messages received: ${received}`);
-  console.log(`Types: ${[...seenTypes.entries()].map(([type, count]) => `${type}:${count}`).join(", ") || "none"}`);
-  if (lastError) console.log(`Last error: ${lastError}`);
+  printSummary(opened, received, seenTypes, lastError);
   if (!opened) process.exit(3);
   if (received === 0) process.exit(4);
+  console.log("PASS: AISStream is active and returned at least one message.");
   process.exit(0);
 }, timeoutMs);
 
@@ -118,10 +126,10 @@ socket.on("message", (data) => {
     const type = String(messageType(payload));
     seenTypes.set(type, (seenTypes.get(type) ?? 0) + 1);
     if (received <= 5) console.log(`Message ${received}: ${type}`);
-    if (received >= 5) {
+    if (received >= passAfterMessages) {
       socket.close();
       clearTimeout(timer);
-      console.log("-".repeat(64));
+      printSummary(opened, received, seenTypes, lastError);
       console.log("PASS: AISStream is active and returning messages.");
       process.exit(0);
     }
