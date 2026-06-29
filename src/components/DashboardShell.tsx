@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Metric, RewardTrendPoint, Vessel } from "@/data/chmarlData";
 import { fallbackDashboardData, loadSampleDashboardData, type ChmarlDataSource, type DashboardData, type DashboardDataSource } from "@/data/loadSampleDashboardData";
 import { exportDashboardSnapshot, exportOperationalReport, exportVesselCsv } from "@/export/dashboardExports";
@@ -249,10 +249,14 @@ export default function DashboardShell() {
   const [dataSourceStatus, setDataSourceStatus] = useState<LoadStatus>("loading");
   const [lastUpdated, setLastUpdated] = useState("not loaded");
   const [focusPanel, setFocusPanel] = useState<FocusPanel | null>(null);
+  const refreshInFlight = useRef(false);
   const refreshIntervalMs = sourceRefreshMs(baseData.source);
 
   const refreshData = useCallback((status: LoadStatus = "refreshing") => {
-    setDataSourceStatus(status);
+    if (refreshInFlight.current) return Promise.resolve();
+    refreshInFlight.current = true;
+    if (status === "loading") setDataSourceStatus("loading");
+
     return loadSampleDashboardData()
       .then((data) => {
         setBaseData(data);
@@ -260,10 +264,13 @@ export default function DashboardShell() {
         setLastUpdated(new Date().toLocaleTimeString());
       })
       .catch((error: unknown) => {
-        console.error("Failed to load dashboard data. Falling back to bundled data.", error);
+        console.error("Failed to load dashboard data. Falling back to safe empty state.", error);
         setBaseData(fallbackDashboardData);
         setDataSourceStatus("fallback");
         setLastUpdated(new Date().toLocaleTimeString());
+      })
+      .finally(() => {
+        refreshInFlight.current = false;
       });
   }, []);
 
