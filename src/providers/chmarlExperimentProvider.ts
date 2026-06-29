@@ -11,6 +11,10 @@ function endpointUrl() {
   return import.meta.env.VITE_CHMARL_EXPERIMENT_URL?.trim() || "/api/chmarl/episode";
 }
 
+function sampleFallbackEnabled() {
+  return import.meta.env.VITE_ALLOW_SAMPLE_DATA === "true" || import.meta.env.VITE_ALLOW_SAMPLE_CHMARL === "true";
+}
+
 function sampleUrl() {
   const baseUrl = import.meta.env.BASE_URL || "/";
   return `${baseUrl}data/chmarl_episode.sample.json`;
@@ -56,9 +60,7 @@ export async function loadRuntimeChmarlExperiment(): Promise<ChmarlExperimentFee
   const runtimeFeed = toFeed(runtimePayload);
   if (runtimeFeed) return runtimeFeed;
 
-  // Keep the CH-MARL panels functional during live AIS operation even before a
-  // real experiment logger is connected. Replace this bundled sample by placing
-  // a real log at CHMARL_EXPERIMENT_FILE or by setting CHMARL_EXPERIMENT_URL.
+  if (!sampleFallbackEnabled()) return null;
   const samplePayload = await fetchExperimentPayload(sampleUrl()).catch(() => null);
   return toFeed(samplePayload);
 }
