@@ -10,6 +10,7 @@
     "dev:codespaces": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "proxy": "node server/vessel-feed-proxy/index.mjs",
     "dev:proxy": "node scripts/dev-with-proxy.mjs",
+    "diagnose": "node scripts/portal-diagnostics.mjs",
     "build": "tsc -b && vite build",
     "build:prod": "VITE_VESSEL_DATA_URL=/api/vessels pnpm build",
     "start": "node scripts/start-prod.mjs",
