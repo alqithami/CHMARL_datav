@@ -19,7 +19,7 @@
 }
 
 .scenario-bar {
-  width: min(860px, 100%);
+  width: min(1040px, 100%);
   padding: 7px;
   gap: 6px;
   align-content: start;
@@ -30,15 +30,17 @@
   gap: 5px;
 }
 
+.scenario-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .pill,
 .actions-menu summary {
   min-height: 28px;
   padding: 5px 9px;
   font-size: 10.5px;
-}
-
-.scenario-buttons .pill:disabled {
-  display: none;
 }
 
 .data-health-grid {
