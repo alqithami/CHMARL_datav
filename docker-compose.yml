@@ -12,9 +12,23 @@ services:
       PORT: 8787
       STATIC_DIR: dist
       VITE_VESSEL_DATA_URL: /api/vessels
+      VITE_CHMARL_EXPERIMENT_URL: /api/chmarl/episode
+      VITE_PORT_EVENTS_URL: /api/port-events
+      VITE_WEATHER_URL: /api/weather
+      VITE_ALLOW_SAMPLE_DATA: "false"
+      VITE_ALLOW_SAMPLE_CHMARL: "false"
+      AISSTREAM_USE_SAUDI_PORT_BBOXES: "true"
+      AISSTREAM_BBOX: "20.70,38.35;22.95,39.85|23.25,37.15;24.90,38.90|16.15,41.75;17.55,43.35|25.70,49.25;27.25,50.90|24.35,54.35;25.65,55.75|29.20,32.00;30.55,33.25"
+      AISSTREAM_MAX_VESSELS: 750
+      AISSTREAM_MAX_AGE_MS: 21600000
       AISSTREAM_CACHE_FILE: /app/.runtime/ais-cache.json
+      CHMARL_RUNTIME_ENABLED: "true"
+      CHMARL_FILE_ENABLED: "false"
       CHMARL_EXPERIMENT_FILE: /app/.runtime/chmarl_episode.json
+      PORT_EVENTS_FILE_ENABLED: "false"
       PORT_EVENTS_FILE: /app/.runtime/port_events.json
+      WEATHER_FILE_ENABLED: "false"
+      WEATHER_FILE: /app/.runtime/weather.json
     ports:
       - "8787:8787"
     volumes:
