@@ -31,10 +31,16 @@ export async function loadLiveAisVessels(): Promise<AisProviderResult | null> {
     headers: {
       Accept: "application/json",
     },
+  }).catch((error: unknown) => {
+    console.warn("AIS proxy request failed.", error);
+    return null;
   });
 
+  if (!response) return null;
+
   if (!response.ok) {
-    throw new Error(`AIS proxy request failed: ${response.status} ${response.statusText}`);
+    console.warn(`AIS proxy request returned ${response.status} ${response.statusText}`);
+    return null;
   }
 
   const payload = await response.json();
@@ -42,6 +48,6 @@ export async function loadLiveAisVessels(): Promise<AisProviderResult | null> {
 
   return {
     source: "live-ais",
-    vessels: normalizeAisBatch(updates),
+    vessels: normalizeAisBatch(updates).map((item) => item.state),
   };
 }
