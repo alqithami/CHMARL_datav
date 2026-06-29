@@ -25,7 +25,7 @@ function shiftRewardTrend(data: RewardTrendPoint[], offset: number, slope: numbe
 }
 
 function parseSpeedKnots(speed: string) {
-  const parsed = Number.parseFloat(speed.replace(/[^0-9.\-]/g, ""));
+  const parsed = Number.parseFloat(speed.replace(/[^0-9.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
