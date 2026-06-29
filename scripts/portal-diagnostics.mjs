@@ -1,6 +1,30 @@
 #!/usr/bin/env node
 
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+function loadEnvFile(fileName) {
+  const filePath = resolve(process.cwd(), fileName);
+  if (!existsSync(filePath)) return;
+
+  for (const line of readFileSync(filePath, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const equals = trimmed.indexOf("=");
+    if (equals === -1) continue;
+    const key = trimmed.slice(0, equals).trim();
+    let value = trimmed.slice(equals + 1).trim();
+    if (!key || process.env[key] !== undefined) continue;
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
+    process.env[key] = value;
+  }
+}
+
+loadEnvFile(".env");
+loadEnvFile(".env.local");
+
 const baseUrl = process.env.PORTAL_BASE_URL ?? `http://localhost:${process.env.PORT ?? "8787"}`;
+const frontendPortDemoEnabled = process.env.VITE_PORT_EVENTS_DEMO_ENABLED !== "false";
 
 const endpoints = [
   { key: "health", path: "/health", required: true },
@@ -104,7 +128,9 @@ function summarizePortOps(result) {
   const utilization = countRows(result.payload, ["portUtilization", "port_utilization", "utilization", "ports"]);
   const queues = countRows(result.payload, ["queueStatus", "queue_status", "queues", "berths"]);
   line("port ops feed", result.ok ? `${events} events · ${utilization} utilization · ${queues} queues` : "provider missing", `${result.status}`);
-  if (!result.ok) warn("This is expected until PORT_EVENTS_URL is connected to a real berth/queue/utilization provider.");
+  line("port demo", frontendPortDemoEnabled ? "enabled in frontend" : "disabled");
+  if (!result.ok && frontendPortDemoEnabled) warn("Backend provider is missing, but the dashboard will show the Kpler-like demo feed while VITE_PORT_EVENTS_DEMO_ENABLED=true.");
+  if (!result.ok && !frontendPortDemoEnabled) warn("PORT_EVENTS_URL is required for real berth/queue/utilization data.");
 }
 
 console.log(`CH-MARL DataV diagnostics for ${baseUrl}`);
