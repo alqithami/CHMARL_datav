@@ -4,10 +4,10 @@ import { fallbackDashboardData, loadSampleDashboardData, type ChmarlDataSource, 
 import { exportDashboardSnapshot, exportOperationalReport, exportVesselCsv } from "@/export/dashboardExports";
 import { scenarioCatalog } from "@/scenarios/scenarioCatalog";
 import ConstraintChart from "./charts/ConstraintChart";
-import DecisionTimeline from "./DecisionTimeline";
 import MetricCard from "./MetricCard";
 import OperationalWatchlist from "./OperationalWatchlist";
 import PanelCard from "./PanelCard";
+import PortOpsSetup from "./PortOpsSetup";
 import PortUtilizationChart from "./charts/PortUtilizationChart";
 import RewardTrend from "./charts/RewardTrend";
 import ShipScene from "./ShipScene";
@@ -58,7 +58,7 @@ function chmarlSourceLabel(source: ChmarlDataSource) {
 function portOpsSourceLabel(source: DashboardData["portOpsSource"]) {
   if (source === "runtime") return "Runtime port ops";
   if (source === "local-json") return "Port fixture";
-  return "Port feed pending";
+  return "Port feed required";
 }
 
 function weatherSourceLabel(source: DashboardData["weatherSource"]) {
@@ -82,7 +82,7 @@ function sourceRefreshMs(source: DashboardDataSource) {
 function portEventsTrend(data: DashboardData) {
   if (data.portOpsSource === "runtime") return "runtime berth/queue feed";
   if (data.portOpsSource === "local-json") return "normalized operations feed";
-  return "awaiting real port operations feed";
+  return "connect PORT_EVENTS_URL";
 }
 
 function maxWaveHeight(data: DashboardData) {
@@ -278,13 +278,13 @@ export default function DashboardShell() {
   const portOpsRuntimeActive = dashboardData.portOpsSource === "runtime";
   const chmarlRuntimeActive = dashboardData.chmarlSource === "runtime" && dashboardData.rewardTrend.length > 0;
   const providerState = statusLabel(dataSourceStatus);
-  const portPanelTitle = portOpsRuntimeActive ? "Port Queue / Berth Utilization" : "CH-MARL Decision Timeline";
-  const portPanelTag = portOpsRuntimeActive ? "berth/queue" : dashboardData.chmarlSource === "runtime" ? "runtime" : "policy";
+  const portPanelTitle = portOpsRuntimeActive ? "Port Queue / Berth Utilization" : "Port Operations Setup";
+  const portPanelTag = portOpsRuntimeActive ? "berth/queue" : "provider required";
   const primaryPanelTitle = chmarlRuntimeActive || !liveDataActive ? "CH-MARL Reward Trend" : "Vessel Speed Profile";
   const primaryPanelTag = chmarlRuntimeActive ? "runtime" : liveDataActive ? sourceLabel(dashboardData.source) : selectedScenarioId;
   const portPanelContent = portOpsRuntimeActive
     ? <PortUtilizationChart data={dashboardData.portUtilization} />
-    : <DecisionTimeline events={dashboardData.timelineEvents} />;
+    : <PortOpsSetup />;
 
   const focusContent = (() => {
     if (focusPanel === "reward") {
