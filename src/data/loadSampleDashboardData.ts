@@ -30,7 +30,7 @@ export type ChartDatum = { name: string; value: number };
 
 export type DashboardDataSource = "aisstream" | "aisstream-waiting" | "upstream" | "remote" | "local-json" | "fallback" | "none";
 export type ChmarlDataSource = "runtime" | "local-json" | "none";
-export type PortOpsDataSource = "runtime" | "local-json" | "none";
+export type PortOpsDataSource = "runtime" | "demo" | "local-json" | "none";
 export type WeatherDataSource = "open-meteo" | "runtime" | "none";
 
 export type DashboardData = {
@@ -54,7 +54,7 @@ const allowSampleData = import.meta.env.VITE_ALLOW_SAMPLE_DATA === "true";
 
 const realOnlyMetrics: Metric[] = [
   { label: "Tracked vessels", value: "0", trend: "awaiting AIS/provider rows" },
-  { label: "Port events", value: "0", trend: "connect PORT_EVENTS_URL" },
+  { label: "Port events", value: "0", trend: "connect PORT_EVENTS_URL or review demo feed" },
   { label: "Feasibility score", value: "n/a", trend: "awaiting live CH-MARL state" },
   { label: "Reward index", value: "n/a", trend: "awaiting online CH-MARL" },
   { label: "Avg AIS SOG", value: "n/a", trend: "awaiting valid AIS speed" },
@@ -162,7 +162,7 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
   const externalSource = isExternalSource(source);
   const experimentSteps = runtimeExperiment?.steps ?? (allowSampleData ? localExperimentSteps : []);
   const chmarlSource: ChmarlDataSource = runtimeExperiment ? "runtime" : allowSampleData && localExperimentSteps.length > 0 ? "local-json" : "none";
-  const portOpsSource: PortOpsDataSource = runtimePortOps ? "runtime" : externalSource || !allowSampleData ? "none" : "local-json";
+  const portOpsSource: PortOpsDataSource = runtimePortOps ? runtimePortOps.source : externalSource || !allowSampleData ? "none" : "local-json";
   const weatherSource: WeatherDataSource = marineWeather?.source ?? "none";
   const weatherPoints = marineWeather?.points ?? [];
 
