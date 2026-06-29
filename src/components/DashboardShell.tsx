@@ -4,6 +4,7 @@ import { fallbackDashboardData, loadSampleDashboardData, type ChmarlDataSource, 
 import { exportDashboardSnapshot, exportOperationalReport, exportVesselCsv } from "@/export/dashboardExports";
 import { scenarioCatalog } from "@/scenarios/scenarioCatalog";
 import ConstraintChart from "./charts/ConstraintChart";
+import DataQualityPanel from "./DataQualityPanel";
 import MetricCard from "./MetricCard";
 import OperationalWatchlist from "./OperationalWatchlist";
 import PanelCard from "./PanelCard";
@@ -49,7 +50,7 @@ function sourceLabel(source: DashboardDataSource) {
   if (source === "remote") return "Remote proxy";
   if (source === "local-json") return "Local fixtures";
   if (source === "none") return "No vessel feed";
-  return "Fallback validation";
+  return "Backend unavailable";
 }
 
 function chmarlSourceLabel(source: ChmarlDataSource) {
@@ -346,6 +347,8 @@ export default function DashboardShell() {
           </details>
         </div>
       </header>
+
+      <DataQualityPanel data={dashboardData} mode={selectedScenarioId} updatedAt={lastUpdated} />
 
       <section className="metrics-grid" aria-label="Operational performance metrics">
         {dashboardData.metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}
