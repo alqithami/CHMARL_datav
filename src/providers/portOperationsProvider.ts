@@ -15,14 +15,62 @@ export type PortQueueStatus = {
 };
 
 export type PortOperationsFeed = {
-  source: "runtime";
+  source: "runtime" | "demo";
   portEvents: PortEvent[];
   portUtilization: PortUtilizationDatum[];
   queueStatus: PortQueueStatus[];
 };
 
+const demoPorts = ["Jeddah", "King Abdullah Port", "Yanbu", "Jizan", "Dammam", "Suez"];
+const demoEventTypes: PortEvent["eventType"][] = ["arrival", "anchorage_entry", "berth_assigned", "service_started", "departure"];
+
 function endpointUrl() {
   return import.meta.env.VITE_PORT_EVENTS_URL?.trim() || "/api/port-events";
+}
+
+function demoEnabled() {
+  return import.meta.env.VITE_PORT_EVENTS_DEMO_ENABLED !== "false";
+}
+
+function demoBucket() {
+  return Math.floor(Date.now() / (15 * 60 * 1000));
+}
+
+function kplerLikeDemoPortOperations(): PortOperationsFeed {
+  const bucket = demoBucket();
+  const timestamp = new Date(bucket * 15 * 60 * 1000).toISOString();
+  const portEvents: PortEvent[] = [];
+  const portUtilization: PortUtilizationDatum[] = [];
+
+  for (let portIndex = 0; portIndex < demoPorts.length; portIndex += 1) {
+    const portId = demoPorts[portIndex];
+    const eventCount = ((bucket + portIndex * 3) % 4) + 1;
+    portUtilization.push({ name: portId, value: eventCount });
+
+    for (let index = 0; index < eventCount; index += 1) {
+      const eventType = demoEventTypes[(bucket + portIndex + index) % demoEventTypes.length];
+      portEvents.push({
+        eventId: `demo-kpler-${bucket}-${portIndex}-${index}`,
+        vesselId: `DEMO-MMSI-${500000000 + portIndex * 1000 + index}`,
+        portId,
+        berthId: eventType === "berth_assigned" || eventType === "service_started" ? `${portId.slice(0, 3).toUpperCase()}-B${index + 1}` : undefined,
+        eventType,
+        timestamp,
+        metadata: {
+          demo: true,
+          providerShape: "kpler-real-time-events-like",
+          note: "Temporary demo event shape while awaiting provider access; not operational truth.",
+        },
+      });
+    }
+  }
+
+  return {
+    source: "demo",
+    portEvents,
+    portUtilization,
+    queueStatus: [],
+  };
 }
 
 function codespacesBackendUrl(path: string) {
@@ -109,17 +157,7 @@ function normalizePortUtilization(row: unknown): PortUtilizationDatum | null {
   const record = row as Record<string, unknown>;
   const name = String(record.name ?? record.portName ?? record.port_name ?? record.portId ?? record.port_id ?? record.port ?? "").trim();
   if (!name) return null;
-  const value = numberValue(
-    record.value ??
-      record.utilizationPct ??
-      record.utilization_pct ??
-      record.utilization ??
-      record.berthUtilizationPct ??
-      record.berth_utilization_pct ??
-      record.berthUtilization ??
-      record.queueLength ??
-      record.waitingVessels
-  );
+  const value = numberValue(record.value ?? record.utilizationPct ?? record.utilization_pct ?? record.utilization ?? record.berthUtilizationPct ?? record.berth_utilization_pct ?? record.berthUtilization ?? record.queueLength ?? record.waitingVessels);
   return { name, value: value ?? 0 };
 }
 
@@ -140,7 +178,7 @@ function normalizeQueueStatus(row: unknown): PortQueueStatus | null {
 
 export async function loadRuntimePortOperations(): Promise<PortOperationsFeed | null> {
   const payload = await fetchPayload();
-  if (!payload) return null;
+  if (!payload) return demoEnabled() ? kplerLikeDemoPortOperations() : null;
 
   const portEvents = rowsFrom(payload, ["portEvents", "port_events", "events", "data", "items"])
     .map(normalizePortEvent)
@@ -152,7 +190,9 @@ export async function loadRuntimePortOperations(): Promise<PortOperationsFeed | 
     .map(normalizeQueueStatus)
     .filter((item): item is PortQueueStatus => item !== null);
 
-  if (portEvents.length === 0 && portUtilization.length === 0 && queueStatus.length === 0) return null;
+  if (portEvents.length === 0 && portUtilization.length === 0 && queueStatus.length === 0) {
+    return demoEnabled() ? kplerLikeDemoPortOperations() : null;
+  }
 
   return {
     source: "runtime",
