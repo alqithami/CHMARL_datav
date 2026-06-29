@@ -1,4 +1,5 @@
 import type { PortEvent } from "@/types/chmarl";
+import { fetchFirstJson } from "./backendUrl";
 
 export type PortUtilizationDatum = {
   name: string;
@@ -65,42 +66,7 @@ function kplerLikeDemoPortOperations(): PortOperationsFeed {
     }
   }
 
-  return {
-    source: "demo",
-    portEvents,
-    portUtilization,
-    queueStatus: [],
-  };
-}
-
-function codespacesBackendUrl(path: string) {
-  if (typeof window === "undefined") return undefined;
-  const { protocol, hostname } = window.location;
-  if (!hostname.includes(".app.github.dev") || !hostname.includes("-5173")) return undefined;
-  return `${protocol}//${hostname.replace("-5173", "-8787")}${path}`;
-}
-
-function candidateUrls() {
-  const primary = endpointUrl();
-  const candidates = [primary];
-  if (primary.startsWith("/")) {
-    const backendUrl = codespacesBackendUrl(primary);
-    if (backendUrl) candidates.push(backendUrl);
-  }
-  return candidates;
-}
-
-async function fetchPayload() {
-  for (const url of candidateUrls()) {
-    try {
-      const response = await fetch(url, { headers: { Accept: "application/json" } });
-      if (!response.ok) continue;
-      return await response.json();
-    } catch {
-      // Try the next candidate URL.
-    }
-  }
-  return null;
+  return { source: "demo", portEvents, portUtilization, queueStatus: [] };
 }
 
 function normalizeEventType(value: unknown): PortEvent["eventType"] {
@@ -177,7 +143,7 @@ function normalizeQueueStatus(row: unknown): PortQueueStatus | null {
 }
 
 export async function loadRuntimePortOperations(): Promise<PortOperationsFeed | null> {
-  const payload = await fetchPayload();
+  const payload = await fetchFirstJson<unknown>(endpointUrl());
   if (!payload) return demoEnabled() ? kplerLikeDemoPortOperations() : null;
 
   const portEvents = rowsFrom(payload, ["portEvents", "port_events", "events", "data", "items"])
@@ -190,14 +156,7 @@ export async function loadRuntimePortOperations(): Promise<PortOperationsFeed | 
     .map(normalizeQueueStatus)
     .filter((item): item is PortQueueStatus => item !== null);
 
-  if (portEvents.length === 0 && portUtilization.length === 0 && queueStatus.length === 0) {
-    return demoEnabled() ? kplerLikeDemoPortOperations() : null;
-  }
+  if (portEvents.length === 0 && portUtilization.length === 0 && queueStatus.length === 0) return demoEnabled() ? kplerLikeDemoPortOperations() : null;
 
-  return {
-    source: "runtime",
-    portEvents,
-    portUtilization,
-    queueStatus,
-  };
+  return { source: "runtime", portEvents, portUtilization, queueStatus };
 }
