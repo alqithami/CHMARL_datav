@@ -17,6 +17,8 @@ import VesselTable from "./VesselTable";
 type FocusPanel = "reward" | "constraints" | "scene" | "ports" | "watchlist" | "vessels";
 type LoadStatus = "loading" | "refreshing" | DashboardDataSource;
 
+const allowScenarioSimulation = import.meta.env.VITE_ALLOW_SAMPLE_DATA === "true";
+
 function shiftRewardTrend(data: RewardTrendPoint[], offset: number, slope: number): RewardTrendPoint[] {
   return data.map(([time, value], index) => [time, Number(Math.max(0.5, value + offset + index * slope).toFixed(3))]);
 }
@@ -46,13 +48,14 @@ function sourceLabel(source: DashboardDataSource) {
   if (source === "upstream") return "Upstream API";
   if (source === "remote") return "Remote proxy";
   if (source === "local-json") return "Local fixtures";
+  if (source === "none") return "No vessel feed";
   return "Fallback validation";
 }
 
 function chmarlSourceLabel(source: ChmarlDataSource) {
-  if (source === "runtime") return "Runtime CH-MARL";
+  if (source === "runtime") return "Online CH-MARL";
   if (source === "local-json") return "CH-MARL fixture";
-  return "No CH-MARL log";
+  return "No CH-MARL state";
 }
 
 function portOpsSourceLabel(source: DashboardData["portOpsSource"]) {
@@ -147,6 +150,8 @@ function scenarioVessels(base: DashboardData, scenarioId: string) {
 }
 
 function getScenarioDashboardData(base: DashboardData, scenarioId: string): DashboardData {
+  if (!allowScenarioSimulation || scenarioId === "baseline") return withOperationalMetrics(base);
+
   if (scenarioId === "congestion") {
     return withOperationalMetrics({
       ...base,
@@ -161,7 +166,7 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
         { name: "KAEC", value: 71 },
       ]),
       timelineEvents: [
-        { time: "T+00:03", title: "Congestion-aware CH-MARL mode", body: "Policy evidence emphasizes queue pressure, service delay, and berth allocation constraints. Live AIS rows are preserved unchanged." },
+        { time: "T+00:03", title: "Congestion-aware sample mode", body: "Sample-only scenario transform. Live/production mode does not fabricate values." },
         ...base.timelineEvents,
       ],
     });
@@ -181,7 +186,7 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
         { name: "KAEC", value: 62 },
       ]),
       timelineEvents: [
-        { time: "T+00:01", title: "Disruption-response CH-MARL mode", body: "Policy evidence emphasizes rerouting, safety constraints, and recovery after unavailable corridors. Live AIS rows are preserved unchanged." },
+        { time: "T+00:01", title: "Disruption-response sample mode", body: "Sample-only scenario transform. Live/production mode does not fabricate values." },
         ...base.timelineEvents,
       ],
     });
@@ -194,7 +199,7 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
       rewardTrend: shiftRewardTrend(base.rewardTrend, -0.02, 0.004),
       constraintPressure: base.constraintPressure.map((item) => ({ ...item, value: item.name === "Emissions cap" ? 35 : Math.max(30, item.value - 8) })),
       timelineEvents: [
-        { time: "T+00:04", title: "Emissions-aware CH-MARL mode", body: "Policy evidence emphasizes lower fuel burn, emissions constraints, and efficient vessel-speed recommendations. Live AIS rows are preserved unchanged." },
+        { time: "T+00:04", title: "Emissions-aware sample mode", body: "Sample-only scenario transform. Live/production mode does not fabricate values." },
         ...base.timelineEvents,
       ],
     });
@@ -214,7 +219,7 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
         { name: "KAEC", value: 66 },
       ]),
       timelineEvents: [
-        { time: "T+00:05", title: "Fairness-aware CH-MARL mode", body: "Policy evidence emphasizes service equity across vessels, ports, and cargo classes. Live AIS rows are preserved unchanged." },
+        { time: "T+00:05", title: "Fairness-aware sample mode", body: "Sample-only scenario transform. Live/production mode does not fabricate values." },
         ...base.timelineEvents,
       ],
     });
@@ -281,7 +286,7 @@ export default function DashboardShell() {
   const portPanelTitle = portOpsRuntimeActive ? "Port Queue / Berth Utilization" : "Port Operations Setup";
   const portPanelTag = portOpsRuntimeActive ? "berth/queue" : "provider required";
   const primaryPanelTitle = chmarlRuntimeActive || !liveDataActive ? "CH-MARL Reward Trend" : "Vessel Speed Profile";
-  const primaryPanelTag = chmarlRuntimeActive ? "runtime" : liveDataActive ? sourceLabel(dashboardData.source) : selectedScenarioId;
+  const primaryPanelTag = chmarlRuntimeActive ? "online" : liveDataActive ? sourceLabel(dashboardData.source) : selectedScenarioId;
   const portPanelContent = portOpsRuntimeActive
     ? <PortUtilizationChart data={dashboardData.portUtilization} />
     : <PortOpsSetup />;
@@ -325,7 +330,7 @@ export default function DashboardShell() {
                 key={scenario.scenarioId}
                 type="button"
                 className={scenario.scenarioId === selectedScenarioId ? "pill active" : "pill"}
-                title={liveDataActive && scenario.scenarioId !== "baseline" ? "Applies CH-MARL policy evidence while preserving live AIS vessel rows." : scenario.description}
+                title={!allowScenarioSimulation ? "Mode selection is retained; production values come only from real AIS, weather, port, and online CH-MARL feeds." : scenario.description}
                 onClick={() => setSelectedScenarioId(scenario.scenarioId)}>
                 {scenario.label}
               </button>
