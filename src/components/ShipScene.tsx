@@ -158,7 +158,7 @@ function buildTrailPath(vessel: Vessel, center: GeoPoint, zoom: number) {
 }
 
 function speedKnots(vessel: Vessel) {
-  const parsed = Number.parseFloat(vessel.speed.replace(/[^0-9.\-]/g, ""));
+  const parsed = Number.parseFloat(vessel.speed.replace(/[^0-9.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
