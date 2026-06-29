@@ -33,6 +33,10 @@ function demoEnabled() {
   return import.meta.env.VITE_PORT_EVENTS_DEMO_ENABLED !== "false";
 }
 
+function runtimePortFeedExplicitlyEnabled() {
+  return import.meta.env.VITE_PORT_EVENTS_DEMO_ENABLED === "false";
+}
+
 function demoBucket() {
   return Math.floor(Date.now() / (15 * 60 * 1000));
 }
@@ -148,6 +152,8 @@ function normalizeQueueStatus(row: unknown): PortQueueStatus | null {
 }
 
 export async function loadRuntimePortOperations(): Promise<PortOperationsFeed | null> {
+  if (demoEnabled() && !runtimePortFeedExplicitlyEnabled()) return kplerLikeDemoPortOperations();
+
   const payload = await fetchFirstJson<unknown>(endpointUrl());
   if (!payload) return demoEnabled() ? kplerLikeDemoPortOperations() : null;
 
