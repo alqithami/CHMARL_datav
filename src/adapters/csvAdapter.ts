@@ -33,6 +33,11 @@ function parseCsvLine(line: string): string[] {
   return cells;
 }
 
+function nonEmpty(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 export function parseCsv(text: string): Record<string, string>[] {
   const lines = text
     .split(/\r?\n/)
@@ -54,21 +59,21 @@ export function parseCsv(text: string): Record<string, string>[] {
 
 export function parseAisVesselCsv(text: string): RawAisVesselUpdate[] {
   return parseCsv(text).map((row) => ({
-    vesselId: row.vesselId,
-    mmsi: row.mmsi,
-    imo: row.imo,
-    name: row.name,
-    vesselType: row.vesselType,
-    cargoClass: row.cargoClass,
-    latitude: row.latitude,
-    longitude: row.longitude,
-    speedKnots: row.speedKnots,
-    courseDeg: row.courseDeg,
-    headingDeg: row.headingDeg,
-    navStatus: row.navStatus,
-    originPort: row.originPort,
-    destinationPort: row.destinationPort,
-    eta: row.eta,
-    timestamp: row.timestamp,
+    vesselId: nonEmpty(row.vesselId),
+    mmsi: nonEmpty(row.mmsi),
+    imo: nonEmpty(row.imo),
+    name: nonEmpty(row.name),
+    vesselType: nonEmpty(row.vesselType),
+    cargoClass: nonEmpty(row.cargoClass),
+    latitude: nonEmpty(row.latitude),
+    longitude: nonEmpty(row.longitude),
+    speedKnots: nonEmpty(row.speedKnots),
+    courseDeg: nonEmpty(row.courseDeg),
+    headingDeg: nonEmpty(row.headingDeg),
+    navStatus: nonEmpty(row.navStatus),
+    originPort: nonEmpty(row.originPort),
+    destinationPort: nonEmpty(row.destinationPort),
+    eta: nonEmpty(row.eta),
+    timestamp: nonEmpty(row.timestamp),
   }));
 }
