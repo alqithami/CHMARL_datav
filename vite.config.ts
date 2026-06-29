@@ -9,8 +9,7 @@ export default defineConfig({
   base: process.env.VITE_BASE_PATH ?? "/",
   server: {
     proxy: {
-      "/api/vessels": backendTarget,
-      "/api/chmarl": backendTarget,
+      "/api": backendTarget,
       "/health": backendTarget,
     },
   },
