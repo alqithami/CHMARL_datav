@@ -12,6 +12,7 @@
     "dev:codespaces": "node scripts/dev-with-proxy.mjs",
     "proxy": "node server/vessel-feed-proxy/index.mjs",
     "diagnose": "node scripts/portal-diagnostics.mjs",
+    "diagnose:ais": "node scripts/aisstream-diagnostics.mjs",
     "build": "tsc -b && vite build",
     "build:prod": "VITE_VESSEL_DATA_URL=/api/vessels pnpm build",
     "start": "node scripts/start-prod.mjs",
