@@ -1,15 +1,8 @@
-export type AgentType = "fleet" | "port" | "berth" | "vessel" | "constraint_shield";
+export type AgentType = string;
 
 export type ConstraintSeverity = "low" | "medium" | "high";
 
-export type MaritimeLayerType =
-  | "port"
-  | "berth"
-  | "anchorage"
-  | "corridor"
-  | "chokepoint"
-  | "restricted_zone"
-  | "safety_buffer";
+export type MaritimeLayerType = string;
 
 export type PolicyMode =
   | "baseline"
@@ -27,8 +20,8 @@ export interface VesselState {
   name: string;
   vesselType?: string;
   cargoClass?: string;
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
   speedKnots?: number;
   courseDeg?: number;
   headingDeg?: number;
@@ -72,11 +65,11 @@ export interface ChmarlExperimentStep {
   step: number;
   timestamp?: string;
   state: Record<string, unknown>;
-  actions: ChmarlAction[];
-  rewards: ChmarlReward[];
-  constraints: ChmarlConstraint[];
+  actions?: ChmarlAction[];
+  rewards?: ChmarlReward[];
+  constraints?: ChmarlConstraint[];
   fairness?: ChmarlFairnessMetric[];
-  hierarchyDecisions: ChmarlHierarchyDecision[];
+  hierarchyDecisions?: ChmarlHierarchyDecision[];
 }
 
 export interface ChmarlAction {
@@ -119,7 +112,7 @@ export interface ChmarlFairnessMetric {
 }
 
 export interface ChmarlHierarchyDecision {
-  level: "coordinator" | "fleet" | "port" | "berth" | "vessel" | "shield";
+  level: string;
   decisionId: string;
   decisionLabel: string;
   rationale?: string;
@@ -129,17 +122,8 @@ export interface ChmarlHierarchyDecision {
 export interface ScenarioDefinition {
   scenarioId: string;
   label: string;
-  description: string;
   policyMode: PolicyMode;
-  dataSource: DataSourceKind;
-}
-
-export interface DashboardExportManifest {
-  exportId: string;
-  createdAt: string;
-  scenarioId: string;
-  experimentId?: string;
-  includedPanels: string[];
-  formats: ("png" | "csv" | "json")[];
-  notes?: string;
+  description: string;
+  assumptions: string[];
+  overlays?: string[];
 }
