@@ -35,6 +35,28 @@ function loadEnvFile(fileName) {
   }
 }
 
+function codespacesUrl(port) {
+  const name = process.env.CODESPACE_NAME;
+  const domain = process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN ?? "app.github.dev";
+  return name ? `https://${name}-${port}.${domain}` : undefined;
+}
+
+async function probe(name, url) {
+  try {
+    const response = await fetch(url, { headers: { Accept: "application/json,text/html" } });
+    console.log(`${name} probe: ${response.status} ${response.statusText} · ${url}`);
+  } catch (error) {
+    console.log(`${name} probe failed: ${error instanceof Error ? error.message : String(error)} · ${url}`);
+  }
+}
+
+function scheduleReadinessProbes() {
+  setTimeout(() => {
+    void probe("Backend", `http://127.0.0.1:${proxyPort}/health`);
+    void probe("Dashboard", `http://127.0.0.1:${dashboardPort}/`);
+  }, 2500).unref?.();
+}
+
 loadEnvFile(".env");
 loadEnvFile(".env.local");
 
@@ -65,6 +87,8 @@ if (process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "true") {
 const proxyPort = process.env.PORT;
 const dashboardPort = process.env.VITE_PORT;
 const viteProxyTarget = process.env.VITE_PROXY_TARGET;
+const dashboardForwardUrl = codespacesUrl(dashboardPort);
+const backendForwardUrl = codespacesUrl(proxyPort);
 
 const processes = [];
 
@@ -110,6 +134,7 @@ console.log(process.env.AISSTREAM_API_KEY ? "AISStream API key loaded from envir
 console.log(`AISStream bounding boxes: ${process.env.AISSTREAM_BBOX?.split("|").length ?? 0}`);
 console.log(`AISStream filters: ${process.env.AISSTREAM_FILTER_TYPES || "none"}`);
 console.log(`Port event demo: ${process.env.VITE_PORT_EVENTS_DEMO_ENABLED}`);
+if (backendForwardUrl) console.log(`Backend forwarded URL: ${backendForwardUrl}/health`);
 run("vessel-feed-proxy", "node", ["server/vessel-feed-proxy/index.mjs"], {
   PORT: proxyPort,
 });
@@ -117,6 +142,7 @@ run("vessel-feed-proxy", "node", ["server/vessel-feed-proxy/index.mjs"], {
 console.log(`Starting dashboard on port ${dashboardPort}`);
 console.log(`Using frontend vessel feed path: ${process.env.VITE_VESSEL_DATA_URL}`);
 console.log(`Proxying Vite API calls to: ${viteProxyTarget}`);
+if (dashboardForwardUrl) console.log(`Dashboard forwarded URL: ${dashboardForwardUrl}/`);
 console.log(`Open the forwarded Codespaces port ${dashboardPort} for the dashboard UI.`);
 run("vite", "pnpm", ["exec", "vite", "--host", "0.0.0.0", "--port", dashboardPort, "--strictPort"], {
   VITE_VESSEL_DATA_URL: process.env.VITE_VESSEL_DATA_URL,
@@ -130,3 +156,5 @@ run("vite", "pnpm", ["exec", "vite", "--host", "0.0.0.0", "--port", dashboardPor
   VITE_ALLOW_SAMPLE_CHMARL: process.env.VITE_ALLOW_SAMPLE_CHMARL,
   VITE_PROXY_TARGET: viteProxyTarget,
 });
+
+scheduleReadinessProbes();
