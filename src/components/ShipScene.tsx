@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { routes, vessels as fallbackVessels, type Vessel } from "@/data/chmarlData";
+import { vessels as fallbackVessels, type Vessel } from "@/data/chmarlData";
 import type { PortEvent } from "@/types/chmarl";
 
 type ShipSceneProps = {
@@ -19,10 +19,10 @@ type ShipMarker = ProjectedPoint & {
   tone: "cyan" | "yellow" | "red" | "blue";
 };
 
-const DEFAULT_CENTER: GeoPoint = { lat: 22.2, lon: 42.0 };
-const DEFAULT_ZOOM = 6;
-const MIN_ZOOM = 5;
-const MAX_ZOOM = 8;
+const DEFAULT_CENTER: GeoPoint = { lat: 23.2, lon: 43.5 };
+const DEFAULT_ZOOM = 5;
+const MIN_ZOOM = 4;
+const MAX_ZOOM = 9;
 const VIEWPORT_TILES_X = 8;
 const VIEWPORT_TILES_Y = 5.3;
 
@@ -35,13 +35,13 @@ const fallbackShipPositions = [
 ];
 
 const portGeo: Record<string, GeoPoint> = {
-  Jeddah: { lat: 21.485, lon: 39.173 },
-  "King Abdullah Port": { lat: 22.393, lon: 39.097 },
-  Yanbu: { lat: 24.086, lon: 38.063 },
-  Suez: { lat: 29.966, lon: 32.549 },
-  Dammam: { lat: 26.43, lon: 50.09 },
-  "Jebel Ali": { lat: 25.011, lon: 55.061 },
-  Jizan: { lat: 16.889, lon: 42.551 },
+  Jeddah: { lat: 21.4858, lon: 39.1925 },
+  "King Abdullah Port": { lat: 22.3924, lon: 39.0953 },
+  Yanbu: { lat: 24.0866, lon: 38.0637 },
+  Suez: { lat: 29.9668, lon: 32.5498 },
+  Dammam: { lat: 26.4318, lon: 50.1015 },
+  "Jebel Ali": { lat: 25.0114, lon: 55.0611 },
+  Jizan: { lat: 16.8917, lon: 42.5511 },
 };
 
 const filterOptions: VesselFilter[] = ["All", "Nominal", "Watch", "Constrained"];
@@ -96,12 +96,6 @@ function buildTileGrid(center: GeoPoint, zoom: number) {
   return tiles;
 }
 
-function routeColor(risk: string) {
-  if (risk === "high") return "#ff7474";
-  if (risk === "medium") return "#ffd780";
-  return "#65e4cb";
-}
-
 function toneForStatus(status: Vessel["status"]): ShipMarker["tone"] {
   if (status === "Constrained") return "red";
   if (status === "Watch") return "yellow";
@@ -145,9 +139,10 @@ function zoomForVessels(vessels: Vessel[]) {
   const latSpan = Math.max(0.1, bounds.maxLat - bounds.minLat);
   const lonSpan = Math.max(0.1, bounds.maxLon - bounds.minLon);
   const span = Math.max(latSpan * 1.35, lonSpan);
-  if (span > 24) return MIN_ZOOM;
-  if (span > 12) return 6;
-  if (span > 5) return 7;
+  if (span > 36) return MIN_ZOOM;
+  if (span > 18) return 5;
+  if (span > 8) return 6;
+  if (span > 4) return 7;
   return MAX_ZOOM;
 }
 
@@ -310,16 +305,6 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
         <svg className="regional-map-svg tile-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
           {tileGrid.map((tile) => <image key={tile.key} href={tile.href} x={tile.x} y={tile.y} width={tile.width} height={tile.height} opacity="0.78" preserveAspectRatio="none" />)}
           <rect x="0" y="0" width="100" height="100" fill="rgba(2, 10, 20, 0.18)" />
-          {routes.map((route) => {
-            const from = portGeo[route.from];
-            const to = portGeo[route.to];
-            if (!from || !to) return null;
-            const start = projectGeo(from, mapCenter, mapZoom);
-            const end = projectGeo(to, mapCenter, mapZoom);
-            const midX = (start.left + end.left) / 2;
-            const midY = Math.min(start.top, end.top) - 7;
-            return <path key={`${route.from}-${route.to}`} d={`M ${start.left} ${start.top} Q ${midX} ${midY} ${end.left} ${end.top}`} stroke={routeColor(route.risk)} strokeWidth="0.55" strokeDasharray="1.8 1.4" fill="none" opacity="0.9" />;
-          })}
           {visibleVessels.map((vessel) => {
             const trailPath = buildTrailPath(vessel, mapCenter, mapZoom);
             return trailPath ? <path key={`${vessel.id}-trail`} className={`vessel-trail ${statusClass(vessel.status)}`} d={trailPath} fill="none" /> : null;
