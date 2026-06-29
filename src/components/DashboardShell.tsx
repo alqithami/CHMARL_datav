@@ -61,6 +61,12 @@ function portOpsSourceLabel(source: DashboardData["portOpsSource"]) {
   return "Port feed pending";
 }
 
+function weatherSourceLabel(source: DashboardData["weatherSource"]) {
+  if (source === "open-meteo") return "Open-Meteo marine";
+  if (source === "runtime") return "Runtime weather";
+  return "No weather feed";
+}
+
 function statusLabel(status: LoadStatus) {
   if (status === "loading") return "Loading";
   if (status === "refreshing") return "Refreshing";
@@ -79,6 +85,14 @@ function portEventsTrend(data: DashboardData) {
   return "awaiting real port operations feed";
 }
 
+function maxWaveHeight(data: DashboardData) {
+  const waveHeights = data.weatherPoints
+    .map((point) => point.waveHeightM)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  if (waveHeights.length === 0) return undefined;
+  return Math.max(...waveHeights);
+}
+
 function buildOperationalMetrics(data: DashboardData): Metric[] {
   const vesselCount = data.vessels.length;
   const watchCount = countStatus(data.vessels, "Watch");
@@ -88,6 +102,7 @@ function buildOperationalMetrics(data: DashboardData): Metric[] {
   const speed = averageSpeed(data.vessels);
   const feasibleRatio = vesselCount === 0 ? 1 : Math.max(0, (vesselCount - constrainedCount) / vesselCount);
   const external = isExternalSource(data.source);
+  const seaState = maxWaveHeight(data);
 
   return [
     { label: "Tracked vessels", value: String(vesselCount), trend: sourceLabel(data.source) },
@@ -107,7 +122,9 @@ function buildOperationalMetrics(data: DashboardData): Metric[] {
       value: speed === undefined ? "n/a" : `${speed.toFixed(1)} kn`,
       trend: external ? "from AIS rows with valid SOG" : "from current vessel state rows",
     },
-    { label: "Movement tracks", value: String(trackCount), trend: "vessels with trail history" },
+    seaState !== undefined
+      ? { label: "Sea state", value: `${seaState.toFixed(1)} m`, trend: `${weatherSourceLabel(data.weatherSource)} wave height` }
+      : { label: "Movement tracks", value: String(trackCount), trend: "vessels with trail history" },
   ];
 }
 
@@ -290,13 +307,14 @@ export default function DashboardShell() {
         <div>
           <div className="brand-kicker">CH-MARL Maritime Logistics</div>
           <h1 className="brand-title">Operational Vessel Intelligence Dashboard</h1>
-          <p className="brand-subtitle">Vessel, port-event, and CH-MARL decision view for scenario evaluation and operational evidence.</p>
+          <p className="brand-subtitle">Vessel, port-event, marine-weather, and CH-MARL decision view for scenario evaluation and operational evidence.</p>
         </div>
         <div className="scenario-bar" aria-label="Scenario controls">
           <div className="status-control-group" aria-label="Data status controls">
             <span className="pill data-pill">Data: {providerState}</span>
             <span className="pill data-pill">CH-MARL: {chmarlSourceLabel(dashboardData.chmarlSource)}</span>
             <span className="pill data-pill">Port ops: {portOpsSourceLabel(dashboardData.portOpsSource)}</span>
+            <span className="pill data-pill">Weather: {weatherSourceLabel(dashboardData.weatherSource)}</span>
             <span className="pill data-pill">Mode: {selectedScenarioId}</span>
             <span className="pill data-pill">Updated: {lastUpdated}</span>
             <button type="button" className="pill" onClick={() => refreshData("refreshing")}>Refresh</button>
@@ -338,7 +356,7 @@ export default function DashboardShell() {
           </PanelCard>
         </div>
 
-        <PanelCard title="Maritime Operations Map" tag="vessel map" className="scene-panel" onFocus={() => setFocusPanel("scene")}>
+        <PanelCard title="Maritime Operations Map" tag="vessel map" className="scene-panel" onFocus={() => setFocusPanel("scene")}> 
           <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} />
         </PanelCard>
 
