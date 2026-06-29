@@ -1,5 +1,6 @@
 import type { DashboardDataSource } from "@/data/loadSampleDashboardData";
 import type { Vessel, VesselTrailPoint } from "@/data/chmarlData";
+import { fetchFirstJson } from "./backendUrl";
 
 type RemoteTrailPoint = Partial<VesselTrailPoint> & {
   lat?: string | number;
@@ -48,7 +49,7 @@ export type DashboardVesselFeed = {
 };
 
 function endpointUrl() {
-  return import.meta.env.VITE_VESSEL_DATA_URL?.trim() as string | undefined;
+  return import.meta.env.VITE_VESSEL_DATA_URL?.trim() || "/api/vessels";
 }
 
 function extractRows(payload: unknown): RemoteVesselRow[] {
@@ -95,11 +96,7 @@ function normalizeTrail(points: RemoteTrailPoint[] | undefined): VesselTrailPoin
       const latitude = toNumber(point.latitude ?? point.lat);
       const longitude = toNumber(point.longitude ?? point.lon ?? point.lng);
       if (latitude === undefined || longitude === undefined) return null;
-      return {
-        latitude,
-        longitude,
-        timestamp: point.timestamp,
-      } satisfies VesselTrailPoint;
+      return { latitude, longitude, timestamp: point.timestamp } satisfies VesselTrailPoint;
     })
     .filter((point): point is VesselTrailPoint => point !== null);
 
@@ -107,9 +104,7 @@ function normalizeTrail(points: RemoteTrailPoint[] | undefined): VesselTrailPoin
 }
 
 function formatSpeed(value: unknown): string {
-  if (typeof value === "string" && value.trim().length > 0) {
-    return value.toLowerCase().includes("kn") ? value : `${value} kn`;
-  }
+  if (typeof value === "string" && value.trim().length > 0) return value.toLowerCase().includes("kn") ? value : `${value} kn`;
   if (typeof value === "number" && Number.isFinite(value)) return `${value.toFixed(1)} kn`;
   return "TBD";
 }
@@ -140,15 +135,9 @@ function toDashboardVessel(row: RemoteVesselRow): Vessel {
 }
 
 export async function loadRemoteDashboardVessels(): Promise<DashboardVesselFeed | null> {
-  const url = endpointUrl();
-  if (!url) return null;
+  const payload = await fetchFirstJson<RemoteVesselPayload | RemoteVesselRow[]>(endpointUrl());
+  if (!payload) return null;
 
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!response.ok) {
-    throw new Error(`Remote vessel feed request failed: ${response.status} ${response.statusText}`);
-  }
-
-  const payload = (await response.json()) as RemoteVesselPayload | RemoteVesselRow[];
   return {
     source: normalizeSource(!Array.isArray(payload) ? payload.source : undefined),
     vessels: extractRows(payload).map(toDashboardVessel),
