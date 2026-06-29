@@ -2,6 +2,15 @@ import { existsSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 
+const SAUDI_PORT_AIS_BBOX = [
+  "20.70,38.35;22.95,39.85", // Jeddah + King Abdullah Port
+  "23.25,37.15;24.90,38.90", // Yanbu
+  "16.15,41.75;17.55,43.35", // Jizan
+  "25.70,49.25;27.25,50.90", // Dammam / Ras Tanura approaches
+  "24.35,54.35;25.65,55.75", // Jebel Ali / UAE Gulf reference
+  "29.20,32.00;30.55,33.25", // Suez reference
+].join("|");
+
 function loadEnvFile(fileName) {
   const filePath = resolve(process.cwd(), fileName);
   if (!existsSync(filePath)) return;
@@ -27,6 +36,10 @@ function loadEnvFile(fileName) {
 
 loadEnvFile(".env");
 loadEnvFile(".env.local");
+
+if (process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES !== "false") {
+  process.env.AISSTREAM_BBOX = SAUDI_PORT_AIS_BBOX;
+}
 
 const proxyPort = process.env.PORT ?? "8787";
 const dashboardPort = process.env.VITE_PORT ?? "5173";
@@ -74,6 +87,7 @@ process.on("exit", () => {
 
 console.log(`Starting vessel proxy on port ${proxyPort}`);
 if (process.env.AISSTREAM_API_KEY) console.log("AISStream API key loaded from environment.");
+console.log(`AISStream bounding boxes: ${process.env.AISSTREAM_BBOX?.split("|").length ?? 0}`);
 run("vessel-feed-proxy", "node", ["server/vessel-feed-proxy/index.mjs"], {
   PORT: proxyPort,
 });
