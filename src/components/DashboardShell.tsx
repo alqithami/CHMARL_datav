@@ -115,24 +115,36 @@ function withOperationalMetrics(data: DashboardData): DashboardData {
   return { ...data, metrics: buildOperationalMetrics(data) };
 }
 
-function getScenarioDashboardData(base: DashboardData, scenarioId: string): DashboardData {
-  if (isExternalSource(base.source)) return withOperationalMetrics(base);
+function scenarioPortUtilization(base: DashboardData, fallbackValues: { name: string; value: number }[]) {
+  if (base.portOpsSource === "runtime") return base.portUtilization;
+  if (isExternalSource(base.source)) return [];
+  return fallbackValues;
+}
 
+function scenarioVessels(base: DashboardData, scenarioId: string) {
+  if (isExternalSource(base.source)) return base.vessels;
+  if (scenarioId === "congestion") return base.vessels.map((vessel, index) => ({ ...vessel, status: index < 2 ? ("Watch" as const) : vessel.status }));
+  if (scenarioId === "disruption") return base.vessels.map((vessel, index) => ({ ...vessel, status: index === 2 ? ("Constrained" as const) : vessel.status }));
+  if (scenarioId === "emissions-aware") return base.vessels.map((vessel) => ({ ...vessel, speed: "11.0 kn" }));
+  return base.vessels;
+}
+
+function getScenarioDashboardData(base: DashboardData, scenarioId: string): DashboardData {
   if (scenarioId === "congestion") {
     return withOperationalMetrics({
       ...base,
-      vessels: base.vessels.map((vessel, index) => ({ ...vessel, status: index < 2 ? ("Watch" as const) : vessel.status })),
+      vessels: scenarioVessels(base, scenarioId),
       rewardTrend: shiftRewardTrend(base.rewardTrend, -0.04, 0.002),
       constraintPressure: base.constraintPressure.map((item) => ({ ...item, value: Math.min(100, item.value + 18) })),
-      portUtilization: [
+      portUtilization: scenarioPortUtilization(base, [
         { name: "Jeddah", value: 96 },
         { name: "Dammam", value: 84 },
         { name: "Yanbu", value: 79 },
         { name: "Jizan", value: 63 },
         { name: "KAEC", value: 71 },
-      ],
+      ]),
       timelineEvents: [
-        { time: "T+00:03", title: "Congestion-aware policy selected", body: "Port agents rebalance arrivals under increased berth pressure." },
+        { time: "T+00:03", title: "Congestion-aware CH-MARL mode", body: "Policy evidence emphasizes queue pressure, service delay, and berth allocation constraints. Live AIS rows are preserved unchanged." },
         ...base.timelineEvents,
       ],
     });
@@ -141,18 +153,18 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
   if (scenarioId === "disruption") {
     return withOperationalMetrics({
       ...base,
-      vessels: base.vessels.map((vessel, index) => ({ ...vessel, status: index === 2 ? ("Constrained" as const) : vessel.status })),
+      vessels: scenarioVessels(base, scenarioId),
       rewardTrend: shiftRewardTrend(base.rewardTrend, -0.04, -0.006),
       constraintPressure: base.constraintPressure.map((item) => ({ ...item, value: item.name === "Channel safety" ? 93 : Math.min(100, item.value + 7) })),
-      portUtilization: [
+      portUtilization: scenarioPortUtilization(base, [
         { name: "Jeddah", value: 66 },
         { name: "Dammam", value: 74 },
         { name: "Yanbu", value: 69 },
         { name: "Jizan", value: 53 },
         { name: "KAEC", value: 62 },
-      ],
+      ]),
       timelineEvents: [
-        { time: "T+00:01", title: "Route disruption detected", body: "A high-risk corridor segment was marked unavailable for routing." },
+        { time: "T+00:01", title: "Disruption-response CH-MARL mode", body: "Policy evidence emphasizes rerouting, safety constraints, and recovery after unavailable corridors. Live AIS rows are preserved unchanged." },
         ...base.timelineEvents,
       ],
     });
@@ -161,11 +173,11 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
   if (scenarioId === "emissions-aware") {
     return withOperationalMetrics({
       ...base,
-      vessels: base.vessels.map((vessel) => ({ ...vessel, speed: "11.0 kn" })),
+      vessels: scenarioVessels(base, scenarioId),
       rewardTrend: shiftRewardTrend(base.rewardTrend, -0.02, 0.004),
       constraintPressure: base.constraintPressure.map((item) => ({ ...item, value: item.name === "Emissions cap" ? 35 : Math.max(30, item.value - 8) })),
       timelineEvents: [
-        { time: "T+00:04", title: "Emissions-aware speed profile applied", body: "Vessel speed targets are reduced to keep fuel and emissions constraints feasible." },
+        { time: "T+00:04", title: "Emissions-aware CH-MARL mode", body: "Policy evidence emphasizes lower fuel burn, emissions constraints, and efficient vessel-speed recommendations. Live AIS rows are preserved unchanged." },
         ...base.timelineEvents,
       ],
     });
@@ -174,17 +186,18 @@ function getScenarioDashboardData(base: DashboardData, scenarioId: string): Dash
   if (scenarioId === "fairness-aware") {
     return withOperationalMetrics({
       ...base,
+      vessels: scenarioVessels(base, scenarioId),
       rewardTrend: shiftRewardTrend(base.rewardTrend, -0.03, 0.003),
       constraintPressure: [...base.constraintPressure.slice(0, 4), { name: "Fairness gap", value: 31 }],
-      portUtilization: [
+      portUtilization: scenarioPortUtilization(base, [
         { name: "Jeddah", value: 78 },
         { name: "Dammam", value: 74 },
         { name: "Yanbu", value: 68 },
         { name: "Jizan", value: 59 },
         { name: "KAEC", value: 66 },
-      ],
+      ]),
       timelineEvents: [
-        { time: "T+00:05", title: "Fairness-aware allocation selected", body: "Service variance is reduced across vessels, ports, and cargo classes." },
+        { time: "T+00:05", title: "Fairness-aware CH-MARL mode", body: "Policy evidence emphasizes service equity across vessels, ports, and cargo classes. Live AIS rows are preserved unchanged." },
         ...base.timelineEvents,
       ],
     });
@@ -214,7 +227,6 @@ export default function DashboardShell() {
   const [lastUpdated, setLastUpdated] = useState("not loaded");
   const [focusPanel, setFocusPanel] = useState<FocusPanel | null>(null);
   const refreshIntervalMs = sourceRefreshMs(baseData.source);
-  const externalSourceActive = isExternalSource(baseData.source);
 
   const refreshData = useCallback((status: LoadStatus = "refreshing") => {
     setDataSourceStatus(status);
@@ -243,10 +255,6 @@ export default function DashboardShell() {
       window.clearInterval(interval);
     };
   }, [refreshData, refreshIntervalMs]);
-
-  useEffect(() => {
-    if (externalSourceActive && selectedScenarioId !== "baseline") setSelectedScenarioId("baseline");
-  }, [externalSourceActive, selectedScenarioId]);
 
   const dashboardData = useMemo(() => getScenarioDashboardData(baseData, selectedScenarioId), [baseData, selectedScenarioId]);
   const liveDataActive = isExternalSource(dashboardData.source);
@@ -289,24 +297,21 @@ export default function DashboardShell() {
             <span className="pill data-pill">Data: {providerState}</span>
             <span className="pill data-pill">CH-MARL: {chmarlSourceLabel(dashboardData.chmarlSource)}</span>
             <span className="pill data-pill">Port ops: {portOpsSourceLabel(dashboardData.portOpsSource)}</span>
+            <span className="pill data-pill">Mode: {selectedScenarioId}</span>
             <span className="pill data-pill">Updated: {lastUpdated}</span>
             <button type="button" className="pill" onClick={() => refreshData("refreshing")}>Refresh</button>
           </div>
           <div className="scenario-buttons" aria-label="Scenario selection">
-            {scenarioCatalog.map((scenario) => {
-              const disabled = externalSourceActive && scenario.scenarioId !== "baseline";
-              return (
-                <button
-                  key={scenario.scenarioId}
-                  type="button"
-                  disabled={disabled}
-                  className={scenario.scenarioId === selectedScenarioId ? "pill active" : "pill"}
-                  title={disabled ? "Scenario overlays require CH-MARL experiment logs; live vessel rows are not altered." : scenario.description}
-                  onClick={() => setSelectedScenarioId(scenario.scenarioId)}>
-                  {scenario.label}
-                </button>
-              );
-            })}
+            {scenarioCatalog.map((scenario) => (
+              <button
+                key={scenario.scenarioId}
+                type="button"
+                className={scenario.scenarioId === selectedScenarioId ? "pill active" : "pill"}
+                title={liveDataActive && scenario.scenarioId !== "baseline" ? "Applies CH-MARL policy evidence while preserving live AIS vessel rows." : scenario.description}
+                onClick={() => setSelectedScenarioId(scenario.scenarioId)}>
+                {scenario.label}
+              </button>
+            ))}
           </div>
           <details className="actions-menu">
             <summary>Exports</summary>
