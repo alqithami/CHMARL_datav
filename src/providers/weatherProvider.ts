@@ -1,3 +1,5 @@
+import { backendApiCandidates } from "./backendUrl";
+
 export type MarineWeatherPoint = {
   locationId: string;
   name: string;
@@ -52,18 +54,26 @@ async function fetchWithTimeout(url: string) {
 }
 
 async function fetchWeather(): Promise<MarineWeatherFeed | null> {
-  const response = await fetchWithTimeout(endpointUrl());
-  if (!response.ok) return null;
-  const payload = await response.json() as MarineWeatherFeed;
-  const feed = validFeed(payload);
-  if (feed) cachedWeather = { loadedAt: Date.now(), feed };
-  return feed;
+  for (const url of backendApiCandidates(endpointUrl())) {
+    try {
+      const response = await fetchWithTimeout(url);
+      if (!response.ok) continue;
+      const payload = await response.json() as MarineWeatherFeed;
+      const feed = validFeed(payload);
+      if (feed) {
+        cachedWeather = { loadedAt: Date.now(), feed };
+        return feed;
+      }
+    } catch {
+      // Try the next backend candidate.
+    }
+  }
+
+  return null;
 }
 
 export async function loadMarineWeather(): Promise<MarineWeatherFeed | null> {
-  if (cachedWeather && Date.now() - cachedWeather.loadedAt < WEATHER_CACHE_MS) {
-    return cachedWeather.feed;
-  }
+  if (cachedWeather && Date.now() - cachedWeather.loadedAt < WEATHER_CACHE_MS) return cachedWeather.feed;
 
   if (!inFlightWeather) {
     inFlightWeather = fetchWeather().finally(() => {
