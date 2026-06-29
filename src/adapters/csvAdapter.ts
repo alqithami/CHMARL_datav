@@ -1,4 +1,4 @@
-import type { RawAisVesselUpdate } from "./aisAdapter";
+export type RawVesselCsvUpdate = Record<string, string | undefined>;
 
 function parseCsvLine(line: string): string[] {
   const cells: string[] = [];
@@ -57,7 +57,7 @@ export function parseCsv(text: string): Record<string, string>[] {
   });
 }
 
-export function parseAisVesselCsv(text: string): RawAisVesselUpdate[] {
+export function parseAisVesselCsv(text: string): RawVesselCsvUpdate[] {
   return parseCsv(text).map((row) => ({
     vesselId: nonEmpty(row.vesselId),
     mmsi: nonEmpty(row.mmsi),
