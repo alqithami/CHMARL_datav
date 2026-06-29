@@ -37,6 +37,11 @@ function demoBucket() {
   return Math.floor(Date.now() / (15 * 60 * 1000));
 }
 
+function demoUtilizationPct(eventCount: number, portIndex: number, bucket: number) {
+  const base = eventCount * 18 + ((bucket + portIndex) % 5) * 4;
+  return Math.min(96, Math.max(28, base));
+}
+
 function kplerLikeDemoPortOperations(): PortOperationsFeed {
   const bucket = demoBucket();
   const timestamp = new Date(bucket * 15 * 60 * 1000).toISOString();
@@ -46,7 +51,7 @@ function kplerLikeDemoPortOperations(): PortOperationsFeed {
   for (let portIndex = 0; portIndex < demoPorts.length; portIndex += 1) {
     const portId = demoPorts[portIndex];
     const eventCount = ((bucket + portIndex * 3) % 4) + 1;
-    portUtilization.push({ name: portId, value: eventCount });
+    portUtilization.push({ name: portId, value: demoUtilizationPct(eventCount, portIndex, bucket) });
 
     for (let index = 0; index < eventCount; index += 1) {
       const eventType = demoEventTypes[(bucket + portIndex + index) % demoEventTypes.length];
