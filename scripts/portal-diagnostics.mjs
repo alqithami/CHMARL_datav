@@ -72,6 +72,16 @@ function fail(message) {
   console.log(`  FAIL: ${message}`);
 }
 
+function printBackendOfflineHelp() {
+  console.log("-".repeat(64));
+  console.log("The backend is not reachable. This diagnostic checks a running service; it does not start one.");
+  console.log("Start the portal first with:");
+  console.log("  pnpm dev");
+  console.log("Then open the forwarded 5173 port after the terminal prints both backend and dashboard startup lines.");
+  console.log("If 5173 shows GitHub's 404 page, the Vite dashboard process is not running or the forwarded port is stale.");
+  console.log("Use the Codespaces Ports tab to reopen port 5173 after restarting pnpm dev.");
+}
+
 function summarizeHealth(result) {
   const payload = result.payload;
   line("backend", result.ok ? "reachable" : "unreachable", `${result.status}`);
@@ -156,6 +166,7 @@ const hardFailures = endpoints
 
 if (hardFailures.length > 0) {
   fail("Required backend endpoints are not healthy.");
+  if (!results.get("health")?.ok) printBackendOfflineHelp();
   process.exit(1);
 }
 
