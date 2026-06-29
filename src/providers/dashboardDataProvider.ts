@@ -91,14 +91,15 @@ function toNumber(value: unknown): number | undefined {
 function normalizeTrail(points: RemoteTrailPoint[] | undefined): VesselTrailPoint[] | undefined {
   if (!Array.isArray(points)) return undefined;
 
-  const normalized = points
-    .map((point) => {
-      const latitude = toNumber(point.latitude ?? point.lat);
-      const longitude = toNumber(point.longitude ?? point.lon ?? point.lng);
-      if (latitude === undefined || longitude === undefined) return null;
-      return { latitude, longitude, timestamp: point.timestamp } satisfies VesselTrailPoint;
-    })
-    .filter((point): point is VesselTrailPoint => point !== null);
+  const normalized: VesselTrailPoint[] = [];
+  for (const point of points) {
+    const latitude = toNumber(point.latitude ?? point.lat);
+    const longitude = toNumber(point.longitude ?? point.lon ?? point.lng);
+    if (latitude === undefined || longitude === undefined) continue;
+    const entry: VesselTrailPoint = { latitude, longitude };
+    if (point.timestamp !== undefined) entry.timestamp = point.timestamp;
+    normalized.push(entry);
+  }
 
   return normalized.length > 1 ? normalized : undefined;
 }
