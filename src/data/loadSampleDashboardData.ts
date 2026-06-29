@@ -53,22 +53,25 @@ export type DashboardData = {
   timelineEvents: TimelineEvent[];
 };
 
+const allowSampleData = import.meta.env.VITE_ALLOW_SAMPLE_DATA === "true";
+
 export const fallbackDashboardData: DashboardData = {
   source: "fallback",
-  chmarlSource: "local-json",
-  portOpsSource: "local-json",
+  chmarlSource: allowSampleData ? "local-json" : "none",
+  portOpsSource: allowSampleData ? "local-json" : "none",
   weatherSource: "none",
   weatherPoints: [],
   metrics,
-  vessels,
+  vessels: allowSampleData ? vessels : [],
   portEvents: [],
-  rewardTrend,
-  constraintPressure,
-  portUtilization,
-  timelineEvents,
+  rewardTrend: allowSampleData ? rewardTrend : [],
+  constraintPressure: allowSampleData ? constraintPressure : [],
+  portUtilization: allowSampleData ? portUtilization : [],
+  timelineEvents: allowSampleData ? timelineEvents : [],
 };
 
 async function fetchJson<T>(fileName: string): Promise<T> {
+  if (!allowSampleData) return [] as unknown as T;
   const baseUrl = import.meta.env.BASE_URL || "/";
   const response = await fetch(`${baseUrl}data/${fileName}`);
 
@@ -168,40 +171,40 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     fetchJson<unknown>("maritime_layers.sample.geojson"),
   ]);
 
-  const localVessels = normalizeAisBatch(rawVessels).map(vesselStateToDashboardRow);
+  const localVessels = allowSampleData ? normalizeAisBatch(rawVessels).map(vesselStateToDashboardRow) : [];
   const dashboardVessels = remoteVessels?.vessels ?? localVessels;
   const source: DashboardDataSource = remoteVessels?.source ?? "local-json";
   const externalSource = isExternalSource(source);
-  const experimentSteps = runtimeExperiment?.steps ?? localExperimentSteps;
+  const experimentSteps = runtimeExperiment?.steps ?? (allowSampleData ? localExperimentSteps : []);
   const chmarlSource: ChmarlDataSource = runtimeExperiment
     ? "runtime"
-    : localExperimentSteps.length > 0
+    : allowSampleData && localExperimentSteps.length > 0
       ? "local-json"
       : "none";
   const portOpsSource: PortOpsDataSource = runtimePortOps
     ? "runtime"
-    : externalSource
+    : externalSource || !allowSampleData
       ? "none"
       : "local-json";
   const weatherSource: WeatherDataSource = marineWeather?.source ?? "none";
   const weatherPoints = marineWeather?.points ?? [];
 
-  const normalizedPortEvents = runtimePortOps?.portEvents ?? (externalSource ? [] : normalizePortEventBatch(rawPortEvents));
+  const normalizedPortEvents = runtimePortOps?.portEvents ?? (externalSource || !allowSampleData ? [] : normalizePortEventBatch(rawPortEvents));
   const rewardData = experimentSteps.length > 0 ? toRewardTrend(experimentStepsToRewardTrend(experimentSteps)) : [];
   const constraintData = experimentSteps.length > 0
     ? experimentStepsToConstraintPressure(experimentSteps)
     : externalSource
       ? deriveConstraintPressureFromVessels(dashboardVessels)
-      : experimentStepsToConstraintPressure(localExperimentSteps);
-  const utilizationData = runtimePortOps?.portUtilization ?? (externalSource ? [] : portUtilization);
+      : [];
+  const utilizationData = runtimePortOps?.portUtilization ?? (externalSource || !allowSampleData ? [] : portUtilization);
   const timelineData = experimentSteps.length > 0
     ? experimentStepsToTimelineEvents(experimentSteps)
     : externalSource
       ? externalTimeline(source, dashboardVessels, chmarlSource, portOpsSource)
-      : experimentStepsToTimelineEvents(localExperimentSteps);
+      : [];
 
   const fileDrivenMetrics = updateMetric(
-    updateMetric(metrics, "Active vessels", String(dashboardVessels.length), source),
+    updateMetric(allowSampleData ? metrics : fallbackDashboardData.metrics, "Active vessels", String(dashboardVessels.length), source),
     "Reward index",
     rewardData.at(-1)?.[1].toFixed(3) ?? "n/a",
     chmarlSource === "runtime" ? "runtime CH-MARL log active" : chmarlSource === "local-json" ? "from local CH-MARL episode" : "no CH-MARL log connected"
@@ -218,9 +221,9 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     metrics: fileDrivenMetrics,
     vessels: dashboardVessels,
     portEvents: normalizedPortEvents,
-    rewardTrend: rewardData.length > 0 ? rewardData : chmarlSource === "none" ? [] : rewardTrend,
-    constraintPressure: constraintData.length > 0 ? constraintData : externalSource ? [] : constraintPressure,
+    rewardTrend: rewardData.length > 0 ? rewardData : allowSampleData && chmarlSource !== "none" ? rewardTrend : [],
+    constraintPressure: constraintData.length > 0 ? constraintData : allowSampleData ? constraintPressure : [],
     portUtilization: utilizationData,
-    timelineEvents: timelineData.length > 0 ? timelineData : externalSource ? [] : timelineEvents,
+    timelineEvents: timelineData.length > 0 ? timelineData : allowSampleData ? timelineEvents : [],
   };
 }
