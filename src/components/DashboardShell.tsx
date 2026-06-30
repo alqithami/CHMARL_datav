@@ -14,13 +14,18 @@ import RewardTrend from "./charts/RewardTrend";
 import ShipScene from "./ShipScene";
 import VesselSpeedProfile from "./charts/VesselSpeedProfile";
 import VesselTable from "./VesselTable";
+import ChmarlActionPlan from "./insights/ChmarlActionPlan";
 import ChmarlConstraintLedger from "./insights/ChmarlConstraintLedger";
 import ChmarlDecisionTimeline from "./insights/ChmarlDecisionTimeline";
+import ChmarlFairnessPanel from "./insights/ChmarlFairnessPanel";
 import ChmarlRewardComponents from "./insights/ChmarlRewardComponents";
 import FleetOperationalSummary from "./insights/FleetOperationalSummary";
 import MarineWeatherOverview from "./insights/MarineWeatherOverview";
 import OperationalInsightStrip, { type InsightFocusPanel } from "./insights/OperationalInsightStrip";
 import PortEventFeed from "./insights/PortEventFeed";
+import PortQueueBoard from "./insights/PortQueueBoard";
+import VesselRiskRegister from "./insights/VesselRiskRegister";
+import WeatherRiskMatrix from "./insights/WeatherRiskMatrix";
 
 type FocusPanel = "reward" | "constraints" | "scene" | "ports" | "watchlist" | "vessels" | InsightFocusPanel;
 type LoadStatus = "loading" | "refreshing" | DashboardDataSource;
@@ -328,11 +333,16 @@ export default function DashboardShell() {
     if (focusPanel === "watchlist") return { title: "Operational Watchlist", content: <OperationalWatchlist data={dashboardData} scenarioId={selectedScenarioId} /> };
     if (focusPanel === "vessels") return { title: "Vessel State Table", content: <VesselTable vessels={dashboardData.vessels} /> };
     if (focusPanel === "chmarl-components") return { title: "CH-MARL Reward Components", content: <ChmarlRewardComponents steps={dashboardData.chmarlSteps} /> };
+    if (focusPanel === "chmarl-actions") return { title: "CH-MARL Agent Action Plan", content: <ChmarlActionPlan steps={dashboardData.chmarlSteps} /> };
+    if (focusPanel === "chmarl-fairness") return { title: "CH-MARL Fairness Metrics", content: <ChmarlFairnessPanel steps={dashboardData.chmarlSteps} /> };
     if (focusPanel === "chmarl-constraints") return { title: "CH-MARL Constraint Shield", content: <ChmarlConstraintLedger steps={dashboardData.chmarlSteps} /> };
     if (focusPanel === "chmarl-decisions") return { title: "CH-MARL Decision Trace", content: <ChmarlDecisionTimeline steps={dashboardData.chmarlSteps} limit={24} /> };
     if (focusPanel === "weather") return { title: "Marine Weather Coverage", content: <MarineWeatherOverview points={dashboardData.weatherPoints} /> };
+    if (focusPanel === "weather-risk") return { title: "Weather Risk Matrix", content: <WeatherRiskMatrix points={dashboardData.weatherPoints} /> };
     if (focusPanel === "fleet") return { title: "Fleet Operational Summary", content: <FleetOperationalSummary vessels={dashboardData.vessels} /> };
+    if (focusPanel === "vessel-risk") return { title: "Vessel Risk Register", content: <VesselRiskRegister vessels={dashboardData.vessels} /> };
     if (focusPanel === "port-events") return { title: "Port Event Feed", content: <PortEventFeed events={dashboardData.portEvents} source={dashboardData.portOpsSource} /> };
+    if (focusPanel === "port-queue") return { title: "Port Queue / Berth Board", content: <PortQueueBoard rows={dashboardData.portQueueStatus} source={dashboardData.portOpsSource} /> };
     return null;
   })();
 
