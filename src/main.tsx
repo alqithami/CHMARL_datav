@@ -16,6 +16,7 @@ import "./uiClutterPolish.css";
 import "./mapMarkerPolish.css";
 import "./vesselTablePolish.css";
 import "./metricTonePolish.css";
+import "./executiveDeclutter.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
