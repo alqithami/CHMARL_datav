@@ -1,0 +1,127 @@
+.topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 760px);
+  align-items: start;
+}
+
+.scenario-bar {
+  display: grid;
+  align-items: stretch;
+  justify-items: stretch;
+  width: 100%;
+  max-width: 760px;
+}
+
+.status-control-group {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+}
+
+.status-control-group .pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scenario-buttons {
+  width: 100%;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0 5px;
+  scrollbar-width: thin;
+}
+
+.scenario-buttons .pill {
+  flex: 0 0 auto;
+}
+
+.actions-menu {
+  justify-self: end;
+}
+
+.metrics-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.metric-card {
+  min-height: 66px;
+}
+
+.metric-value {
+  font-size: 20px;
+}
+
+.metric-trend {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-quality-panel {
+  grid-template-columns: 160px minmax(0, 1fr);
+}
+
+.data-quality-items {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.insight-section {
+  margin-top: 2px;
+}
+
+.insight-toolbar {
+  min-height: 58px;
+}
+
+.insight-grid .panel-card {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.20);
+}
+
+.panel-card::before,
+.metric-card::before {
+  opacity: 0.52;
+}
+
+.dashboard-grid {
+  grid-template-columns: 250px minmax(520px, 1fr) 310px;
+}
+
+@media (max-width: 1320px) {
+  .topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .scenario-bar {
+    max-width: 100%;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 840px) {
+  .status-control-group,
+  .data-quality-items,
+  .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .data-quality-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .status-control-group,
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
