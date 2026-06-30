@@ -8,7 +8,7 @@ import { loadRuntimeChmarlExperiment } from "@/providers/chmarlExperimentProvide
 import { loadRemoteDashboardVessels } from "@/providers/dashboardDataProvider";
 import { loadMarineWeather, type MarineWeatherPoint } from "@/providers/weatherProvider";
 import { loadRuntimePortOperations } from "@/providers/portOperationsProvider";
-import type { PortEvent } from "@/types/chmarl";
+import type { ChmarlExperimentStep, PortEvent } from "@/types/chmarl";
 
 export type ChartDatum = { name: string; value: number };
 
@@ -25,6 +25,7 @@ export type DashboardData = {
   weatherPoints: MarineWeatherPoint[];
   chmarlExperimentId?: string;
   chmarlScenarioId?: string;
+  chmarlSteps: ChmarlExperimentStep[];
   metrics: Metric[];
   vessels: Vessel[];
   portEvents: PortEvent[];
@@ -49,6 +50,7 @@ export const fallbackDashboardData: DashboardData = {
   portOpsSource: "none",
   weatherSource: "none",
   weatherPoints: [],
+  chmarlSteps: [],
   metrics: realOnlyMetrics,
   vessels: [],
   portEvents: [],
@@ -141,6 +143,7 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     weatherPoints: marineWeather?.points ?? [],
     chmarlExperimentId: runtimeExperiment?.experimentId ?? experimentSteps[0]?.experimentId,
     chmarlScenarioId: runtimeExperiment?.scenarioId ?? experimentSteps[0]?.scenarioId,
+    chmarlSteps: experimentSteps,
     metrics: realOnlyMetrics,
     vessels: rows,
     portEvents: runtimePortOps?.portEvents ?? [],
