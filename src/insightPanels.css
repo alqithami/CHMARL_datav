@@ -1,0 +1,243 @@
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.insight-grid .panel-card {
+  min-height: 164px;
+  padding: 9px;
+}
+
+.insight-grid .panel-header {
+  margin-bottom: 5px;
+}
+
+.insight-grid .panel-title {
+  font-size: 12px;
+}
+
+.insight-panel-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+  height: calc(100% - 2px);
+  min-height: 0;
+}
+
+.insight-panel-summary {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.insight-panel-summary span {
+  color: rgba(230, 247, 255, 0.52);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.insight-panel-summary strong {
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.insight-panel-summary small {
+  color: rgba(230, 247, 255, 0.62);
+  font-size: 10px;
+  line-height: 1.22;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.insight-chart {
+  width: 100%;
+  min-height: 82px;
+  height: 100%;
+}
+
+.insight-empty-state {
+  align-self: center;
+  justify-self: center;
+  max-width: 230px;
+  margin: 0;
+  color: rgba(230, 247, 255, 0.58);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.constraint-ledger-list,
+.decision-timeline-list,
+.port-event-list,
+.weather-point-grid,
+.fleet-summary-grid {
+  min-height: 0;
+  overflow: auto;
+}
+
+.constraint-ledger-list,
+.decision-timeline-list,
+.port-event-list {
+  display: grid;
+  gap: 6px;
+  padding-right: 2px;
+}
+
+.constraint-ledger-row,
+.decision-timeline-card,
+.port-event-row,
+.weather-point-card,
+.fleet-summary-grid article {
+  border: 1px solid rgba(141, 220, 255, 0.12);
+  background: rgba(3, 13, 24, 0.44);
+  border-radius: 10px;
+  padding: 7px 8px;
+}
+
+.constraint-ledger-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.constraint-ledger-row strong,
+.decision-timeline-card strong,
+.port-event-row strong,
+.weather-point-card strong,
+.fleet-summary-grid strong {
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.constraint-ledger-row small,
+.decision-timeline-card span,
+.decision-timeline-card p,
+.port-event-row small,
+.weather-point-card span,
+.weather-point-card dt,
+.weather-point-card dd,
+.fleet-summary-grid span,
+.fleet-summary-grid small {
+  color: rgba(230, 247, 255, 0.58);
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.constraint-meter {
+  grid-column: 1 / -1;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.constraint-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #65e4cb, #ffd780, #ff7474);
+}
+
+.decision-timeline-card p {
+  margin: 3px 0 0;
+}
+
+.weather-point-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.weather-point-grid.compact {
+  grid-template-columns: 1fr;
+}
+
+.weather-point-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
+  margin: 5px 0 0;
+}
+
+.weather-point-card dl div {
+  min-width: 0;
+}
+
+.weather-point-card dt,
+.weather-point-card dd {
+  margin: 0;
+}
+
+.weather-point-card dd {
+  color: #e6f7ff;
+  font-weight: 800;
+}
+
+.fleet-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.fleet-summary-grid.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fleet-summary-grid article {
+  display: grid;
+  gap: 2px;
+}
+
+.port-event-row {
+  display: grid;
+  gap: 2px;
+  border-left-width: 3px;
+}
+
+.port-event-row.arrival { border-left-color: #8ddcff; }
+.port-event-row.active { border-left-color: #65e4cb; }
+.port-event-row.watch { border-left-color: #ffd780; }
+.port-event-row.complete { border-left-color: rgba(230, 247, 255, 0.45); }
+
+.dashboard-grid {
+  height: calc(100vh - 410px);
+  min-height: 430px;
+}
+
+.focus-content .insight-panel-content {
+  min-height: 520px;
+}
+
+.focus-content .insight-chart {
+  min-height: 340px;
+}
+
+@media (max-width: 1540px) {
+  .insight-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-grid {
+    height: auto;
+    min-height: 540px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .insight-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .insight-grid .panel-card {
+    min-height: 180px;
+  }
+}
