@@ -1,0 +1,60 @@
+.metric-card-good {
+  border-color: rgba(101, 228, 203, 0.26);
+}
+
+.metric-card-good .metric-value,
+.metric-card-good .metric-trend {
+  color: #65e4cb;
+}
+
+.metric-card-warn {
+  border-color: rgba(255, 215, 128, 0.30);
+}
+
+.metric-card-warn .metric-value,
+.metric-card-warn .metric-trend {
+  color: #ffd780;
+}
+
+.metric-card-missing {
+  border-color: rgba(255, 156, 156, 0.28);
+}
+
+.metric-card-missing .metric-value,
+.metric-card-missing .metric-trend {
+  color: #ff9c9c;
+}
+
+.metric-card-info .metric-trend {
+  color: #8ddcff;
+}
+
+.metric-card-good::after,
+.metric-card-warn::after,
+.metric-card-missing::after,
+.metric-card-info::after {
+  content: "";
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #8ddcff;
+  box-shadow: 0 0 10px rgba(141, 220, 255, 0.8);
+}
+
+.metric-card-good::after {
+  background: #65e4cb;
+  box-shadow: 0 0 10px rgba(101, 228, 203, 0.8);
+}
+
+.metric-card-warn::after {
+  background: #ffd780;
+  box-shadow: 0 0 10px rgba(255, 215, 128, 0.8);
+}
+
+.metric-card-missing::after {
+  background: #ff9c9c;
+  box-shadow: 0 0 10px rgba(255, 156, 156, 0.8);
+}
