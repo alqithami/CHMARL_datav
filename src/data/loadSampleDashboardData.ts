@@ -7,7 +7,7 @@ import {
 import { loadRuntimeChmarlExperiment } from "@/providers/chmarlExperimentProvider";
 import { loadRemoteDashboardVessels } from "@/providers/dashboardDataProvider";
 import { loadMarineWeather, type MarineWeatherPoint } from "@/providers/weatherProvider";
-import { loadRuntimePortOperations } from "@/providers/portOperationsProvider";
+import { loadRuntimePortOperations, type PortQueueStatus } from "@/providers/portOperationsProvider";
 import type { ChmarlExperimentStep, PortEvent } from "@/types/chmarl";
 
 export type ChartDatum = { name: string; value: number };
@@ -29,6 +29,7 @@ export type DashboardData = {
   metrics: Metric[];
   vessels: Vessel[];
   portEvents: PortEvent[];
+  portQueueStatus: PortQueueStatus[];
   rewardTrend: RewardTrendPoint[];
   constraintPressure: ChartDatum[];
   portUtilization: ChartDatum[];
@@ -54,6 +55,7 @@ export const fallbackDashboardData: DashboardData = {
   metrics: realOnlyMetrics,
   vessels: [],
   portEvents: [],
+  portQueueStatus: [],
   rewardTrend: [],
   constraintPressure: [],
   portUtilization: [],
@@ -147,6 +149,7 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     metrics: realOnlyMetrics,
     vessels: rows,
     portEvents: runtimePortOps?.portEvents ?? [],
+    portQueueStatus: runtimePortOps?.queueStatus ?? [],
     rewardTrend: rewardData,
     constraintPressure: constraintData,
     portUtilization: runtimePortOps?.portUtilization ?? [],
