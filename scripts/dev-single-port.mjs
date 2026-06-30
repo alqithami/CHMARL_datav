@@ -92,7 +92,7 @@ console.log(`AISStream bounding boxes: ${process.env.AISSTREAM_BBOX?.split("|").
 console.log(`AISStream filters: ${process.env.AISSTREAM_FILTER_TYPES || "none"}`);
 console.log(`Port event demo: ${process.env.VITE_PORT_EVENTS_DEMO_ENABLED}`);
 if (forwardedUrl) console.log(`Single-port portal URL: ${forwardedUrl}/`);
-console.log("Open forwarded port 8787 for the full portal and APIs.");
+console.log(`Open forwarded port ${port} for the full portal and APIs.`);
 
 const child = spawn("node", ["server/vessel-feed-proxy/index.mjs"], {
   stdio: "inherit",
