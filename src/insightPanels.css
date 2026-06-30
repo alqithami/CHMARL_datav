@@ -42,14 +42,21 @@
   line-height: 1.25;
 }
 
-.insight-mode-tabs {
+.insight-mode-tabs,
+.inline-filter-tabs {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;
 }
 
-.insight-mode-tabs button {
+.inline-filter-tabs {
+  justify-content: flex-start;
+  margin-top: -2px;
+}
+
+.insight-mode-tabs button,
+.inline-filter-tabs button {
   min-height: 28px;
   padding: 5px 10px;
   border-radius: 999px;
@@ -61,7 +68,8 @@
   cursor: pointer;
 }
 
-.insight-mode-tabs button.active {
+.insight-mode-tabs button.active,
+.inline-filter-tabs button.active {
   border-color: transparent;
   background: linear-gradient(135deg, #65e4cb, #8ddcff);
   color: #04111f;
