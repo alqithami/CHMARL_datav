@@ -18,15 +18,48 @@ type QualityItem = {
 const sampleDataEnabled = import.meta.env.VITE_ALLOW_SAMPLE_DATA === "true";
 const sampleChmarlEnabled = import.meta.env.VITE_ALLOW_SAMPLE_CHMARL === "true";
 
+function staleRows(data: DashboardData) {
+  return data.vessels.filter((vessel) => {
+    if (!vessel.timestamp) return false;
+    const timestamp = Date.parse(vessel.timestamp);
+    return Number.isFinite(timestamp) && Date.now() - timestamp > 30 * 60 * 1000;
+  }).length;
+}
+
+function coordinateCoverage(data: DashboardData) {
+  if (data.vessels.length === 0) return 0;
+  const positioned = data.vessels.filter((vessel) => Number.isFinite(vessel.latitude) && Number.isFinite(vessel.longitude)).length;
+  return Math.round((positioned / data.vessels.length) * 100);
+}
+
+function latestReward(data: DashboardData) {
+  return data.rewardTrend.at(-1)?.[1];
+}
+
+function weatherCoverage(data: DashboardData) {
+  const marine = data.weatherPoints.filter((point) => point.waveHeightM !== undefined).length;
+  const fallback = data.weatherPoints.filter((point) => point.windSpeedMs !== undefined || point.airTemperatureC !== undefined).length;
+  return { marine, fallback };
+}
+
 function vesselStatus(data: DashboardData): QualityItem {
+  const coverage = coordinateCoverage(data);
+  const stale = staleRows(data);
+  const trails = data.vessels.filter((vessel) => vessel.trail && vessel.trail.length > 1).length;
+
   if (data.source === "aisstream") {
-    return { label: "AIS", value: "live", detail: `${data.vessels.length} current vessel rows`, tone: data.vessels.length > 0 ? "good" : "warn" };
+    return {
+      label: "AIS",
+      value: "live",
+      detail: `${data.vessels.length} rows · ${coverage}% positioned · ${trails} trails · ${stale} stale`,
+      tone: data.vessels.length > 0 && stale === 0 ? "good" : data.vessels.length > 0 ? "warn" : "missing",
+    };
   }
   if (data.source === "aisstream-waiting") {
     return { label: "AIS", value: "waiting", detail: "socket connected; waiting for positions in monitored boxes", tone: "warn" };
   }
   if (data.source === "upstream" || data.source === "remote") {
-    return { label: "Vessels", value: "provider", detail: `${data.vessels.length} rows from backend provider`, tone: data.vessels.length > 0 ? "good" : "warn" };
+    return { label: "Vessels", value: "provider", detail: `${data.vessels.length} rows · ${coverage}% positioned`, tone: data.vessels.length > 0 ? "good" : "warn" };
   }
   if (data.source === "local-json") {
     return { label: "Vessels", value: "sample", detail: "local fixture data is enabled", tone: "warn" };
@@ -35,8 +68,15 @@ function vesselStatus(data: DashboardData): QualityItem {
 }
 
 function chmarlStatus(data: DashboardData): QualityItem {
+  const reward = latestReward(data);
+  const latestStep = data.chmarlSteps.at(-1);
   if (data.chmarlSource === "runtime") {
-    return { label: "CH-MARL", value: "online inference", detail: data.chmarlExperimentId ?? "derived from active operational feeds", tone: "good" };
+    return {
+      label: "CH-MARL",
+      value: reward === undefined ? "online" : reward.toFixed(3),
+      detail: `${data.chmarlSteps.length} steps · ${latestStep?.actions?.length ?? 0} actions · ${latestStep?.constraints?.length ?? 0} constraints`,
+      tone: reward !== undefined && reward < 0.45 ? "warn" : "good",
+    };
   }
   if (data.chmarlSource === "local-json") {
     return { label: "CH-MARL", value: "sample", detail: "demo episode is enabled", tone: "warn" };
@@ -46,13 +86,13 @@ function chmarlStatus(data: DashboardData): QualityItem {
 
 function portStatus(data: DashboardData): QualityItem {
   if (data.portOpsSource === "runtime") {
-    return { label: "Port ops", value: "provider", detail: `${data.portEvents.length} events · ${data.portUtilization.length} utilization rows`, tone: "good" };
+    return { label: "Port ops", value: "provider", detail: `${data.portEvents.length} events · ${data.portQueueStatus.length} queue rows · ${data.portUtilization.length} utilization`, tone: "good" };
   }
   if (data.portOpsSource === "demo") {
     return {
       label: "Port ops",
-      value: "Kpler-like demo",
-      detail: `${data.portEvents.length} demo events; replace with PORT_EVENTS_URL after provider access`,
+      value: "demo",
+      detail: `${data.portEvents.length} events · ${data.portQueueStatus.length} queue rows; replace with PORT_EVENTS_URL`,
       tone: "warn",
     };
   }
@@ -63,11 +103,17 @@ function portStatus(data: DashboardData): QualityItem {
 }
 
 function weatherStatus(data: DashboardData): QualityItem {
+  const coverage = weatherCoverage(data);
   if (data.weatherSource === "open-meteo") {
-    return { label: "Weather", value: "backend Open-Meteo", detail: `${data.weatherPoints.length} marine points`, tone: data.weatherPoints.length > 0 ? "good" : "warn" };
+    return {
+      label: "Weather",
+      value: "Open-Meteo",
+      detail: `${data.weatherPoints.length} points · ${coverage.marine} marine · ${coverage.fallback} fallback`,
+      tone: data.weatherPoints.length > 0 ? "good" : "warn",
+    };
   }
   if (data.weatherSource === "runtime") {
-    return { label: "Weather", value: "provider", detail: `${data.weatherPoints.length} marine points`, tone: data.weatherPoints.length > 0 ? "good" : "warn" };
+    return { label: "Weather", value: "provider", detail: `${data.weatherPoints.length} points · ${coverage.marine} marine`, tone: data.weatherPoints.length > 0 ? "good" : "warn" };
   }
   return { label: "Weather", value: "missing", detail: "backend weather feed unavailable", tone: "missing" };
 }
