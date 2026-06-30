@@ -5,6 +5,7 @@ export type MarineWeatherPoint = {
   name: string;
   latitude: number;
   longitude: number;
+  provider?: "open-meteo-marine" | "open-meteo-forecast" | string;
   timestamp?: string;
   waveHeightM?: number;
   wavePeriodS?: number;
@@ -12,6 +13,9 @@ export type MarineWeatherPoint = {
   currentVelocityMs?: number;
   currentDirectionDeg?: number;
   seaSurfaceTemperatureC?: number;
+  airTemperatureC?: number;
+  windSpeedMs?: number;
+  windDirectionDeg?: number;
 };
 
 export type MarineWeatherFeed = {
