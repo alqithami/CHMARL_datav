@@ -1,3 +1,4 @@
+import { useState, type ReactNode } from "react";
 import type { DashboardData } from "@/data/loadSampleDashboardData";
 import PanelCard from "../PanelCard";
 import ChmarlActionPlan from "./ChmarlActionPlan";
@@ -25,12 +26,36 @@ export type InsightFocusPanel =
   | "port-events"
   | "port-queue";
 
+const insightModes = [
+  { id: "overview", label: "Overview", description: "Core CH-MARL, fleet, weather, and port status." },
+  { id: "chmarl", label: "CH-MARL", description: "Reward, actions, fairness, constraints, and decisions." },
+  { id: "operations", label: "Operations", description: "Queue, berth, port events, weather, and fleet data quality." },
+  { id: "risk", label: "Risk", description: "Vessel, weather, and constraint pressure views." },
+] as const;
+
+type InsightMode = typeof insightModes[number]["id"];
+
+type InsightCard = {
+  title: string;
+  tag: string;
+  focus: InsightFocusPanel;
+  content: ReactNode;
+};
+
 export type OperationalInsightStripProps = {
   data: DashboardData;
   onFocus: (panel: InsightFocusPanel) => void;
 };
 
+function visibleCardsFor(mode: InsightMode): InsightFocusPanel[] {
+  if (mode === "chmarl") return ["chmarl-components", "chmarl-actions", "chmarl-fairness", "chmarl-constraints", "chmarl-decisions"];
+  if (mode === "operations") return ["port-queue", "port-events", "weather", "fleet"];
+  if (mode === "risk") return ["vessel-risk", "weather-risk", "chmarl-constraints", "port-queue"];
+  return ["chmarl-components", "chmarl-constraints", "weather", "fleet", "port-events"];
+}
+
 export default function OperationalInsightStrip({ data, onFocus }: OperationalInsightStripProps) {
+  const [mode, setMode] = useState<InsightMode>("overview");
   const latestStep = data.chmarlSteps.at(-1);
   const latestReward = data.rewardTrend.at(-1)?.[1];
   const violatedConstraints = latestStep?.constraints?.filter((constraint) => !constraint.satisfied).length ?? 0;
@@ -38,42 +63,108 @@ export default function OperationalInsightStrip({ data, onFocus }: OperationalIn
   const fairnessCount = latestStep?.fairness?.length ?? 0;
   const weatherRiskCount = data.weatherPoints.filter((point) => (point.waveHeightM ?? 0) >= 1.5 || (point.windSpeedMs ?? 0) >= 10).length;
   const riskVessels = data.vessels.filter((vessel) => vessel.status !== "Nominal" || !Number.isFinite(vessel.latitude) || !Number.isFinite(vessel.longitude)).length;
+  const activeMode = insightModes.find((item) => item.id === mode) ?? insightModes[0];
+
+  const cardLibrary: Record<InsightFocusPanel, InsightCard> = {
+    "chmarl-components": {
+      title: "CH-MARL Components",
+      tag: latestReward === undefined ? "waiting" : latestReward.toFixed(3),
+      focus: "chmarl-components",
+      content: <ChmarlRewardComponents steps={data.chmarlSteps} compact />,
+    },
+    "chmarl-actions": {
+      title: "Agent Actions",
+      tag: `${actionCount} actions`,
+      focus: "chmarl-actions",
+      content: <ChmarlActionPlan steps={data.chmarlSteps} compact />,
+    },
+    "chmarl-fairness": {
+      title: "Fairness",
+      tag: `${fairnessCount} metrics`,
+      focus: "chmarl-fairness",
+      content: <ChmarlFairnessPanel steps={data.chmarlSteps} compact />,
+    },
+    "chmarl-constraints": {
+      title: "Constraint Shield",
+      tag: violatedConstraints === 0 ? "nominal" : `${violatedConstraints} active`,
+      focus: "chmarl-constraints",
+      content: <ChmarlConstraintLedger steps={data.chmarlSteps} compact />,
+    },
+    "chmarl-decisions": {
+      title: "Decision Trace",
+      tag: `${data.timelineEvents.length} events`,
+      focus: "chmarl-decisions",
+      content: <ChmarlDecisionTimeline steps={data.chmarlSteps} limit={4} />,
+    },
+    "port-queue": {
+      title: "Queue / Berth Board",
+      tag: `${data.portQueueStatus.length} rows`,
+      focus: "port-queue",
+      content: <PortQueueBoard rows={data.portQueueStatus} source={data.portOpsSource} compact />,
+    },
+    "port-events": {
+      title: "Port Event Feed",
+      tag: data.portOpsSource,
+      focus: "port-events",
+      content: <PortEventFeed events={data.portEvents} source={data.portOpsSource} compact />,
+    },
+    weather: {
+      title: "Marine Weather",
+      tag: `${data.weatherPoints.length} points`,
+      focus: "weather",
+      content: <MarineWeatherOverview points={data.weatherPoints} compact />,
+    },
+    "weather-risk": {
+      title: "Weather Risk",
+      tag: `${weatherRiskCount} watches`,
+      focus: "weather-risk",
+      content: <WeatherRiskMatrix points={data.weatherPoints} compact />,
+    },
+    fleet: {
+      title: "Fleet Data Quality",
+      tag: `${data.vessels.length} vessels`,
+      focus: "fleet",
+      content: <FleetOperationalSummary vessels={data.vessels} compact />,
+    },
+    "vessel-risk": {
+      title: "Vessel Risk",
+      tag: `${riskVessels} flagged`,
+      focus: "vessel-risk",
+      content: <VesselRiskRegister vessels={data.vessels} compact />,
+    },
+  };
+
+  const visibleCards = visibleCardsFor(mode).map((key) => cardLibrary[key]);
 
   return (
-    <section className="insight-grid" aria-label="Operational intelligence panels">
-      <PanelCard title="CH-MARL Components" tag={latestReward === undefined ? "waiting" : latestReward.toFixed(3)} onFocus={() => onFocus("chmarl-components")}>
-        <ChmarlRewardComponents steps={data.chmarlSteps} compact />
-      </PanelCard>
-      <PanelCard title="Agent Actions" tag={`${actionCount} actions`} onFocus={() => onFocus("chmarl-actions")}>
-        <ChmarlActionPlan steps={data.chmarlSteps} compact />
-      </PanelCard>
-      <PanelCard title="Fairness" tag={`${fairnessCount} metrics`} onFocus={() => onFocus("chmarl-fairness")}>
-        <ChmarlFairnessPanel steps={data.chmarlSteps} compact />
-      </PanelCard>
-      <PanelCard title="Constraint Shield" tag={violatedConstraints === 0 ? "nominal" : `${violatedConstraints} active`} onFocus={() => onFocus("chmarl-constraints")}>
-        <ChmarlConstraintLedger steps={data.chmarlSteps} compact />
-      </PanelCard>
-      <PanelCard title="Decision Trace" tag={`${data.timelineEvents.length} events`} onFocus={() => onFocus("chmarl-decisions")}>
-        <ChmarlDecisionTimeline steps={data.chmarlSteps} limit={4} />
-      </PanelCard>
-      <PanelCard title="Queue / Berth Board" tag={`${data.portQueueStatus.length} rows`} onFocus={() => onFocus("port-queue")}>
-        <PortQueueBoard rows={data.portQueueStatus} source={data.portOpsSource} compact />
-      </PanelCard>
-      <PanelCard title="Marine Weather" tag={`${data.weatherPoints.length} points`} onFocus={() => onFocus("weather")}>
-        <MarineWeatherOverview points={data.weatherPoints} compact />
-      </PanelCard>
-      <PanelCard title="Weather Risk" tag={`${weatherRiskCount} watches`} onFocus={() => onFocus("weather-risk")}>
-        <WeatherRiskMatrix points={data.weatherPoints} compact />
-      </PanelCard>
-      <PanelCard title="Fleet Data Quality" tag={`${data.vessels.length} vessels`} onFocus={() => onFocus("fleet")}>
-        <FleetOperationalSummary vessels={data.vessels} compact />
-      </PanelCard>
-      <PanelCard title="Vessel Risk" tag={`${riskVessels} flagged`} onFocus={() => onFocus("vessel-risk")}>
-        <VesselRiskRegister vessels={data.vessels} compact />
-      </PanelCard>
-      <PanelCard title="Port Event Feed" tag={data.portOpsSource} onFocus={() => onFocus("port-events")}>
-        <PortEventFeed events={data.portEvents} source={data.portOpsSource} compact />
-      </PanelCard>
+    <section className="insight-section" aria-label="Operational intelligence panels">
+      <header className="insight-toolbar">
+        <div>
+          <span className="insight-kicker">Operational insight deck</span>
+          <strong>{activeMode.label}</strong>
+          <small>{activeMode.description}</small>
+        </div>
+        <div className="insight-mode-tabs" role="tablist" aria-label="Operational insight mode">
+          {insightModes.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={mode === item.id}
+              className={mode === item.id ? "active" : ""}
+              onClick={() => setMode(item.id)}>
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </header>
+      <div className="insight-grid">
+        {visibleCards.map((card) => (
+          <PanelCard key={card.focus} title={card.title} tag={card.tag} onFocus={() => onFocus(card.focus)}>
+            {card.content}
+          </PanelCard>
+        ))}
+      </div>
     </section>
   );
 }
