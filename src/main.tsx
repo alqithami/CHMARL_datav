@@ -11,6 +11,7 @@ import "./commandBar.css";
 import "./aisDiagnostics.css";
 import "./mapRailControls.css";
 import "./professionalLayout.css";
+import "./insightPanels.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
