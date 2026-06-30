@@ -93,18 +93,11 @@ console.log(`AISStream filters: ${process.env.AISSTREAM_FILTER_TYPES || "none"}`
 console.log(`Port event demo: ${process.env.VITE_PORT_EVENTS_DEMO_ENABLED}`);
 if (forwardedUrl) console.log(`Single-port portal URL: ${forwardedUrl}/`);
 console.log(`Open forwarded port ${port} for the full portal and APIs.`);
-
-const child = spawn("node", ["server/vessel-feed-proxy/index.mjs"], {
-  stdio: "inherit",
-  env: process.env,
-});
+console.log("The portal process now runs in the foreground; this terminal should not return to a shell prompt until you stop it with Ctrl+C.");
 
 setTimeout(() => {
   void probe("Single-port portal", `http://127.0.0.1:${port}/`);
   void probe("Backend health", `http://127.0.0.1:${port}/health`);
 }, 2500).unref?.();
 
-child.on("exit", (code, signal) => {
-  if (signal) process.exit(0);
-  process.exit(code ?? 0);
-});
+await import("../server/vessel-feed-proxy/index.mjs");
