@@ -6,10 +6,11 @@
   "packageManager": "pnpm@9.15.9",
   "description": "CH-MARL maritime logistics geospatial visualization platform.",
   "scripts": {
-    "dev": "node scripts/dev-with-proxy.mjs",
+    "dev": "node scripts/dev-single-port.mjs",
+    "dev:single": "node scripts/dev-single-port.mjs",
     "dev:proxy": "node scripts/dev-with-proxy.mjs",
     "dev:vite": "vite --host 0.0.0.0 --port 5173 --strictPort",
-    "dev:codespaces": "node scripts/dev-with-proxy.mjs",
+    "dev:codespaces": "node scripts/dev-single-port.mjs",
     "proxy": "node server/vessel-feed-proxy/index.mjs",
     "diagnose": "node scripts/portal-diagnostics.mjs",
     "diagnose:ais": "node scripts/aisstream-diagnostics.mjs",
