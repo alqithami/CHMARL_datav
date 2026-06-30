@@ -128,16 +128,30 @@ function sampleStatus(): QualityItem {
   };
 }
 
+function overallTone(items: QualityItem[]): QualityTone {
+  if (items.some((item) => item.tone === "missing")) return "missing";
+  if (items.some((item) => item.tone === "warn")) return "warn";
+  return "good";
+}
+
+function summaryText(items: QualityItem[]) {
+  const ready = items.filter((item) => item.tone === "good" || item.tone === "info").length;
+  const warning = items.filter((item) => item.tone === "warn").length;
+  const missing = items.filter((item) => item.tone === "missing").length;
+  return `${ready} ready · ${warning} watch · ${missing} missing`;
+}
+
 export default function DataQualityPanel({ data, mode, updatedAt }: DataQualityPanelProps) {
   const items = [vesselStatus(data), chmarlStatus(data), portStatus(data), weatherStatus(data), sampleStatus()];
+  const tone = overallTone(items);
 
   return (
-    <section className="data-quality-panel" aria-label="Data quality and provider readiness">
-      <div className="data-quality-summary">
+    <details className={`data-quality-panel compact-provider-panel ${tone}`} aria-label="Data quality and provider readiness">
+      <summary className="data-quality-summary">
         <span>Provider quality</span>
         <strong>{mode}</strong>
-        <small>Updated {updatedAt}</small>
-      </div>
+        <small>{summaryText(items)} · updated {updatedAt}</small>
+      </summary>
       <div className="data-quality-items">
         {items.map((item) => (
           <article key={item.label} className={`data-quality-item ${item.tone}`}>
@@ -147,6 +161,6 @@ export default function DataQualityPanel({ data, mode, updatedAt }: DataQualityP
           </article>
         ))}
       </div>
-    </section>
+    </details>
   );
 }
