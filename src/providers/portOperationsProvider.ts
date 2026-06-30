@@ -51,11 +51,22 @@ function kplerLikeDemoPortOperations(): PortOperationsFeed {
   const timestamp = new Date(bucket * 15 * 60 * 1000).toISOString();
   const portEvents: PortEvent[] = [];
   const portUtilization: PortUtilizationDatum[] = [];
+  const queueStatus: PortQueueStatus[] = [];
 
   for (let portIndex = 0; portIndex < demoPorts.length; portIndex += 1) {
     const portId = demoPorts[portIndex];
     const eventCount = ((bucket + portIndex * 3) % 4) + 1;
-    portUtilization.push({ name: portId, value: demoUtilizationPct(eventCount, portIndex, bucket) });
+    const utilizationPct = demoUtilizationPct(eventCount, portIndex, bucket);
+    const queueLength = Math.max(0, Math.round((utilizationPct - 45) / 12));
+    portUtilization.push({ name: portId, value: utilizationPct });
+    queueStatus.push({
+      portId,
+      berthId: `${portId.slice(0, 3).toUpperCase()}-ALL`,
+      queueLength,
+      waitingVessels: Math.max(queueLength, eventCount - 1),
+      utilizationPct,
+      timestamp,
+    });
 
     for (let index = 0; index < eventCount; index += 1) {
       const eventType = demoEventTypes[(bucket + portIndex + index) % demoEventTypes.length];
@@ -75,7 +86,7 @@ function kplerLikeDemoPortOperations(): PortOperationsFeed {
     }
   }
 
-  return { source: "demo", portEvents, portUtilization, queueStatus: [] };
+  return { source: "demo", portEvents, portUtilization, queueStatus };
 }
 
 function normalizeEventType(value: unknown): PortEvent["eventType"] {
