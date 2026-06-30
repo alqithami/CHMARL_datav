@@ -27,7 +27,7 @@ export type InsightFocusPanel =
   | "port-queue";
 
 const insightModes = [
-  { id: "overview", label: "Overview", description: "Core CH-MARL, fleet, weather, and port status." },
+  { id: "overview", label: "Overview", description: "Only the highest-signal CH-MARL, queue, and fleet state." },
   { id: "chmarl", label: "CH-MARL", description: "Reward, actions, fairness, constraints, and decisions." },
   { id: "operations", label: "Operations", description: "Queue, berth, port events, weather, and fleet data quality." },
   { id: "risk", label: "Risk", description: "Vessel, weather, and constraint pressure views." },
@@ -48,10 +48,10 @@ export type OperationalInsightStripProps = {
 };
 
 function visibleCardsFor(mode: InsightMode): InsightFocusPanel[] {
-  if (mode === "chmarl") return ["chmarl-components", "chmarl-actions", "chmarl-fairness", "chmarl-constraints", "chmarl-decisions"];
-  if (mode === "operations") return ["port-queue", "port-events", "weather", "fleet"];
-  if (mode === "risk") return ["vessel-risk", "weather-risk", "chmarl-constraints", "port-queue"];
-  return ["chmarl-components", "chmarl-constraints", "weather", "fleet", "port-events"];
+  if (mode === "chmarl") return ["chmarl-components", "chmarl-actions", "chmarl-fairness", "chmarl-constraints"];
+  if (mode === "operations") return ["port-queue", "port-events", "weather"];
+  if (mode === "risk") return ["vessel-risk", "weather-risk", "chmarl-constraints"];
+  return ["chmarl-components", "port-queue", "fleet"];
 }
 
 export default function OperationalInsightStrip({ data, onFocus }: OperationalInsightStripProps) {
