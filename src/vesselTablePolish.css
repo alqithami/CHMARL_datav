@@ -1,0 +1,104 @@
+.vessel-table-shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 7px;
+  height: 100%;
+  min-height: 0;
+}
+
+.vessel-table-toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(100px, 140px));
+  gap: 6px;
+}
+
+.vessel-table-toolbar input,
+.vessel-table-toolbar select {
+  min-width: 0;
+  border: 1px solid rgba(141, 220, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(3, 13, 24, 0.52);
+  color: #e6f7ff;
+  padding: 7px 8px;
+  font-size: 11px;
+  font-weight: 750;
+  outline: none;
+}
+
+.vessel-table-toolbar input:focus,
+.vessel-table-toolbar select:focus {
+  border-color: rgba(101, 228, 203, 0.58);
+  box-shadow: 0 0 0 2px rgba(101, 228, 203, 0.10);
+}
+
+.vessel-table-summary,
+.vessel-table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: rgba(230, 247, 255, 0.60);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.vessel-table-summary span,
+.vessel-table-pagination span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vessel-table-pagination {
+  justify-content: flex-end;
+}
+
+.vessel-table-pagination button {
+  border: 1px solid rgba(141, 220, 255, 0.20);
+  border-radius: 999px;
+  background: rgba(141, 220, 255, 0.08);
+  color: #dffcff;
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.vessel-table-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.vessel-table-empty {
+  padding: 22px 10px !important;
+  color: rgba(230, 247, 255, 0.58);
+  font-weight: 800;
+  text-align: center !important;
+}
+
+.vessel-table td:nth-child(6),
+.vessel-table td:nth-child(7) {
+  color: rgba(230, 247, 255, 0.70);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .vessel-table-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 540px) {
+  .vessel-table-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .vessel-table-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
