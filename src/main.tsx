@@ -13,6 +13,7 @@ import "./mapRailControls.css";
 import "./professionalLayout.css";
 import "./insightPanels.css";
 import "./uiClutterPolish.css";
+import "./mapMarkerPolish.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
