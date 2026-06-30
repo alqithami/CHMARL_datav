@@ -14,8 +14,15 @@ import RewardTrend from "./charts/RewardTrend";
 import ShipScene from "./ShipScene";
 import VesselSpeedProfile from "./charts/VesselSpeedProfile";
 import VesselTable from "./VesselTable";
+import ChmarlConstraintLedger from "./insights/ChmarlConstraintLedger";
+import ChmarlDecisionTimeline from "./insights/ChmarlDecisionTimeline";
+import ChmarlRewardComponents from "./insights/ChmarlRewardComponents";
+import FleetOperationalSummary from "./insights/FleetOperationalSummary";
+import MarineWeatherOverview from "./insights/MarineWeatherOverview";
+import OperationalInsightStrip, { type InsightFocusPanel } from "./insights/OperationalInsightStrip";
+import PortEventFeed from "./insights/PortEventFeed";
 
-type FocusPanel = "reward" | "constraints" | "scene" | "ports" | "watchlist" | "vessels";
+type FocusPanel = "reward" | "constraints" | "scene" | "ports" | "watchlist" | "vessels" | InsightFocusPanel;
 type LoadStatus = "loading" | "refreshing" | DashboardDataSource;
 
 const allowScenarioSimulation = import.meta.env.VITE_ALLOW_SAMPLE_DATA === "true";
@@ -99,6 +106,14 @@ function maxWaveHeight(data: DashboardData) {
   return Math.max(...waveHeights);
 }
 
+function maxWindSpeed(data: DashboardData) {
+  const winds = data.weatherPoints
+    .map((point) => point.windSpeedMs)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  if (winds.length === 0) return undefined;
+  return Math.max(...winds);
+}
+
 function buildOperationalMetrics(data: DashboardData): Metric[] {
   const vesselCount = data.vessels.length;
   const watchCount = countStatus(data.vessels, "Watch");
@@ -109,6 +124,7 @@ function buildOperationalMetrics(data: DashboardData): Metric[] {
   const feasibleRatio = vesselCount === 0 ? 1 : Math.max(0, (vesselCount - constrainedCount) / vesselCount);
   const external = isExternalSource(data.source);
   const seaState = maxWaveHeight(data);
+  const windState = maxWindSpeed(data);
 
   return [
     { label: "Tracked vessels", value: String(vesselCount), trend: sourceLabel(data.source) },
@@ -130,7 +146,9 @@ function buildOperationalMetrics(data: DashboardData): Metric[] {
     },
     seaState !== undefined
       ? { label: "Sea state", value: `${seaState.toFixed(1)} m`, trend: `${weatherSourceLabel(data.weatherSource)} wave height` }
-      : { label: "Movement tracks", value: String(trackCount), trend: "vessels with trail history" },
+      : windState !== undefined
+        ? { label: "Wind state", value: `${windState.toFixed(1)} m/s`, trend: `${weatherSourceLabel(data.weatherSource)} forecast fallback` }
+        : { label: "Movement tracks", value: String(trackCount), trend: "vessels with trail history" },
   ];
 }
 
@@ -303,17 +321,18 @@ export default function DashboardShell() {
     : <PortOpsSetup />;
 
   const focusContent = (() => {
-    if (focusPanel === "reward") {
-      return {
-        title: primaryPanelTitle,
-        content: chmarlRuntimeActive || !liveDataActive ? <RewardTrend data={dashboardData.rewardTrend} /> : <VesselSpeedProfile vessels={dashboardData.vessels} />,
-      };
-    }
+    if (focusPanel === "reward") return { title: primaryPanelTitle, content: chmarlRuntimeActive || !liveDataActive ? <RewardTrend data={dashboardData.rewardTrend} /> : <VesselSpeedProfile vessels={dashboardData.vessels} /> };
     if (focusPanel === "constraints") return { title: "Operational Constraint Pressure", content: <ConstraintChart data={dashboardData.constraintPressure} /> };
     if (focusPanel === "scene") return { title: "Maritime Operations Map", content: <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} expanded /> };
     if (focusPanel === "ports") return { title: portPanelTitle, content: portPanelContent };
     if (focusPanel === "watchlist") return { title: "Operational Watchlist", content: <OperationalWatchlist data={dashboardData} scenarioId={selectedScenarioId} /> };
     if (focusPanel === "vessels") return { title: "Vessel State Table", content: <VesselTable vessels={dashboardData.vessels} /> };
+    if (focusPanel === "chmarl-components") return { title: "CH-MARL Reward Components", content: <ChmarlRewardComponents steps={dashboardData.chmarlSteps} /> };
+    if (focusPanel === "chmarl-constraints") return { title: "CH-MARL Constraint Shield", content: <ChmarlConstraintLedger steps={dashboardData.chmarlSteps} /> };
+    if (focusPanel === "chmarl-decisions") return { title: "CH-MARL Decision Trace", content: <ChmarlDecisionTimeline steps={dashboardData.chmarlSteps} limit={24} /> };
+    if (focusPanel === "weather") return { title: "Marine Weather Coverage", content: <MarineWeatherOverview points={dashboardData.weatherPoints} /> };
+    if (focusPanel === "fleet") return { title: "Fleet Operational Summary", content: <FleetOperationalSummary vessels={dashboardData.vessels} /> };
+    if (focusPanel === "port-events") return { title: "Port Event Feed", content: <PortEventFeed events={dashboardData.portEvents} source={dashboardData.portOpsSource} /> };
     return null;
   })();
 
@@ -363,6 +382,8 @@ export default function DashboardShell() {
       <section className="metrics-grid" aria-label="Operational performance metrics">
         {dashboardData.metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}
       </section>
+
+      <OperationalInsightStrip data={dashboardData} onFocus={setFocusPanel} />
 
       <section className="dashboard-grid">
         <div className="left-stack">
