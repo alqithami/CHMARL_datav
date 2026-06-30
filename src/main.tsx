@@ -15,6 +15,7 @@ import "./insightPanels.css";
 import "./uiClutterPolish.css";
 import "./mapMarkerPolish.css";
 import "./vesselTablePolish.css";
+import "./metricTonePolish.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
