@@ -27,7 +27,7 @@ export type InsightFocusPanel =
   | "port-queue";
 
 const insightModes = [
-  { id: "overview", label: "Overview", description: "Only the highest-signal CH-MARL, queue, and fleet state." },
+  { id: "overview", label: "Overview", description: "Visible command summary: CH-MARL, queue, fleet, and weather context." },
   { id: "chmarl", label: "CH-MARL", description: "Reward, actions, fairness, constraints, and decisions." },
   { id: "operations", label: "Operations", description: "Queue, berth, port events, weather, and fleet data quality." },
   { id: "risk", label: "Risk", description: "Vessel, weather, and constraint pressure views." },
@@ -49,9 +49,9 @@ export type OperationalInsightStripProps = {
 
 function visibleCardsFor(mode: InsightMode): InsightFocusPanel[] {
   if (mode === "chmarl") return ["chmarl-components", "chmarl-actions", "chmarl-fairness", "chmarl-constraints"];
-  if (mode === "operations") return ["port-queue", "port-events", "weather"];
+  if (mode === "operations") return ["port-queue", "port-events", "weather", "fleet"];
   if (mode === "risk") return ["vessel-risk", "weather-risk", "chmarl-constraints"];
-  return ["chmarl-components", "port-queue", "fleet"];
+  return ["chmarl-components", "port-queue", "fleet", "weather"];
 }
 
 export default function OperationalInsightStrip({ data, onFocus }: OperationalInsightStripProps) {
@@ -64,11 +64,6 @@ export default function OperationalInsightStrip({ data, onFocus }: OperationalIn
   const weatherRiskCount = data.weatherPoints.filter((point) => (point.waveHeightM ?? 0) >= 1.5 || (point.windSpeedMs ?? 0) >= 10).length;
   const riskVessels = data.vessels.filter((vessel) => vessel.status !== "Nominal" || !Number.isFinite(vessel.latitude) || !Number.isFinite(vessel.longitude)).length;
   const activeMode = insightModes.find((item) => item.id === mode) ?? insightModes[0];
-  const drawerSummary = [
-    latestReward === undefined ? "reward pending" : `reward ${latestReward.toFixed(3)}`,
-    `${data.portQueueStatus.length} queue rows`,
-    `${data.vessels.length} vessels`,
-  ].join(" · ");
 
   const cardLibrary: Record<InsightFocusPanel, InsightCard> = {
     "chmarl-components": {
@@ -142,18 +137,10 @@ export default function OperationalInsightStrip({ data, onFocus }: OperationalIn
   const visibleCards = visibleCardsFor(mode).map((key) => cardLibrary[key]);
 
   return (
-    <details className="insight-section analysis-drawer" aria-label="Operational intelligence analysis drawer">
-      <summary className="analysis-drawer-summary">
-        <div>
-          <span className="insight-kicker">Analysis drawer</span>
-          <strong>{drawerSummary}</strong>
-          <small>Open for CH-MARL, operations, weather, and risk panels.</small>
-        </div>
-        <span className="analysis-drawer-cta">Open analysis</span>
-      </summary>
+    <section className="insight-section executive-insight-strip" aria-label="Operational intelligence panels">
       <header className="insight-toolbar">
         <div>
-          <span className="insight-kicker">Operational insight deck</span>
+          <span className="insight-kicker">Operational command summary</span>
           <strong>{activeMode.label}</strong>
           <small>{activeMode.description}</small>
         </div>
@@ -178,6 +165,6 @@ export default function OperationalInsightStrip({ data, onFocus }: OperationalIn
           </PanelCard>
         ))}
       </div>
-    </details>
+    </section>
   );
 }
