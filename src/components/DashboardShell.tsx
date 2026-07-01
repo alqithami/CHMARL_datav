@@ -133,22 +133,22 @@ function buildOperationalMetrics(data: DashboardData): Metric[] {
 
   return [
     { label: "Tracked vessels", value: String(vesselCount), trend: sourceLabel(data.source) },
-    { label: "Port events", value: String(data.portEvents.length), trend: portEventsTrend(data) },
-    {
-      label: "Feasibility score",
-      value: vesselCount === 0 ? "n/a" : `${(feasibleRatio * 100).toFixed(1)}%`,
-      trend: vesselCount === 0 ? "waiting for vessel rows" : `${constrainedCount} constrained / ${watchCount} watch`,
-    },
     {
       label: "Reward index",
       value: latestReward === undefined ? "n/a" : latestReward.toFixed(3),
       trend: chmarlSourceLabel(data.chmarlSource),
     },
     {
+      label: "Feasibility score",
+      value: vesselCount === 0 ? "n/a" : `${(feasibleRatio * 100).toFixed(1)}%`,
+      trend: vesselCount === 0 ? "waiting for vessel rows" : `${constrainedCount} constrained / ${watchCount} watch`,
+    },
+    {
       label: external ? "Avg AIS SOG" : "Avg vessel speed",
       value: speed === undefined ? "n/a" : `${speed.toFixed(1)} kn`,
       trend: external ? "from AIS rows with valid SOG" : "from current vessel state rows",
     },
+    { label: "Port events", value: String(data.portEvents.length), trend: portEventsTrend(data) },
     seaState !== undefined
       ? { label: "Sea state", value: `${seaState.toFixed(1)} m`, trend: `${weatherSourceLabel(data.weatherSource)} wave height` }
       : windState !== undefined
@@ -347,12 +347,12 @@ export default function DashboardShell() {
   })();
 
   return (
-    <main className="app-shell">
+    <main className="app-shell executive-shell">
       <header className="topbar">
         <div>
           <div className="brand-kicker">CH-MARL Maritime Logistics</div>
           <h1 className="brand-title">Operational Vessel Intelligence Dashboard</h1>
-          <p className="brand-subtitle">Vessel, port-event, marine-weather, and CH-MARL decision view for scenario evaluation and operational evidence.</p>
+          <p className="brand-subtitle">Map-first view for vessel state, CH-MARL reward, queue pressure, and operational action.</p>
         </div>
         <div className="scenario-bar" aria-label="Scenario controls">
           <div className="status-control-group" aria-label="Data status controls">
@@ -389,39 +389,44 @@ export default function DashboardShell() {
 
       <DataQualityPanel data={dashboardData} mode={selectedScenarioId} updatedAt={lastUpdated} />
 
-      <section className="metrics-grid" aria-label="Operational performance metrics">
-        {dashboardData.metrics.map((metric) => <MetricCard key={metric.label} metric={metric} />)}
+      <section className="metrics-grid executive-kpis" aria-label="Operational performance metrics">
+        {dashboardData.metrics.slice(0, 4).map((metric) => <MetricCard key={metric.label} metric={metric} />)}
       </section>
 
-      <OperationalInsightStrip data={dashboardData} onFocus={setFocusPanel} />
-
-      <section className="dashboard-grid">
-        <div className="left-stack">
-          <PanelCard title={primaryPanelTitle} tag={primaryPanelTag} onFocus={() => setFocusPanel("reward")}>
-            {chmarlRuntimeActive || !liveDataActive ? <RewardTrend data={dashboardData.rewardTrend} /> : <VesselSpeedProfile vessels={dashboardData.vessels} />}
-          </PanelCard>
-          <PanelCard title="Operational Constraint Pressure" tag="constraints" onFocus={() => setFocusPanel("constraints")}>
-            <ConstraintChart data={dashboardData.constraintPressure} />
-          </PanelCard>
-        </div>
-
-        <PanelCard title="Maritime Operations Map" tag="vessel map" className="scene-panel" onFocus={() => setFocusPanel("scene")}> 
+      <section className="executive-command-grid" aria-label="Executive maritime command view">
+        <PanelCard title="Maritime Operations Map" tag="primary view" className="scene-panel executive-map-panel" onFocus={() => setFocusPanel("scene")}> 
           <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} />
         </PanelCard>
-
-        <div className="right-stack">
-          <PanelCard title={portPanelTitle} tag={portPanelTag} onFocus={() => setFocusPanel("ports")}>
-            {portPanelContent}
-          </PanelCard>
+        <aside className="executive-side-panel">
           <PanelCard title="Operational Watchlist" tag="actions" onFocus={() => setFocusPanel("watchlist")}>
             <OperationalWatchlist data={dashboardData} scenarioId={selectedScenarioId} />
           </PanelCard>
-        </div>
-
-        <PanelCard title="Vessel State Table" tag="feed" onFocus={() => setFocusPanel("vessels")}>
-          <VesselTable vessels={dashboardData.vessels} />
-        </PanelCard>
+        </aside>
       </section>
+
+      <details className="analysis-drawer">
+        <summary>
+          <span>Analysis workspace</span>
+          <strong>Open charts, tables, queue board and CH-MARL detail</strong>
+        </summary>
+        <div className="analysis-drawer-content">
+          <OperationalInsightStrip data={dashboardData} onFocus={setFocusPanel} />
+          <section className="analysis-panel-grid" aria-label="Detailed analysis panels">
+            <PanelCard title={primaryPanelTitle} tag={primaryPanelTag} onFocus={() => setFocusPanel("reward")}>
+              {chmarlRuntimeActive || !liveDataActive ? <RewardTrend data={dashboardData.rewardTrend} /> : <VesselSpeedProfile vessels={dashboardData.vessels} />}
+            </PanelCard>
+            <PanelCard title="Operational Constraint Pressure" tag="constraints" onFocus={() => setFocusPanel("constraints")}>
+              <ConstraintChart data={dashboardData.constraintPressure} />
+            </PanelCard>
+            <PanelCard title={portPanelTitle} tag={portPanelTag} onFocus={() => setFocusPanel("ports")}>
+              {portPanelContent}
+            </PanelCard>
+            <PanelCard title="Vessel State Table" tag="feed" onFocus={() => setFocusPanel("vessels")}>
+              <VesselTable vessels={dashboardData.vessels} />
+            </PanelCard>
+          </section>
+        </div>
+      </details>
 
       {focusContent && (
         <FocusModal title={focusContent.title} onClose={() => setFocusPanel(null)}>
