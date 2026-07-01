@@ -64,6 +64,11 @@ export default function OperationalInsightStrip({ data, onFocus }: OperationalIn
   const weatherRiskCount = data.weatherPoints.filter((point) => (point.waveHeightM ?? 0) >= 1.5 || (point.windSpeedMs ?? 0) >= 10).length;
   const riskVessels = data.vessels.filter((vessel) => vessel.status !== "Nominal" || !Number.isFinite(vessel.latitude) || !Number.isFinite(vessel.longitude)).length;
   const activeMode = insightModes.find((item) => item.id === mode) ?? insightModes[0];
+  const drawerSummary = [
+    latestReward === undefined ? "reward pending" : `reward ${latestReward.toFixed(3)}`,
+    `${data.portQueueStatus.length} queue rows`,
+    `${data.vessels.length} vessels`,
+  ].join(" · ");
 
   const cardLibrary: Record<InsightFocusPanel, InsightCard> = {
     "chmarl-components": {
@@ -137,7 +142,15 @@ export default function OperationalInsightStrip({ data, onFocus }: OperationalIn
   const visibleCards = visibleCardsFor(mode).map((key) => cardLibrary[key]);
 
   return (
-    <section className="insight-section" aria-label="Operational intelligence panels">
+    <details className="insight-section analysis-drawer" aria-label="Operational intelligence analysis drawer">
+      <summary className="analysis-drawer-summary">
+        <div>
+          <span className="insight-kicker">Analysis drawer</span>
+          <strong>{drawerSummary}</strong>
+          <small>Open for CH-MARL, operations, weather, and risk panels.</small>
+        </div>
+        <span className="analysis-drawer-cta">Open analysis</span>
+      </summary>
       <header className="insight-toolbar">
         <div>
           <span className="insight-kicker">Operational insight deck</span>
@@ -165,6 +178,6 @@ export default function OperationalInsightStrip({ data, onFocus }: OperationalIn
           </PanelCard>
         ))}
       </div>
-    </section>
+    </details>
   );
 }
