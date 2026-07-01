@@ -220,6 +220,9 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
   const [movingOnly, setMovingOnly] = useState(false);
   const [staleOnly, setStaleOnly] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("latest");
+  const [showPorts, setShowPorts] = useState(true);
+  const [showEvents, setShowEvents] = useState(true);
+  const [showTrails, setShowTrails] = useState(false);
   const sceneVessels = vessels ?? fallbackVessels;
   const query = searchQuery.trim().toLowerCase();
   const visibleVessels = useMemo(() => {
@@ -305,18 +308,23 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
         <svg className="regional-map-svg tile-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
           {tileGrid.map((tile) => <image key={tile.key} href={tile.href} x={tile.x} y={tile.y} width={tile.width} height={tile.height} opacity="0.78" preserveAspectRatio="none" />)}
           <rect x="0" y="0" width="100" height="100" fill="rgba(2, 10, 20, 0.18)" />
-          {visibleVessels.map((vessel) => {
+          {showTrails && visibleVessels.map((vessel) => {
             const trailPath = buildTrailPath(vessel, mapCenter, mapZoom);
             return trailPath ? <path key={`${vessel.id}-trail`} className={`vessel-trail ${statusClass(vessel.status)}`} d={trailPath} fill="none" /> : null;
           })}
         </svg>
 
-        {Object.entries(portGeo).map(([name, geo]) => {
+        {showPorts && Object.entries(portGeo).map(([name, geo]) => {
           const point = projectGeo(geo, mapCenter, mapZoom);
-          return <div key={name} className="html-port-marker" style={{ left: `${point.left}%`, top: `${point.top}%` }}><span className="html-port-dot" /><span className="html-port-name">{name}</span></div>;
+          return (
+            <button key={name} type="button" className="html-port-marker" style={{ left: `${point.left}%`, top: `${point.top}%` }} title={name} aria-label={`Center map on ${name}`} onClick={() => setManualCenter(geo)}>
+              <span className="html-port-dot" />
+              <span className="html-port-name">{name}</span>
+            </button>
+          );
         })}
 
-        {eventMarkers.map(({ event, left, top }) => <div key={event.eventId} className={`port-event-marker ${eventClass(event.eventType)}`} style={{ left: `${left}%`, top: `${top}%` }} title={`${labelForEvent(event.eventType)} · ${event.portId}`}><span /></div>)}
+        {showEvents && eventMarkers.map(({ event, left, top }) => <div key={event.eventId} className={`port-event-marker ${eventClass(event.eventType)}`} style={{ left: `${left}%`, top: `${top}%` }} title={`${labelForEvent(event.eventType)} · ${event.portId}`}><span /></div>)}
 
         {shipMarkers.map((ship) => <button key={ship.vessel.id} type="button" aria-label={`Inspect ${ship.vessel.name}`} title={`Inspect ${ship.vessel.name}`} className={`ship-figurine ${ship.tone} ${ship.vessel.id === selectedShipId ? "selected" : ""}`} style={{ left: `${ship.left}%`, top: `${ship.top}%`, transform: `translate(-50%, -50%) rotate(${ship.heading}deg)` }} onClick={() => selectVessel(ship.vessel.id)} onFocus={() => setHoveredShipId(ship.vessel.id)} onMouseEnter={() => setHoveredShipId(ship.vessel.id)} onBlur={() => setHoveredShipId("")} onMouseLeave={() => setHoveredShipId("")}><span /></button>)}
       </div>
@@ -328,6 +336,9 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
         <button type="button" onClick={() => setMapZoom((zoom) => Math.max(MIN_ZOOM, zoom - 1))}>−</button>
         <button type="button" onClick={resetOverview}>Regional overview</button>
         <button type="button" onClick={fitVisibleVessels}>Fit vessels</button>
+        <button type="button" className={showPorts ? "active layer-toggle" : "layer-toggle"} onClick={() => setShowPorts((value) => !value)}>Ports</button>
+        <button type="button" className={showEvents ? "active layer-toggle" : "layer-toggle"} onClick={() => setShowEvents((value) => !value)}>Events</button>
+        <button type="button" className={showTrails ? "active layer-toggle" : "layer-toggle"} onClick={() => setShowTrails((value) => !value)}>Trails</button>
         <span>{visibleVessels.length}/{sceneVessels.length} vessels</span>
         {expanded && <span>{eventMarkers.length} events</span>}
         <span>Zoom {mapZoom}</span>
