@@ -393,40 +393,35 @@ export default function DashboardShell() {
         {dashboardData.metrics.slice(0, 4).map((metric) => <MetricCard key={metric.label} metric={metric} />)}
       </section>
 
-      <section className="executive-command-grid" aria-label="Executive maritime command view">
+      <OperationalInsightStrip data={dashboardData} onFocus={setFocusPanel} />
+
+      <section className="dashboard-grid" aria-label="Executive maritime command view">
+        <div className="left-stack">
+          <PanelCard title={primaryPanelTitle} tag={primaryPanelTag} onFocus={() => setFocusPanel("reward")}>
+            {chmarlRuntimeActive || !liveDataActive ? <RewardTrend data={dashboardData.rewardTrend} /> : <VesselSpeedProfile vessels={dashboardData.vessels} />}
+          </PanelCard>
+          <PanelCard title="Operational Constraint Pressure" tag="constraints" onFocus={() => setFocusPanel("constraints")}>
+            <ConstraintChart data={dashboardData.constraintPressure} />
+          </PanelCard>
+        </div>
+
         <PanelCard title="Maritime Operations Map" tag="primary view" className="scene-panel executive-map-panel" onFocus={() => setFocusPanel("scene")}> 
           <ShipScene vessels={dashboardData.vessels} portEvents={dashboardData.portEvents} />
         </PanelCard>
-        <aside className="executive-side-panel">
+
+        <div className="right-stack">
+          <PanelCard title={portPanelTitle} tag={portPanelTag} onFocus={() => setFocusPanel("ports")}>
+            {portPanelContent}
+          </PanelCard>
           <PanelCard title="Operational Watchlist" tag="actions" onFocus={() => setFocusPanel("watchlist")}>
             <OperationalWatchlist data={dashboardData} scenarioId={selectedScenarioId} />
           </PanelCard>
-        </aside>
-      </section>
-
-      <details className="analysis-drawer">
-        <summary>
-          <span>Analysis workspace</span>
-          <strong>Open charts, tables, queue board and CH-MARL detail</strong>
-        </summary>
-        <div className="analysis-drawer-content">
-          <OperationalInsightStrip data={dashboardData} onFocus={setFocusPanel} />
-          <section className="analysis-panel-grid" aria-label="Detailed analysis panels">
-            <PanelCard title={primaryPanelTitle} tag={primaryPanelTag} onFocus={() => setFocusPanel("reward")}>
-              {chmarlRuntimeActive || !liveDataActive ? <RewardTrend data={dashboardData.rewardTrend} /> : <VesselSpeedProfile vessels={dashboardData.vessels} />}
-            </PanelCard>
-            <PanelCard title="Operational Constraint Pressure" tag="constraints" onFocus={() => setFocusPanel("constraints")}>
-              <ConstraintChart data={dashboardData.constraintPressure} />
-            </PanelCard>
-            <PanelCard title={portPanelTitle} tag={portPanelTag} onFocus={() => setFocusPanel("ports")}>
-              {portPanelContent}
-            </PanelCard>
-            <PanelCard title="Vessel State Table" tag="feed" onFocus={() => setFocusPanel("vessels")}>
-              <VesselTable vessels={dashboardData.vessels} />
-            </PanelCard>
-          </section>
         </div>
-      </details>
+
+        <PanelCard title="Vessel State Table" tag="feed" onFocus={() => setFocusPanel("vessels")}>
+          <VesselTable vessels={dashboardData.vessels} />
+        </PanelCard>
+      </section>
 
       {focusContent && (
         <FocusModal title={focusContent.title} onClose={() => setFocusPanel(null)}>
