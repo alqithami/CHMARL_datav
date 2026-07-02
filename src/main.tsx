@@ -18,6 +18,7 @@ import "./vesselTablePolish.css";
 import "./metricTonePolish.css";
 import "./executiveDeclutter.css";
 import "./mawaniDesignSystem.css";
+import "./mawaniCommandSummary.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
