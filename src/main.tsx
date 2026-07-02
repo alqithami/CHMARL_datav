@@ -17,6 +17,7 @@ import "./mapMarkerPolish.css";
 import "./vesselTablePolish.css";
 import "./metricTonePolish.css";
 import "./executiveDeclutter.css";
+import "./mawaniDesignSystem.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
