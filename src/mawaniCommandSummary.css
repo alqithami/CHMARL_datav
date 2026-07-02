@@ -1,0 +1,157 @@
+/* Safe compact MAWANI command layout refinement.
+ * No global overflow locks, no app mount changes, no hidden important data.
+ */
+
+.provider-quality-matrix {
+  display: grid !important;
+  grid-template-columns: 14rem minmax(0, 1fr) !important;
+  align-items: stretch;
+  gap: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.provider-quality-matrix .data-quality-summary {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 0.2rem !important;
+  padding: 0.5rem !important;
+}
+
+.provider-quality-matrix .data-quality-items {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 0.4rem !important;
+}
+
+.provider-quality-matrix .data-quality-item {
+  min-height: 3.4rem !important;
+  padding: 0.5rem 0.6rem !important;
+}
+
+.command-summary-strip {
+  display: grid;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.command-summary-header {
+  display: grid;
+  align-content: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--mawani-border-subtle, rgba(141, 220, 255, 0.12));
+  background: var(--mawani-surface, rgba(3, 13, 24, 0.62));
+}
+
+.command-summary-header span,
+.command-summary-card span {
+  color: var(--mawani-aqua-50, #00dbe7);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.command-summary-header strong {
+  color: var(--mawani-text-primary, #f4f4f4);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.command-summary-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.command-summary-tabs button {
+  min-height: 1.7rem !important;
+  padding: 0.25rem 0.55rem !important;
+  border: 1px solid var(--mawani-border-strong, #6f6f6f) !important;
+  background: transparent !important;
+  color: var(--mawani-text-secondary, #c6c6c6) !important;
+  font-size: 0.7rem !important;
+}
+
+.command-summary-tabs button.active {
+  border-color: var(--mawani-aqua-50, #00dbe7) !important;
+  background: var(--mawani-teal-80, #004552) !important;
+  color: #fff !important;
+}
+
+.command-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.command-summary-card {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  gap: 0.15rem 0.5rem !important;
+  min-height: 4.4rem !important;
+  padding: 0.55rem 0.65rem !important;
+  border: 1px solid var(--mawani-border-subtle, rgba(141, 220, 255, 0.12)) !important;
+  background: var(--mawani-surface, rgba(3, 13, 24, 0.62)) !important;
+  text-align: left;
+}
+
+.command-summary-card strong {
+  grid-column: 1;
+  color: var(--mawani-text-primary, #f4f4f4) !important;
+  font-size: 1.18rem !important;
+  font-weight: 300 !important;
+  line-height: 1.1;
+}
+
+.command-summary-card small {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--mawani-text-helper, #8d8d8d) !important;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-summary-card::after {
+  content: "";
+  justify-self: end;
+  grid-column: 2;
+  grid-row: 1 / 3;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-top: 0.35rem;
+  background: var(--mawani-info, #284291);
+}
+
+.command-summary-card.good::after { background: var(--mawani-success, #24a148); }
+.command-summary-card.warning::after { background: var(--mawani-warning, #ff6800); }
+.command-summary-card.critical::after { background: var(--mawani-error, #da1e28); }
+.command-summary-card.missing::after { background: var(--mawani-text-helper, #8d8d8d); }
+
+@media (min-width: 1280px) {
+  .dashboard-grid {
+    grid-template-columns: 255px minmax(560px, 1fr) 320px !important;
+    min-height: 500px !important;
+    height: calc(100vh - 320px) !important;
+  }
+
+  .insight-grid .panel-card {
+    min-height: 0 !important;
+  }
+}
+
+@media (max-width: 1280px) {
+  .provider-quality-matrix,
+  .command-summary-strip {
+    grid-template-columns: 1fr !important;
+  }
+
+  .provider-quality-matrix .data-quality-items,
+  .command-summary-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
