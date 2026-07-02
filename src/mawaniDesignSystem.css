@@ -1,0 +1,332 @@
+/*
+ * MAWANI Design System override layer.
+ * Source: MAWANI design system, built on IBM Carbon v11 with MAWANI teal/aqua, IBM Plex, dark operator UI,
+ * Carbon semantic status colours, and no decorative gradients.
+ */
+
+:root {
+  color-scheme: dark;
+  --mawani-bg: #161616;
+  --mawani-surface: #262626;
+  --mawani-surface-raised: #393939;
+  --mawani-surface-hover: #474747;
+  --mawani-border-subtle: #393939;
+  --mawani-border-strong: #6f6f6f;
+  --mawani-text-primary: #f4f4f4;
+  --mawani-text-secondary: #c6c6c6;
+  --mawani-text-helper: #8d8d8d;
+  --mawani-teal-70: #005d6c;
+  --mawani-teal-80: #004552;
+  --mawani-teal-90: #002f38;
+  --mawani-aqua-50: #00b8c8;
+  --mawani-aqua-60: #009aa8;
+  --mawani-ai-accent: #00dbe7;
+  --mawani-success: #24a148;
+  --mawani-warning: #ff6800;
+  --mawani-error: #da1e28;
+  --mawani-info: #284291;
+  --mawani-radius: 0;
+  --mawani-font: "IBM Plex Sans", "IBM Plex Sans Arabic", "Noto Sans Arabic", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mawani-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  background: var(--mawani-bg) !important;
+  color: var(--mawani-text-primary);
+  font-family: var(--mawani-font);
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--mawani-font);
+}
+
+.app-shell,
+.executive-shell,
+.topbar,
+.scenario-bar,
+.data-quality-panel,
+.panel-card,
+.metric-card,
+.insight-toolbar,
+.analysis-drawer-summary,
+.watchlist-recommendation,
+.watchlist-item,
+.port-ops-setup,
+.ship-inspector-card,
+.expanded-map-rail,
+.expanded-rail-section,
+.vessel-table-toolbar input,
+.vessel-table-toolbar select,
+.vessel-table-pagination button,
+.tile-map-controls,
+.tile-filter-bar,
+.actions-menu-panel {
+  border-radius: var(--mawani-radius) !important;
+  box-shadow: none !important;
+  background-image: none !important;
+}
+
+.app-shell {
+  background: var(--mawani-bg) !important;
+}
+
+.topbar,
+.scenario-bar,
+.data-quality-panel,
+.panel-card,
+.metric-card,
+.insight-toolbar,
+.analysis-drawer-summary,
+.port-ops-setup,
+.ship-inspector-card,
+.expanded-map-rail,
+.expanded-rail-section,
+.actions-menu-panel {
+  background: var(--mawani-surface) !important;
+  border: 1px solid var(--mawani-border-subtle) !important;
+}
+
+.panel-card::before,
+.metric-card::before {
+  display: none !important;
+}
+
+.brand-kicker,
+.insight-kicker,
+.metric-label,
+.panel-tag,
+.data-quality-summary span,
+.data-quality-item span,
+.watchlist-recommendation span,
+.watchlist-item span,
+.insight-panel-summary span,
+.ship-inspector-kicker,
+.rail-section-header span {
+  color: var(--mawani-aqua-50) !important;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.brand-title,
+.panel-title,
+.metric-value,
+.insight-panel-summary strong,
+.data-quality-summary strong,
+.data-quality-item strong,
+.watchlist-recommendation strong,
+.watchlist-item strong,
+.ship-inspector-header h3 {
+  color: var(--mawani-text-primary) !important;
+}
+
+.brand-title,
+.metric-value,
+.insight-panel-summary strong,
+.data-quality-item strong {
+  font-weight: 300 !important;
+}
+
+.brand-subtitle,
+.metric-trend,
+.data-quality-summary small,
+.data-quality-item small,
+.insight-panel-summary small,
+.watchlist-item small,
+.watchlist-recommendation strong,
+.panel-card p,
+.port-ops-setup p,
+.rail-detail-list dd,
+.rail-detail-list dt {
+  color: var(--mawani-text-secondary) !important;
+}
+
+button,
+.pill,
+.panel-focus-button,
+.actions-menu summary,
+.actions-menu-panel button,
+.tile-map-controls button,
+.tile-filter-bar button,
+.insight-mode-tabs button,
+.inline-filter-tabs button,
+.vessel-table-pagination button,
+.rail-action-button {
+  border-radius: var(--mawani-radius) !important;
+  border: 1px solid var(--mawani-border-strong) !important;
+  background: var(--mawani-surface-raised) !important;
+  color: var(--mawani-text-primary) !important;
+  box-shadow: none !important;
+}
+
+button:hover,
+.pill:hover,
+.panel-focus-button:hover,
+.actions-menu-panel button:hover,
+.tile-map-controls button:hover,
+.tile-filter-bar button:hover,
+.insight-mode-tabs button:hover,
+.inline-filter-tabs button:hover,
+.vessel-table-pagination button:hover,
+.rail-action-button:hover {
+  background: var(--mawani-surface-hover) !important;
+}
+
+.pill.active,
+.insight-mode-tabs button.active,
+.inline-filter-tabs button.active,
+.tile-map-controls button.layer-toggle.active,
+.tile-filter-bar button.active {
+  border-color: var(--mawani-aqua-50) !important;
+  background: var(--mawani-teal-80) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+.panel-tag,
+.data-pill,
+.status-chip,
+.ship-status,
+.analysis-drawer-cta {
+  border-radius: var(--mawani-radius) !important;
+  border: 1px solid var(--mawani-border-strong) !important;
+  background: var(--mawani-surface-raised) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+.panel-tag,
+.analysis-drawer-cta {
+  border-color: var(--mawani-ai-accent) !important;
+  color: var(--mawani-ai-accent) !important;
+}
+
+.metric-card-good,
+.data-quality-item.good,
+.watchlist-item.normal,
+.ship-status.nominal,
+.status-chip,
+.metric-card-good::after,
+.html-port-dot {
+  border-color: var(--mawani-success) !important;
+}
+
+.metric-card-good .metric-value,
+.metric-card-good .metric-trend,
+.data-quality-item.good strong,
+.watchlist-item.normal span,
+.ship-status.nominal,
+.status-chip {
+  color: var(--mawani-success) !important;
+}
+
+.metric-card-warn,
+.data-quality-item.warn,
+.watchlist-item.warning,
+.ship-status.warning,
+.status-chip.warning {
+  border-color: var(--mawani-warning) !important;
+}
+
+.metric-card-warn .metric-value,
+.metric-card-warn .metric-trend,
+.data-quality-item.warn strong,
+.watchlist-item.warning span,
+.ship-status.warning,
+.status-chip.warning {
+  color: var(--mawani-warning) !important;
+}
+
+.metric-card-missing,
+.data-quality-item.missing,
+.watchlist-item.critical,
+.ship-status.alert,
+.status-chip.alert {
+  border-color: var(--mawani-error) !important;
+}
+
+.metric-card-missing .metric-value,
+.metric-card-missing .metric-trend,
+.data-quality-item.missing strong,
+.watchlist-item.critical span,
+.ship-status.alert,
+.status-chip.alert {
+  color: var(--mawani-error) !important;
+}
+
+.metric-card-info .metric-trend {
+  color: var(--mawani-info) !important;
+}
+
+.metric-card-good::after,
+.metric-card-warn::after,
+.metric-card-missing::after,
+.metric-card-info::after {
+  width: 0.5rem;
+  height: 0.5rem;
+  box-shadow: none !important;
+}
+
+.metric-card-good::after { background: var(--mawani-success) !important; }
+.metric-card-warn::after { background: var(--mawani-warning) !important; }
+.metric-card-missing::after { background: var(--mawani-error) !important; }
+.metric-card-info::after { background: var(--mawani-info) !important; }
+
+.watchlist-recommendation {
+  border-color: var(--mawani-ai-accent) !important;
+  background: rgba(0, 219, 231, 0.08) !important;
+}
+
+.watchlist-item,
+.constraint-ledger-row,
+.decision-timeline-card,
+.port-event-row,
+.weather-point-card,
+.fleet-summary-grid article,
+.port-queue-row,
+.action-plan-row,
+.fairness-row,
+.vessel-risk-row,
+.weather-risk-row {
+  background: var(--mawani-surface-raised) !important;
+  border-color: var(--mawani-border-subtle) !important;
+  border-radius: var(--mawani-radius) !important;
+}
+
+.chart-box,
+.insight-chart {
+  background: transparent !important;
+}
+
+.regional-map,
+.tile-map {
+  border-radius: var(--mawani-radius) !important;
+  border-color: var(--mawani-border-subtle) !important;
+}
+
+.vessel-trail,
+.constraint-meter span {
+  stroke: var(--mawani-aqua-50) !important;
+}
+
+.constraint-meter span {
+  background: var(--mawani-aqua-50) !important;
+}
+
+.ship-figurine span {
+  background: var(--mawani-aqua-50) !important;
+}
+
+.ship-figurine.yellow span { background: var(--mawani-warning) !important; }
+.ship-figurine.red span { background: var(--mawani-error) !important; }
+.ship-figurine.blue span { background: var(--mawani-info) !important; }
+
+code,
+.mono,
+.vessel-table td span,
+.rail-detail-list dd {
+  font-family: var(--mawani-mono);
+}
