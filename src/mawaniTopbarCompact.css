@@ -1,0 +1,253 @@
+/* Compact MAWANI/Carbon top bar
+ * Keeps the title readable without a surrounding box and replaces verbose status pills with icon-sized controls.
+ */
+
+.topbar {
+  display: grid !important;
+  grid-template-columns: minmax(26rem, 1fr) minmax(34rem, auto) !important;
+  align-items: start !important;
+  gap: 1rem !important;
+  margin-bottom: 0.5rem !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.topbar > div:first-child {
+  min-width: 0;
+}
+
+.brand-kicker {
+  color: var(--mawani-aqua-50, #00dbe7) !important;
+  font-size: 0.72rem !important;
+  line-height: 1 !important;
+  letter-spacing: 0.16em !important;
+}
+
+.brand-title {
+  margin: 0.18rem 0 0 !important;
+  color: var(--mawani-text-primary, #f4f4f4) !important;
+  font-size: clamp(1.65rem, 2vw, 2.25rem) !important;
+  font-weight: 300 !important;
+  line-height: 1.05 !important;
+}
+
+.brand-subtitle {
+  margin: 0.45rem 0 0 !important;
+  color: var(--mawani-text-secondary, #c6c6c6) !important;
+  font-size: 0.92rem !important;
+  line-height: 1.35 !important;
+}
+
+.scenario-bar {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-auto-rows: auto;
+  align-items: start !important;
+  justify-items: end !important;
+  gap: 0.4rem 0.55rem !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.status-control-group {
+  grid-column: 1 / -1;
+  display: flex !important;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.28rem !important;
+  min-width: 0;
+}
+
+.status-control-group .data-pill,
+.status-control-group > button.pill {
+  position: relative;
+  display: grid !important;
+  place-items: center !important;
+  width: 2rem !important;
+  min-width: 2rem !important;
+  height: 2rem !important;
+  min-height: 2rem !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  border: 1px solid var(--mawani-border-strong, #6f6f6f) !important;
+  background: var(--mawani-surface, #262626) !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  white-space: nowrap;
+}
+
+.status-control-group .data-pill::before,
+.status-control-group > button.pill::before {
+  color: var(--mawani-text-primary, #f4f4f4);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.status-control-group .data-pill:nth-child(1)::before { content: "DS"; }
+.status-control-group .data-pill:nth-child(2)::before { content: "AI"; }
+.status-control-group .data-pill:nth-child(3)::before { content: "PO"; }
+.status-control-group .data-pill:nth-child(4)::before { content: "WX"; }
+.status-control-group .data-pill:nth-child(5)::before { content: "MO"; }
+.status-control-group .data-pill:nth-child(6)::before { content: "UP"; }
+.status-control-group > button.pill::before { content: "RF"; }
+
+.status-control-group .data-pill::after,
+.status-control-group > button.pill::after {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  display: none;
+  min-width: max-content;
+  max-width: 22rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--mawani-border-strong, #6f6f6f);
+  background: var(--mawani-surface-raised, #393939);
+  color: var(--mawani-text-primary, #f4f4f4);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.status-control-group .data-pill:nth-child(1)::after { content: "Data feed status"; }
+.status-control-group .data-pill:nth-child(2)::after { content: "CH-MARL runtime state"; }
+.status-control-group .data-pill:nth-child(3)::after { content: "Port operations feed"; }
+.status-control-group .data-pill:nth-child(4)::after { content: "Weather provider"; }
+.status-control-group .data-pill:nth-child(5)::after { content: "Selected scenario mode"; }
+.status-control-group .data-pill:nth-child(6)::after { content: "Last dashboard update time"; }
+.status-control-group > button.pill::after { content: "Refresh dashboard data"; }
+
+.status-control-group .data-pill:hover::after,
+.status-control-group .data-pill:focus-visible::after,
+.status-control-group > button.pill:hover::after,
+.status-control-group > button.pill:focus-visible::after {
+  display: block;
+}
+
+.status-control-group .data-pill:nth-child(1),
+.status-control-group .data-pill:nth-child(2),
+.status-control-group .data-pill:nth-child(3),
+.status-control-group .data-pill:nth-child(4) {
+  border-color: rgba(0, 219, 231, 0.38) !important;
+}
+
+.status-control-group .data-pill:nth-child(1)::before,
+.status-control-group .data-pill:nth-child(2)::before,
+.status-control-group .data-pill:nth-child(3)::before,
+.status-control-group .data-pill:nth-child(4)::before {
+  color: var(--mawani-aqua-50, #00dbe7);
+}
+
+.scenario-buttons {
+  grid-column: 1;
+  display: flex !important;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem !important;
+  min-width: 0;
+}
+
+.scenario-buttons .pill {
+  min-height: 2rem !important;
+  padding: 0.45rem 0.7rem !important;
+  border: 1px solid var(--mawani-border-strong, #6f6f6f) !important;
+  background: transparent !important;
+  color: var(--mawani-text-primary, #f4f4f4) !important;
+  font-size: 0.75rem !important;
+  font-weight: 750 !important;
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scenario-buttons .pill.active {
+  border-color: var(--mawani-aqua-50, #00dbe7) !important;
+  background: var(--mawani-teal-80, #004552) !important;
+  color: #ffffff !important;
+}
+
+.actions-menu {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end !important;
+  position: relative;
+}
+
+.actions-menu summary {
+  display: grid !important;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0 !important;
+  overflow: visible;
+  border: 1px solid var(--mawani-border-strong, #6f6f6f) !important;
+  background: var(--mawani-surface, #262626) !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  list-style: none;
+  cursor: pointer;
+}
+
+.actions-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.actions-menu summary::before {
+  content: "EX";
+  color: var(--mawani-text-primary, #f4f4f4);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.actions-menu summary::after {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  display: none;
+  min-width: max-content;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--mawani-border-strong, #6f6f6f);
+  background: var(--mawani-surface-raised, #393939);
+  color: var(--mawani-text-primary, #f4f4f4);
+  content: "Export reports and snapshots";
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.actions-menu summary:hover::after,
+.actions-menu summary:focus-visible::after {
+  display: block;
+}
+
+.actions-menu-panel {
+  right: 0 !important;
+  left: auto !important;
+  min-width: 12rem !important;
+}
+
+@media (max-width: 1180px) {
+  .topbar {
+    grid-template-columns: 1fr !important;
+  }
+
+  .scenario-bar {
+    justify-items: start !important;
+  }
+
+  .status-control-group,
+  .scenario-buttons {
+    justify-content: flex-start !important;
+  }
+}
