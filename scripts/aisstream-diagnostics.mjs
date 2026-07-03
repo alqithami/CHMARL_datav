@@ -21,6 +21,20 @@ function loadEnvFile(fileName) {
   }
 }
 
+function mergeBboxText(...values) {
+  const boxes = [];
+  const seen = new Set();
+  for (const value of values) {
+    for (const box of String(value ?? "").split("|")) {
+      const trimmed = box.trim();
+      if (!trimmed || seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      boxes.push(trimmed);
+    }
+  }
+  return boxes.join("|");
+}
+
 function parseBoundingBoxes(value) {
   return value.split("|").map((box) => {
     const corners = box.split(";").map((corner) => corner.split(",").map((item) => Number(item.trim())));
@@ -59,7 +73,9 @@ const focusedBbox = [
 
 const apiKey = process.env.AISSTREAM_API_KEY;
 const url = process.env.AISSTREAM_URL ?? "wss://stream.aisstream.io/v0/stream";
-const bboxText = process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "true" ? focusedBbox : (process.env.AISSTREAM_BBOX ?? regionalBbox);
+const baseBboxText = process.env.AISSTREAM_BBOX ?? regionalBbox;
+const appendSaudiBoxes = process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES !== "false" || process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "true";
+const bboxText = appendSaudiBoxes ? mergeBboxText(baseBboxText, focusedBbox) : baseBboxText;
 const filterTypes = (process.env.AISSTREAM_FILTER_TYPES ?? "")
   .split(",")
   .map((item) => item.trim())
@@ -86,6 +102,8 @@ try {
 }
 
 console.log(`Bounding boxes: ${boxes.length}`);
+console.log(`Base BBOX: ${baseBboxText}`);
+console.log(`Saudi port boxes appended: ${appendSaudiBoxes ? "yes" : "no"}`);
 console.log(`Message filters: ${filterTypes.join(", ") || "none"}`);
 console.log(`Timeout: ${timeoutMs} ms`);
 console.log(`Pass threshold: ${passAfterMessages} message(s)`);
