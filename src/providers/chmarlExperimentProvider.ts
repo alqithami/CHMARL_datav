@@ -2,7 +2,7 @@ import type { ChmarlExperimentStep } from "@/types/chmarl";
 import { fetchFirstJson } from "./backendUrl";
 
 export type ChmarlExperimentFeed = {
-  source: "runtime";
+  source: "runtime" | "local-json";
   steps: ChmarlExperimentStep[];
   experimentId?: string;
   scenarioId?: string;
@@ -44,12 +44,12 @@ async function fetchSamplePayload() {
   return response.json();
 }
 
-function toFeed(payload: unknown): ChmarlExperimentFeed | null {
+function toFeed(payload: unknown, source: ChmarlExperimentFeed["source"]): ChmarlExperimentFeed | null {
   const steps = extractSteps(payload);
   if (steps.length === 0) return null;
 
   return {
-    source: "runtime",
+    source,
     steps,
     experimentId: extractString(payload, "experimentId") ?? steps[0]?.experimentId,
     scenarioId: extractString(payload, "scenarioId") ?? steps[0]?.scenarioId,
@@ -58,10 +58,10 @@ function toFeed(payload: unknown): ChmarlExperimentFeed | null {
 
 export async function loadRuntimeChmarlExperiment(): Promise<ChmarlExperimentFeed | null> {
   const runtimePayload = await fetchFirstJson<unknown>(endpointUrl()).catch(() => null);
-  const runtimeFeed = toFeed(runtimePayload);
+  const runtimeFeed = toFeed(runtimePayload, "runtime");
   if (runtimeFeed) return runtimeFeed;
 
   if (!sampleFallbackEnabled()) return null;
   const samplePayload = await fetchSamplePayload().catch(() => null);
-  return toFeed(samplePayload);
+  return toFeed(samplePayload, "local-json");
 }
