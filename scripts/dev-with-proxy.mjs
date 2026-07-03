@@ -13,6 +13,20 @@ const SAUDI_PORT_AIS_BBOX = [
   "29.20,32.00;30.55,33.25", // Suez reference
 ].join("|");
 
+function mergeBboxText(...values) {
+  const boxes = [];
+  const seen = new Set();
+  for (const value of values) {
+    for (const box of String(value ?? "").split("|")) {
+      const trimmed = box.trim();
+      if (!trimmed || seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      boxes.push(trimmed);
+    }
+  }
+  return boxes.join("|");
+}
+
 function loadEnvFile(fileName) {
   const filePath = resolve(process.cwd(), fileName);
   if (!existsSync(filePath)) return;
@@ -127,13 +141,12 @@ process.env.PORT_EVENTS_FILE_ENABLED ??= "false";
 process.env.WEATHER_FILE_ENABLED ??= "false";
 process.env.AISSTREAM_MAX_VESSELS ??= "750";
 process.env.AISSTREAM_MAX_AGE_MS ??= String(6 * 60 * 60 * 1000);
-process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES ??= "false";
 process.env.AISSTREAM_FILTER_TYPES ??= "";
-
-if (process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "true") {
-  process.env.AISSTREAM_BBOX = SAUDI_PORT_AIS_BBOX;
-} else {
-  process.env.AISSTREAM_BBOX ??= REGIONAL_AIS_BBOX;
+process.env.AISSTREAM_BBOX ??= REGIONAL_AIS_BBOX;
+process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES ??= "true";
+if (process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES !== "false" || process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "true") {
+  process.env.AISSTREAM_BBOX = mergeBboxText(process.env.AISSTREAM_BBOX, SAUDI_PORT_AIS_BBOX);
+  process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES = "false";
 }
 
 const proxyPort = process.env.PORT;
@@ -184,6 +197,7 @@ process.on("exit", () => {
 console.log(`Starting CH-MARL backend on port ${proxyPort}`);
 console.log(process.env.AISSTREAM_API_KEY ? "AISStream API key loaded from environment." : "AISStream API key is missing; vessel feed will wait until configured.");
 console.log(`AISStream bounding boxes: ${process.env.AISSTREAM_BBOX?.split("|").length ?? 0}`);
+console.log(`AISStream Saudi boxes appended: ${process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES !== "false" ? "yes" : "no"}`);
 console.log(`AISStream filters: ${process.env.AISSTREAM_FILTER_TYPES || "none"}`);
 console.log(`Port event demo: ${process.env.VITE_PORT_EVENTS_DEMO_ENABLED}`);
 if (backendForwardUrl) console.log(`Backend forwarded URL: ${backendForwardUrl}/health`);
