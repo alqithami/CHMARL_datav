@@ -19,6 +19,7 @@ import "./metricTonePolish.css";
 import "./executiveDeclutter.css";
 import "./mawaniDesignSystem.css";
 import "./mawaniCommandSummary.css";
+import "./mawaniTopbarCompact.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
