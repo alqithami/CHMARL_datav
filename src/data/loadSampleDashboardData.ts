@@ -36,6 +36,18 @@ export type DashboardData = {
   timelineEvents: TimelineEvent[];
 };
 
+const saudiPortReferencePoints = [
+  { id: "Jeddah", latitude: 21.4858, longitude: 39.1925 },
+  { id: "King Abdullah Port", latitude: 22.3924, longitude: 39.0953 },
+  { id: "Yanbu", latitude: 24.0866, longitude: 38.0637 },
+  { id: "Jizan", latitude: 16.8917, longitude: 42.5511 },
+  { id: "Dammam", latitude: 26.4318, longitude: 50.1015 },
+  { id: "Jebel Ali", latitude: 25.0114, longitude: 55.0611 },
+  { id: "Suez", latitude: 29.9668, longitude: 32.5498 },
+];
+
+const portPressureDistanceNm = 120;
+
 const realOnlyMetrics: Metric[] = [
   { label: "Tracked vessels", value: "0", trend: "awaiting provider rows" },
   { label: "Port events", value: "0", trend: "awaiting provider or demo feed" },
@@ -91,6 +103,42 @@ function pct(count: number, total: number) {
   return Number(((count / total) * 100).toFixed(1));
 }
 
+function distanceNm(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) {
+  const radiusNm = 3440.065;
+  const radians = (value: number) => (value * Math.PI) / 180;
+  const dLat = radians(b.latitude - a.latitude);
+  const dLon = radians(b.longitude - a.longitude);
+  const lat1 = radians(a.latitude);
+  const lat2 = radians(b.latitude);
+  const haversine = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * radiusNm * Math.asin(Math.min(1, Math.sqrt(haversine)));
+}
+
+function nearestPort(row: Vessel) {
+  if (!hasPosition(row)) return undefined;
+  const point = { latitude: row.latitude as number, longitude: row.longitude as number };
+  return saudiPortReferencePoints
+    .map((port) => ({ port, distance: distanceNm(point, port) }))
+    .sort((a, b) => a.distance - b.distance)[0];
+}
+
+function derivePortPressureFromVessels(rows: Vessel[]): ChartDatum[] {
+  const total = rows.length;
+  const counts = new Map(saudiPortReferencePoints.map((port) => [port.id, 0]));
+
+  for (const row of rows) {
+    const nearest = nearestPort(row);
+    if (nearest && nearest.distance <= portPressureDistanceNm) {
+      counts.set(nearest.port.id, (counts.get(nearest.port.id) ?? 0) + 1);
+    }
+  }
+
+  return saudiPortReferencePoints.map((port) => ({
+    name: `AIS pressure ${port.id}`,
+    value: pct(counts.get(port.id) ?? 0, total),
+  }));
+}
+
 function deriveConstraintPressureFromVessels(rows: Vessel[]): ChartDatum[] {
   const total = rows.length;
   const missingPosition = rows.filter((row) => !hasPosition(row)).length;
@@ -108,6 +156,12 @@ function deriveConstraintPressureFromVessels(rows: Vessel[]): ChartDatum[] {
     { name: "Stale position", value: pct(stale, total) },
     { name: "Low speed", value: pct(slow, total) },
   ];
+}
+
+function mergeConstraintPressure(experimentRows: ChartDatum[], vesselRows: Vessel[]): ChartDatum[] {
+  const nonPortRows = experimentRows.filter((row) => !/^Port pressure\b/.test(row.name) && !/^AIS pressure\b/.test(row.name));
+  if (vesselRows.length === 0) return nonPortRows;
+  return [...nonPortRows, ...derivePortPressureFromVessels(vesselRows)];
 }
 
 function externalTimeline(source: DashboardDataSource, rows: Vessel[], chmarlSource: ChmarlDataSource, portOpsSource: PortOpsDataSource): TimelineEvent[] {
@@ -134,7 +188,9 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
   const portOpsSource: PortOpsDataSource = runtimePortOps ? runtimePortOps.source : "none";
   const weatherSource: WeatherDataSource = marineWeather?.source ?? "none";
   const rewardData = experimentSteps.length > 0 ? toRewardTrend(experimentStepsToRewardTrend(experimentSteps)) : [];
-  const constraintData = experimentSteps.length > 0 ? experimentStepsToConstraintPressure(experimentSteps) : externalSource ? deriveConstraintPressureFromVessels(rows) : [];
+  const experimentConstraintData = experimentSteps.length > 0 ? experimentStepsToConstraintPressure(experimentSteps) : [];
+  const vesselConstraintData = externalSource ? deriveConstraintPressureFromVessels(rows) : [];
+  const constraintData = experimentSteps.length > 0 ? mergeConstraintPressure(experimentConstraintData, rows) : [...vesselConstraintData, ...derivePortPressureFromVessels(rows)];
   const timelineData = experimentSteps.length > 0 ? experimentStepsToTimelineEvents(experimentSteps) : externalSource ? externalTimeline(source, rows, chmarlSource, portOpsSource) : [];
 
   return {
