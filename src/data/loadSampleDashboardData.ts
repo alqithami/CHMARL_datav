@@ -130,7 +130,7 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
   const source: DashboardDataSource = remoteVessels?.source ?? "none";
   const externalSource = isExternalSource(source);
   const experimentSteps = runtimeExperiment?.steps ?? [];
-  const chmarlSource: ChmarlDataSource = runtimeExperiment ? "runtime" : "none";
+  const chmarlSource: ChmarlDataSource = runtimeExperiment?.source ?? "none";
   const portOpsSource: PortOpsDataSource = runtimePortOps ? runtimePortOps.source : "none";
   const weatherSource: WeatherDataSource = marineWeather?.source ?? "none";
   const rewardData = experimentSteps.length > 0 ? toRewardTrend(experimentStepsToRewardTrend(experimentSteps)) : [];
