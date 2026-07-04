@@ -1,0 +1,85 @@
+.port-coverage-matrix {
+  min-height: 0;
+}
+
+.port-coverage-list {
+  display: grid;
+  gap: 0.45rem;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 0.1rem;
+}
+
+.port-coverage-list.compact {
+  gap: 0.35rem;
+}
+
+.port-coverage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.25rem 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--mawani-border-subtle, rgba(141, 220, 255, 0.12));
+  background: var(--mawani-surface-raised, rgba(3, 13, 24, 0.44));
+}
+
+.port-coverage-row strong {
+  color: var(--mawani-text-primary, #f4f4f4);
+  font-size: 0.78rem;
+  line-height: 1.1;
+}
+
+.port-coverage-row small {
+  color: var(--mawani-text-helper, #8d8d8d);
+  font-size: 0.68rem;
+  line-height: 1.2;
+}
+
+.port-coverage-count {
+  align-self: start;
+  justify-self: end;
+  min-width: 2rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--mawani-border-strong, #6f6f6f);
+  color: var(--mawani-text-primary, #f4f4f4);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.port-coverage-row.active .port-coverage-count {
+  border-color: var(--mawani-success, #24a148);
+  color: var(--mawani-success, #24a148);
+}
+
+.port-coverage-row.watch .port-coverage-count {
+  border-color: var(--mawani-warning, #ff6800);
+  color: var(--mawani-warning, #ff6800);
+}
+
+.port-coverage-row.empty .port-coverage-count {
+  color: var(--mawani-text-helper, #8d8d8d);
+}
+
+.port-coverage-meter {
+  grid-column: 1 / -1;
+  height: 0.25rem;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.port-coverage-meter span {
+  display: block;
+  height: 100%;
+  min-width: 0.12rem;
+  background: var(--mawani-aqua-50, #00dbe7);
+}
+
+.port-coverage-row.watch .port-coverage-meter span,
+.port-coverage-row.empty .port-coverage-meter span {
+  background: var(--mawani-border-strong, #6f6f6f);
+}
+
+.port-coverage-meta {
+  grid-column: 1 / -1;
+}
