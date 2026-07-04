@@ -20,6 +20,7 @@ import "./executiveDeclutter.css";
 import "./mawaniDesignSystem.css";
 import "./mawaniCommandSummary.css";
 import "./mawaniTopbarCompact.css";
+import "./portCoverageMatrix.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
