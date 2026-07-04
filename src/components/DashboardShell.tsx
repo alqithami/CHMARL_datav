@@ -22,6 +22,7 @@ import ChmarlRewardComponents from "./insights/ChmarlRewardComponents";
 import FleetOperationalSummary from "./insights/FleetOperationalSummary";
 import MarineWeatherOverview from "./insights/MarineWeatherOverview";
 import OperationalInsightStrip, { type InsightFocusPanel } from "./insights/OperationalInsightStrip";
+import PortCoverageMatrix from "./insights/PortCoverageMatrix";
 import PortEventFeed from "./insights/PortEventFeed";
 import PortQueueBoard from "./insights/PortQueueBoard";
 import VesselRiskRegister from "./insights/VesselRiskRegister";
@@ -343,6 +344,7 @@ export default function DashboardShell() {
     if (focusPanel === "vessel-risk") return { title: "Vessel Risk Register", content: <VesselRiskRegister vessels={dashboardData.vessels} /> };
     if (focusPanel === "port-events") return { title: "Port Event Feed", content: <PortEventFeed events={dashboardData.portEvents} source={dashboardData.portOpsSource} /> };
     if (focusPanel === "port-queue") return { title: "Port Queue / Berth Board", content: <PortQueueBoard rows={dashboardData.portQueueStatus} source={dashboardData.portOpsSource} /> };
+    if (focusPanel === "port-coverage") return { title: "Saudi AIS Port Coverage", content: <PortCoverageMatrix vessels={dashboardData.vessels} /> };
     return null;
   })();
 
