@@ -28,6 +28,14 @@ function componentRows(step?: ChmarlExperimentStep) {
     .map((component) => ({ component, value: rewards.get(component) ?? 0 }));
 }
 
+function rewardLabelFormatter(params: unknown) {
+  const value = typeof params === "object" && params !== null && "value" in params
+    ? (params as { value?: unknown }).value
+    : undefined;
+  const numericValue = Array.isArray(value) ? Number(value[0]) : Number(value);
+  return Number.isFinite(numericValue) ? numericValue.toFixed(3) : "";
+}
+
 export default function ChmarlRewardComponents({ steps, compact = false }: ChmarlRewardComponentsProps) {
   const latest = latestStep(steps);
   const rows = useMemo(() => componentRows(latest), [latest]);
@@ -77,7 +85,7 @@ export default function ChmarlRewardComponents({ steps, compact = false }: Chmar
           barWidth: compact ? 12 : 18,
           data: rows.map((row) => row.value),
           itemStyle: { borderRadius: [6, 6, 0, 0], color: "#65e4cb" },
-          label: { show: !compact && rows.length > 0, position: "top" as const, color: "#dffcff", formatter: ({ value }: { value: number }) => Number(value).toFixed(3) },
+          label: { show: !compact && rows.length > 0, position: "top" as const, color: "#dffcff", formatter: rewardLabelFormatter },
         },
       ],
     }),
