@@ -17,6 +17,7 @@
     "diagnose": "node scripts/portal-diagnostics.mjs",
     "diagnose:ais": "node scripts/aisstream-diagnostics.mjs",
     "diagnose:ais-config": "node scripts/check-ais-subscription-config.mjs",
+    "diagnose:saudi-ais": "node scripts/check-saudi-ais-constraints.mjs",
     "diagnose:env": "node scripts/check-portal-env.mjs",
     "diagnose:ports": "node scripts/port-forward-diagnostics.mjs",
     "diagnose:freshness": "node scripts/check-provider-freshness.mjs",
