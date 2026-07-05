@@ -50,6 +50,7 @@
     "watch:vessels": "node scripts/watch-vessel-feed.mjs",
     "watch:health": "node scripts/watch-health.mjs",
     "watch:chmarl": "node scripts/watch-chmarl.mjs",
+    "watch:ports": "node scripts/watch-saudi-port-coverage.mjs",
     "summary:ports": "node scripts/summarize-vessels-by-port.mjs",
     "summary:speed": "node scripts/summarize-vessels-by-speed.mjs",
     "summary:chmarl": "node scripts/summarize-chmarl-components.mjs",
