@@ -3,7 +3,7 @@ WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
-COPY package.json pnpm-lock.yaml ./
+COPY package.json ./
 RUN pnpm install --no-frozen-lockfile
 COPY . .
 ENV VITE_VESSEL_DATA_URL=/api/vessels
@@ -23,7 +23,7 @@ ENV STATIC_DIR=dist
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
-COPY package.json pnpm-lock.yaml ./
+COPY package.json ./
 RUN pnpm install --prod --no-frozen-lockfile
 COPY --from=build /app/dist ./dist
 COPY server ./server
