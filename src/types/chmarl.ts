@@ -124,6 +124,7 @@ export interface ScenarioDefinition {
   label: string;
   policyMode: PolicyMode;
   description: string;
-  assumptions: string[];
+  dataSource?: DataSourceKind;
+  assumptions?: string[];
   overlays?: string[];
 }
