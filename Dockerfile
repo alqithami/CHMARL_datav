@@ -27,5 +27,6 @@ COPY package.json ./
 RUN pnpm install --prod --no-frozen-lockfile
 COPY --from=build /app/dist ./dist
 COPY server ./server
+COPY scripts/start-prod.mjs ./scripts/start-prod.mjs
 EXPOSE 8787
-CMD ["node", "server/vessel-feed-proxy/index.mjs"]
+CMD ["node", "scripts/start-prod.mjs"]
