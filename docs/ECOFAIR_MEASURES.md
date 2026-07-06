@@ -1,107 +1,76 @@
 # EcoFair-CH-MARL Live Measures
 
-This portal computes the measures of **EcoFair-CH-MARL** (Alqithami,
-*EcoFair-CH-MARL: Scalable Constrained Hierarchical Multi-Agent RL with
-Real-Time Emission Budgets and Fairness Guarantees*, arXiv:2603.14625,
-ECAI 2025) on the **live AIS vessel feed** for the Red Sea / Gulf region,
-covering Jeddah, King Abdullah Port, Yanbu, Jizan, Dammam, Jebel Ali, and Suez.
+The portal computes EcoFair-CH-MARL fuel, emission, fairness, queue, and reward measures from the live vessel feed. The runtime implementation is `server/vessel-feed-proxy/ecofair.mjs` and the live evidence endpoint is `/api/report`.
 
-The implementation lives in `server/vessel-feed-proxy/ecofair.mjs` and mirrors
-the paper's reference code (github.com/alqithami/EcoFairCHAMRL).
+## Fuel and CO2 model
 
-## Fuel and emission model
+Each vessel receives a deterministic fuel-curve factor `k` in `[5e-4, 1e-3]` tonnes per knot-cubed hour. Fuel is integrated between AIS observations:
 
-Each tracked vessel gets a deterministic fuel-curve factor `k` sampled from the
-paper's spec distribution `[5e-4, 1e-3] t/(kt³·h)` (stable hash of the MMSI).
-Fuel is integrated between AIS observations:
-
-| Vessel state | Detection | Fuel rate (t/h) |
+| Vessel state | Detection | Fuel rate |
 | --- | --- | --- |
-| TRANSIT | SOG > 1.0 kn | `k · SOG³` (cubic law) |
-| AT_BERTH | within berth radius (default 5 nm), SOG ≤ 1 | `k · 14³ · 0.25` (IDLE_LOAD) |
-| ANCHORED (queuing) | within anchorage radius (default 20 nm), SOG ≤ 1 | `k · 14³ · 0.10` (QUEUE_LOAD) |
-| DRIFTING | elsewhere, SOG ≤ 1 | queue-level load |
+| TRANSIT | SOG > 1 kn | `k * SOG^3` |
+| AT_BERTH | within berth radius and slow | `k * 14^3 * 0.25` |
+| ANCHORED | within anchorage radius and slow | `k * 14^3 * 0.10` |
+| DRIFTING | slow outside port zones | queue-level load |
 
-CO₂ = fuel × **3.114** t CO₂ / t fuel (IMO GHG conversion factor for HFO).
+CO2 is estimated as fuel multiplied by `3.114` tonnes CO2 per tonne fuel. Fuel figures are AIS-kinematic model estimates, not bunker measurements.
 
-Integration windows are capped at 30 minutes per vessel to bound the effect of
-stale AIS messages. Fuel figures are **model estimates from AIS kinematics**,
-not bunker measurements — they are consistent with the paper's simulator, which
-is exactly what makes them comparable to the offline experiments.
+## Emission budget calibration
 
-## Episodes, budget, and the dual variable
+The previous fixed default of 4000 t CO2/day was sized for a small fleet. With hundreds of live vessels it permanently violated the emission constraint and made the emission penalty dominate the reward.
 
-An episode is one **UTC day**. Cumulative fleet CO₂ is compared with a daily
-emission budget (`ECOFAIR_EMISSION_BUDGET_TONNES_PER_DAY`, default 4000 t)
-prorated by elapsed day fraction. The primal-dual budget layer updates once per
-minute:
+The default mode now scales the daily budget with the tracked fleet:
 
-```
-lambda <- max(0, lambda + eta * (E_cum - B_prorated) / B_day)
+```text
+budget = ECOFAIR_BUDGET_TONNES_PER_VESSEL_PER_DAY * active_vessels
 ```
 
-`lambda` persists across episodes (a running emission price), matching the
-paper's primal-dual analysis. At UTC midnight the day is archived into a
-rolling 60-day history (visible in `/api/report`).
+The default allowance is `60` t CO2/vessel/day. A fixed fleet budget is still available by setting `ECOFAIR_EMISSION_BUDGET_TONNES_PER_DAY` to a positive value. Leaving it at `0` enables per-vessel mode.
+
+The daily budget is prorated by elapsed UTC-day fraction. The dual variable is updated once per minute:
+
+```text
+lambda = max(0, lambda + eta * (cumulative_CO2 - prorated_budget) / daily_budget)
+```
+
+This lets lambda decay back to zero when the fleet is under budget and rise only when emissions exceed the scaled allowance.
 
 ## Fairness
 
-Both fairness measures use **cumulative per-vessel fuel** for the current
-episode, with the exact formulas of the reference implementation:
+Fairness is computed over cumulative per-vessel fuel for the current UTC episode:
 
-- **Gini coefficient** — 0 is perfect equality; constraint limit
-  `ECOFAIR_GINI_LIMIT` (default 0.35).
-- **Max-min ratio** — `min(fuel)/max(fuel)`; 1 is perfect equality; constraint
-  limit `ECOFAIR_MINMAX_LIMIT` (default 0.4).
+- Fuel Gini coefficient, with default limit `0.35`.
+- Fuel max-min ratio, with default lower limit `0.4`.
 
 ## Reward decomposition
 
+```text
+r = -fuel_interval - gamma_emis * max(0, CO2 - budget) - gamma_fair * Gini
 ```
-r = -fuel_interval - gamma_emis * max(0, E_cum - B_prorated) - gamma_fair * Gini
-```
 
-Served per component (`fuel`, `emissions`, `fairness`, `constraint_penalty`
-= `-lambda * excess`, and `global`) in `/api/chmarl/episode`.
+The `/api/chmarl/episode` endpoint serves `global`, `fuel`, `emissions`, `fairness`, and `constraint_penalty` reward components.
 
-## Real port events
+## Port operations
 
-`/api/port-events` is derived from AIS geofence transitions — `arrival`,
-`departure`, `berth_assigned` (anchorage → berth), `anchorage_entry`,
-`anchorage_exit` — plus berth utilization (occupancy vs. reference capacity,
-override with `ECOFAIR_PORT_CAPACITY`) and anchorage queue lengths per port.
-No demo events are served unless `VITE_PORT_EVENTS_DEMO_ENABLED=true`.
+`/api/port-events` is derived from AIS geofence transitions and port occupancy. It provides AIS-derived arrivals, departures, anchorage transitions, berth assignments, berth utilization, and queue length per monitored port.
 
 ## Reporting
 
-- `GET /api/report` — Markdown evidence report (fleet measures, port queues,
-  daily episode history, provenance). `?format=json` returns the full state.
-- Dashboard header → Exports → **EcoFair Report (live)** downloads it.
+`GET /api/report` returns a Markdown evidence report. `GET /api/report?format=json` returns the underlying EcoFair state and live measures.
 
-## Research-run ingestion
-
-Actual `EcoFairCHMARL.py` training results can be published to the portal:
-
-```
-python EcoFairCHMARL.py --algo PPO --fairness --emission_cap --outdir results/
-python scripts/chmarl-ingest-bridge.py --outdir results/ --algo ppo \
-    --url https://<your-portal>/api/chmarl/ingest --token $CHMARL_INGEST_TOKEN
-```
-
-Retrieve with `GET /api/chmarl/episode?source=experiment`. The live feed stays
-the default at `/api/chmarl/episode`.
-
-## Configuration reference
+## Configuration
 
 | Env var | Default | Meaning |
 | --- | --- | --- |
-| `ECOFAIR_EMISSION_BUDGET_TONNES_PER_DAY` | 4000 | Daily fleet CO₂ budget (t) |
-| `ECOFAIR_GAMMA_EMIS` | 10 | Emission penalty weight γ_emis |
-| `ECOFAIR_GAMMA_FAIR` | 5 | Fairness penalty weight γ_fair |
-| `ECOFAIR_LAMBDA_LR` | 0.05 | Dual variable learning rate η |
-| `ECOFAIR_GINI_LIMIT` | 0.35 | Gini constraint limit |
-| `ECOFAIR_MINMAX_LIMIT` | 0.4 | Max-min constraint limit |
-| `ECOFAIR_BERTH_RADIUS_NM` | 5 | Berth geofence radius |
-| `ECOFAIR_ANCHORAGE_RADIUS_NM` | 20 | Anchorage geofence radius |
-| `ECOFAIR_TICK_MS` | 60000 | Background measurement interval |
-| `ECOFAIR_STATE_FILE` | .runtime/ecofair-state.json | Persistence file |
-| `ECOFAIR_PORT_CAPACITY` | built-in map | JSON berth-capacity overrides |
+| `ECOFAIR_EMISSION_BUDGET_TONNES_PER_DAY` | `0` | Fixed daily budget. `0` enables per-vessel mode. |
+| `ECOFAIR_BUDGET_TONNES_PER_VESSEL_PER_DAY` | `60` | CO2 allowance per active vessel per UTC day. |
+| `ECOFAIR_GAMMA_EMIS` | `10` | Emission penalty weight. |
+| `ECOFAIR_GAMMA_FAIR` | `5` | Fairness penalty weight. |
+| `ECOFAIR_LAMBDA_LR` | `0.05` | Dual update learning rate. |
+| `ECOFAIR_GINI_LIMIT` | `0.35` | Gini fairness constraint limit. |
+| `ECOFAIR_MINMAX_LIMIT` | `0.4` | Max-min fairness constraint limit. |
+| `ECOFAIR_BERTH_RADIUS_NM` | `5` | Berth geofence radius. |
+| `ECOFAIR_ANCHORAGE_RADIUS_NM` | `20` | Anchorage geofence radius. |
+| `ECOFAIR_TICK_MS` | `60000` | Background measurement interval. |
+| `ECOFAIR_STATE_FILE` | `.runtime/ecofair-state.json` | Runtime persistence file. |
+| `ECOFAIR_PORT_CAPACITY` | built-in map | Optional JSON berth-capacity override. |
