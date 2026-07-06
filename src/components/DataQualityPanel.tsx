@@ -42,10 +42,25 @@ function weatherCoverage(data: DashboardData) {
   return { marine, fallback };
 }
 
+function regionMismatch(data: DashboardData) {
+  const coverage = data.coverageDiagnostics;
+  return Boolean(coverage?.requireOperationalRegion && coverage.providerRows > 0 && coverage.operationalRows === 0 && coverage.outOfRegionRows > 0);
+}
+
 function vesselStatus(data: DashboardData): QualityItem {
   const coverage = coordinateCoverage(data);
   const stale = staleRows(data);
   const trails = data.vessels.filter((vessel) => vessel.trail && vessel.trail.length > 1).length;
+  const diagnostics = data.coverageDiagnostics;
+
+  if (regionMismatch(data) && diagnostics) {
+    return {
+      label: "Vessel observations",
+      value: `${diagnostics.outOfRegionRows} ignored rows`,
+      detail: `Provider rows are outside ${diagnostics.operationalRegionLabel}; restore the Red Sea/Gulf BBOX before scoring.`,
+      tone: "warn",
+    };
+  }
 
   if (data.source === "aisstream") {
     return {
@@ -80,6 +95,14 @@ function vesselStatus(data: DashboardData): QualityItem {
 function chmarlStatus(data: DashboardData): QualityItem {
   const reward = latestReward(data);
   const latestStep = data.chmarlSteps.at(-1);
+  if (regionMismatch(data)) {
+    return {
+      label: "CH-MARL / EcoFair",
+      value: "Region blocked",
+      detail: "out-of-region vessel rows were ignored, so reward and constraint scoring are suppressed",
+      tone: "warn",
+    };
+  }
   if (data.chmarlSource === "runtime" && reward !== undefined) {
     return {
       label: "CH-MARL / EcoFair",
@@ -109,6 +132,9 @@ function hasNonZeroPortSignal(data: DashboardData) {
 }
 
 function portStatus(data: DashboardData): QualityItem {
+  if (regionMismatch(data)) {
+    return { label: "Port operations", value: "Region blocked", detail: "AIS-derived queues are hidden because vessel rows are outside the operational region", tone: "warn" };
+  }
   if (data.portOpsSource === "runtime") {
     const nonZero = hasNonZeroPortSignal(data);
     return {
@@ -150,6 +176,8 @@ function sampleStatus(): QualityItem {
 
 function readinessHeadline(data: DashboardData) {
   const reward = latestReward(data);
+  const diagnostics = data.coverageDiagnostics;
+  if (regionMismatch(data) && diagnostics) return `${diagnostics.outOfRegionRows} provider rows outside Red Sea/Gulf`;
   if (data.source === "aisstream-waiting") return "AIS connected · no regional observations";
   if (data.source === "aisstream" && reward !== undefined) return "Live CH-MARL scoring active";
   if (data.source === "aisstream") return "Live vessel rows · CH-MARL warming";
