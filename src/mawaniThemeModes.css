@@ -1,0 +1,208 @@
+/* MAWANI dark/light theme layer.
+ * Dark remains the operator default. Light supports printed reports and stakeholder handoffs.
+ */
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --mawani-bg: #f4f4f4;
+  --mawani-surface: #ffffff;
+  --mawani-surface-raised: #f4f4f4;
+  --mawani-surface-hover: #e0e0e0;
+  --mawani-border-subtle: #c6c6c6;
+  --mawani-border-strong: #8d8d8d;
+  --mawani-text-primary: #161616;
+  --mawani-text-secondary: #525252;
+  --mawani-text-helper: #6f6f6f;
+  --mawani-teal-70: #007d8a;
+  --mawani-teal-80: #00606f;
+  --mawani-teal-90: #004552;
+  --mawani-aqua-50: #008fa1;
+  --mawani-aqua-60: #007d8a;
+  --mawani-ai-accent: #007d8a;
+}
+
+:root[data-theme="light"] html,
+:root[data-theme="light"] body,
+:root[data-theme="light"] #root,
+:root[data-theme="light"] .app-shell,
+:root[data-theme="light"] .executive-shell {
+  background: var(--mawani-bg) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .topbar,
+:root[data-theme="light"] .scenario-bar,
+:root[data-theme="light"] .data-quality-panel,
+:root[data-theme="light"] .panel-card,
+:root[data-theme="light"] .metric-card,
+:root[data-theme="light"] .insight-toolbar,
+:root[data-theme="light"] .analysis-drawer-summary,
+:root[data-theme="light"] .port-ops-setup,
+:root[data-theme="light"] .ship-inspector-card,
+:root[data-theme="light"] .expanded-map-rail,
+:root[data-theme="light"] .expanded-rail-section,
+:root[data-theme="light"] .actions-menu-panel,
+:root[data-theme="light"] .command-summary-header,
+:root[data-theme="light"] .command-summary-card,
+:root[data-theme="light"] .port-coverage-row {
+  background: var(--mawani-surface) !important;
+  border-color: var(--mawani-border-subtle) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .watchlist-recommendation {
+  background: #e5f6f8 !important;
+  border-color: var(--mawani-ai-accent) !important;
+}
+
+:root[data-theme="light"] .watchlist-item,
+:root[data-theme="light"] .constraint-ledger-row,
+:root[data-theme="light"] .decision-timeline-card,
+:root[data-theme="light"] .port-event-row,
+:root[data-theme="light"] .weather-point-card,
+:root[data-theme="light"] .fleet-summary-grid article,
+:root[data-theme="light"] .port-queue-row,
+:root[data-theme="light"] .action-plan-row,
+:root[data-theme="light"] .fairness-row,
+:root[data-theme="light"] .vessel-risk-row,
+:root[data-theme="light"] .weather-risk-row,
+:root[data-theme="light"] .data-quality-item,
+:root[data-theme="light"] .port-coverage-row {
+  background: var(--mawani-surface-raised) !important;
+  border-color: var(--mawani-border-subtle) !important;
+}
+
+:root[data-theme="light"] button,
+:root[data-theme="light"] .pill,
+:root[data-theme="light"] .panel-focus-button,
+:root[data-theme="light"] .actions-menu summary,
+:root[data-theme="light"] .actions-menu-panel button,
+:root[data-theme="light"] .tile-map-controls button,
+:root[data-theme="light"] .tile-filter-bar button,
+:root[data-theme="light"] .insight-mode-tabs button,
+:root[data-theme="light"] .inline-filter-tabs button,
+:root[data-theme="light"] .vessel-table-pagination button,
+:root[data-theme="light"] .rail-action-button,
+:root[data-theme="light"] .command-summary-tabs button {
+  background: var(--mawani-surface-raised) !important;
+  color: var(--mawani-text-primary) !important;
+  border-color: var(--mawani-border-strong) !important;
+}
+
+:root[data-theme="light"] button:hover,
+:root[data-theme="light"] .pill:hover,
+:root[data-theme="light"] .panel-focus-button:hover,
+:root[data-theme="light"] .actions-menu-panel button:hover,
+:root[data-theme="light"] .tile-map-controls button:hover,
+:root[data-theme="light"] .tile-filter-bar button:hover,
+:root[data-theme="light"] .insight-mode-tabs button:hover,
+:root[data-theme="light"] .inline-filter-tabs button:hover,
+:root[data-theme="light"] .vessel-table-pagination button:hover,
+:root[data-theme="light"] .rail-action-button:hover,
+:root[data-theme="light"] .command-summary-tabs button:hover {
+  background: var(--mawani-surface-hover) !important;
+}
+
+:root[data-theme="light"] .pill.active,
+:root[data-theme="light"] .insight-mode-tabs button.active,
+:root[data-theme="light"] .inline-filter-tabs button.active,
+:root[data-theme="light"] .tile-map-controls button.layer-toggle.active,
+:root[data-theme="light"] .tile-filter-bar button.active,
+:root[data-theme="light"] .command-summary-tabs button.active {
+  background: var(--mawani-teal-80) !important;
+  color: #ffffff !important;
+  border-color: var(--mawani-aqua-50) !important;
+}
+
+:root[data-theme="light"] .brand-title,
+:root[data-theme="light"] .panel-title,
+:root[data-theme="light"] .metric-value,
+:root[data-theme="light"] .insight-panel-summary strong,
+:root[data-theme="light"] .data-quality-summary strong,
+:root[data-theme="light"] .data-quality-item strong,
+:root[data-theme="light"] .watchlist-recommendation strong,
+:root[data-theme="light"] .watchlist-item strong,
+:root[data-theme="light"] .ship-inspector-header h3,
+:root[data-theme="light"] .command-summary-card strong,
+:root[data-theme="light"] .command-summary-header strong {
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .brand-subtitle,
+:root[data-theme="light"] .metric-trend,
+:root[data-theme="light"] .data-quality-summary small,
+:root[data-theme="light"] .data-quality-item small,
+:root[data-theme="light"] .insight-panel-summary small,
+:root[data-theme="light"] .watchlist-item small,
+:root[data-theme="light"] .panel-card p,
+:root[data-theme="light"] .port-ops-setup p,
+:root[data-theme="light"] .rail-detail-list dd,
+:root[data-theme="light"] .rail-detail-list dt,
+:root[data-theme="light"] .command-summary-card small,
+:root[data-theme="light"] .port-coverage-row small {
+  color: var(--mawani-text-secondary) !important;
+}
+
+:root[data-theme="light"] .regional-map,
+:root[data-theme="light"] .tile-map {
+  background: #e8f4f6 !important;
+  filter: saturate(0.92) brightness(1.12) contrast(0.92);
+}
+
+:root[data-theme="light"] .regional-map-svg image,
+:root[data-theme="light"] .tile-map-svg image {
+  opacity: 0.95 !important;
+}
+
+:root[data-theme="light"] .chart-box,
+:root[data-theme="light"] .insight-chart {
+  background: transparent !important;
+}
+
+:root[data-theme="light"] .chart-box canvas,
+:root[data-theme="light"] .insight-chart canvas,
+:root[data-theme="light"] .chart-box svg,
+:root[data-theme="light"] .insight-chart svg {
+  filter: invert(1) hue-rotate(180deg) saturate(0.75) brightness(0.88);
+}
+
+.theme-toggle {
+  position: fixed;
+  right: 0.9rem;
+  bottom: 0.9rem;
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.1rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--mawani-border-strong) !important;
+  background: var(--mawani-surface-raised) !important;
+  color: var(--mawani-text-primary) !important;
+  box-shadow: none !important;
+}
+
+.theme-toggle span {
+  color: var(--mawani-ai-accent);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.theme-toggle strong {
+  color: var(--mawani-text-primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 760px) {
+  .theme-toggle {
+    right: 0.6rem;
+    bottom: 0.6rem;
+  }
+}
