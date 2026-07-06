@@ -54,6 +54,8 @@ loadEnvFile(".env.local");
 
 process.env.STATIC_DIR ??= "dist";
 process.env.PORT ??= "8787";
+process.env.ECOFAIR_EMISSION_BUDGET_TONNES_PER_DAY ??= "0";
+process.env.ECOFAIR_BUDGET_TONNES_PER_VESSEL_PER_DAY ??= "60";
 process.env.AISSTREAM_BBOX ??= REGIONAL_AIS_BBOX;
 process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES ??= "true";
 if (process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES !== "false" || process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "true") {
@@ -65,6 +67,7 @@ console.log(`Starting production CH-MARL service on port ${process.env.PORT}`);
 if (process.env.AISSTREAM_API_KEY) console.log("AISStream API key loaded from environment.");
 console.log(`AISStream bounding boxes: ${process.env.AISSTREAM_BBOX?.split("|").length ?? 0}`);
 console.log(`AISStream Saudi boxes appended: ${process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES !== "false" ? "yes" : "no"}`);
+console.log("EcoFair budget default: per-vessel mode unless a positive fixed budget is configured.");
 
 const child = spawn("node", ["server/vessel-feed-proxy/index.mjs"], {
   stdio: "inherit",
