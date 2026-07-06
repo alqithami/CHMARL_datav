@@ -84,6 +84,11 @@ function fmt(value: number | undefined, suffix = "") {
   return value === undefined ? "n/a" : `${value.toFixed(1)}${suffix}`;
 }
 
+function regionMismatch(data: DashboardData) {
+  const coverage = data.coverageDiagnostics;
+  return Boolean(coverage?.requireOperationalRegion && coverage.providerRows > 0 && coverage.operationalRows === 0 && coverage.outOfRegionRows > 0);
+}
+
 function cardsForMode(data: DashboardData, mode: InsightMode): SummaryCard[] {
   const latestStep = data.chmarlSteps.at(-1);
   const reward = data.rewardTrend.at(-1)?.[1];
@@ -103,27 +108,29 @@ function cardsForMode(data: DashboardData, mode: InsightMode): SummaryCard[] {
   const activeSaudiPorts = portCoverage.rows.filter((row) => row.port.area === "Saudi" && row.count > 0).length;
   const totalSaudiPorts = portCoverage.rows.filter((row) => row.port.area === "Saudi").length;
   const suezRows = portCoverage.rows.find((row) => row.port.id === "Suez")?.count ?? 0;
+  const mismatch = regionMismatch(data);
+  const diagnostics = data.coverageDiagnostics;
 
   const overview: SummaryCard[] = [
     {
       title: "CH-MARL reward",
-      value: reward === undefined ? "n/a" : reward.toFixed(3),
-      detail: `${data.chmarlSteps.length} steps · ${latestStep?.actions?.length ?? 0} actions · ${violatedConstraints} constraints`,
-      tone: rewardTone(reward),
+      value: mismatch ? "region hold" : reward === undefined ? "n/a" : reward.toFixed(3),
+      detail: mismatch ? "feed rows are outside the operational region" : `${data.chmarlSteps.length} steps · ${latestStep?.actions?.length ?? 0} actions · ${violatedConstraints} constraints`,
+      tone: mismatch ? "warning" : rewardTone(reward),
       focus: "chmarl-components",
     },
     {
-      title: "Saudi AIS coverage",
-      value: `${portCoverage.saudiNearPort}/${data.vessels.length}`,
-      detail: `${activeSaudiPorts}/${totalSaudiPorts} Saudi ports active · Suez ${suezRows}`,
-      tone: data.vessels.length === 0 ? "missing" : portCoverage.saudiNearPort === 0 ? "warning" : "good",
+      title: mismatch ? "Region filter" : "Saudi AIS coverage",
+      value: mismatch && diagnostics ? `${diagnostics.outOfRegionRows} ignored` : `${portCoverage.saudiNearPort}/${data.vessels.length}`,
+      detail: mismatch && diagnostics ? `0 rows inside ${diagnostics.operationalRegionLabel}` : `${activeSaudiPorts}/${totalSaudiPorts} Saudi ports active · Suez ${suezRows}`,
+      tone: mismatch ? "warning" : data.vessels.length === 0 ? "missing" : portCoverage.saudiNearPort === 0 ? "warning" : "good",
       focus: "port-coverage",
     },
     {
       title: "Queue pressure",
-      value: queueValue === undefined ? "n/a" : `${Math.round(queueValue)}%`,
-      detail: busiestQueue ? `${busiestQueue.portId} · queue ${busiestQueue.queueLength ?? busiestQueue.waitingVessels ?? "n/a"}` : "No queue feed rows",
-      tone: queueValue === undefined ? "missing" : queueTone(queueValue),
+      value: mismatch ? "region hold" : queueValue === undefined ? "n/a" : `${Math.round(queueValue)}%`,
+      detail: mismatch ? "AIS-derived queue hidden until regional observations arrive" : busiestQueue ? `${busiestQueue.portId} · queue ${busiestQueue.queueLength ?? busiestQueue.waitingVessels ?? "n/a"}` : "No queue feed rows",
+      tone: mismatch ? "warning" : queueValue === undefined ? "missing" : queueTone(queueValue),
       focus: "port-queue",
     },
     {
@@ -137,23 +144,23 @@ function cardsForMode(data: DashboardData, mode: InsightMode): SummaryCard[] {
 
   if (mode === "chmarl") return [
     overview[0],
-    { title: "Agent actions", value: String(latestStep?.actions?.length ?? 0), detail: "latest runtime policy actions", tone: latestStep ? "info" : "missing", focus: "chmarl-actions" },
-    { title: "Fairness", value: String(latestStep?.fairness?.length ?? 0), detail: "fairness metrics from current step", tone: latestStep ? "info" : "missing", focus: "chmarl-fairness" },
-    { title: "Constraint shield", value: violatedConstraints === 0 ? "Nominal" : `${violatedConstraints} active`, detail: `${latestStep?.constraints?.length ?? 0} constraints evaluated`, tone: violatedConstraints > 0 ? "warning" : latestStep ? "good" : "missing", focus: "chmarl-constraints" },
+    { title: "Agent actions", value: mismatch ? "0" : String(latestStep?.actions?.length ?? 0), detail: mismatch ? "waiting for regional rows" : "latest runtime policy actions", tone: mismatch ? "warning" : latestStep ? "info" : "missing", focus: "chmarl-actions" },
+    { title: "Fairness", value: mismatch ? "region hold" : String(latestStep?.fairness?.length ?? 0), detail: mismatch ? "no regional vessel fuel distribution" : "fairness metrics from current step", tone: mismatch ? "warning" : latestStep ? "info" : "missing", focus: "chmarl-fairness" },
+    { title: "Constraint shield", value: mismatch ? "region hold" : violatedConstraints === 0 ? "Nominal" : `${violatedConstraints} active`, detail: mismatch ? "region guard active" : `${latestStep?.constraints?.length ?? 0} constraints evaluated`, tone: mismatch ? "warning" : violatedConstraints > 0 ? "warning" : latestStep ? "good" : "missing", focus: "chmarl-constraints" },
   ];
 
   if (mode === "operations") return [
     overview[1],
     overview[2],
-    { title: "Port events", value: String(data.portEvents.length), detail: data.portOpsSource === "demo" ? "Kpler-like demo feed" : data.portOpsSource, tone: data.portEvents.length > 0 ? "info" : "missing", focus: "port-events" },
-    { title: "Fleet state", value: String(data.vessels.length), detail: `${moving} moving · ${positioned} positioned · ${watchVessels} watch`, tone: data.vessels.length === 0 ? "missing" : constrainedVessels > 0 ? "critical" : watchVessels > 0 ? "warning" : "good", focus: "fleet" },
+    { title: "Port events", value: mismatch ? "region hold" : String(data.portEvents.length), detail: mismatch ? "out-of-region AIS events are hidden" : data.portOpsSource === "demo" ? "Kpler-like demo feed" : data.portOpsSource, tone: mismatch ? "warning" : data.portEvents.length > 0 ? "info" : "missing", focus: "port-events" },
+    { title: "Fleet state", value: mismatch && diagnostics ? `0/${diagnostics.providerRows}` : String(data.vessels.length), detail: mismatch ? "regional / provider rows" : `${moving} moving · ${positioned} positioned · ${watchVessels} watch`, tone: mismatch ? "warning" : data.vessels.length === 0 ? "missing" : constrainedVessels > 0 ? "critical" : watchVessels > 0 ? "warning" : "good", focus: "fleet" },
   ];
 
   if (mode === "risk") return [
-    { title: "Vessel risk", value: String(vesselRisk), detail: `${watchVessels} watch · ${constrainedVessels} constrained`, tone: vesselRisk > 0 ? "warning" : data.vessels.length > 0 ? "good" : "missing", focus: "vessel-risk" },
-    { title: "Saudi AIS gap", value: String(Math.max(0, totalSaudiPorts - activeSaudiPorts)), detail: `${activeSaudiPorts}/${totalSaudiPorts} Saudi ports active`, tone: data.vessels.length === 0 ? "missing" : activeSaudiPorts === totalSaudiPorts ? "good" : "warning", focus: "port-coverage" },
+    { title: "Vessel risk", value: mismatch ? "region hold" : String(vesselRisk), detail: mismatch ? "provider rows outside operational region" : `${watchVessels} watch · ${constrainedVessels} constrained`, tone: mismatch ? "warning" : vesselRisk > 0 ? "warning" : data.vessels.length > 0 ? "good" : "missing", focus: "vessel-risk" },
+    { title: "Saudi AIS gap", value: mismatch ? "feed mismatch" : String(Math.max(0, totalSaudiPorts - activeSaudiPorts)), detail: mismatch ? "active BBOX is not the Saudi/Red Sea feed" : `${activeSaudiPorts}/${totalSaudiPorts} Saudi ports active`, tone: mismatch ? "critical" : data.vessels.length === 0 ? "missing" : activeSaudiPorts === totalSaudiPorts ? "good" : "warning", focus: "port-coverage" },
     { title: "Weather risk", value: String(weatherRisk), detail: `${data.weatherPoints.length} weather points evaluated`, tone: weatherRisk > 0 ? "warning" : data.weatherPoints.length > 0 ? "good" : "missing", focus: "weather-risk" },
-    { title: "Constraint risk", value: violatedConstraints === 0 ? "0" : String(violatedConstraints), detail: `${latestStep?.constraints?.length ?? 0} CH-MARL constraints`, tone: violatedConstraints > 0 ? "warning" : latestStep ? "good" : "missing", focus: "chmarl-constraints" },
+    { title: "Constraint risk", value: mismatch ? "region hold" : violatedConstraints === 0 ? "0" : String(violatedConstraints), detail: mismatch ? "CH-MARL constraints waiting for regional rows" : `${latestStep?.constraints?.length ?? 0} CH-MARL constraints`, tone: mismatch ? "warning" : violatedConstraints > 0 ? "warning" : latestStep ? "good" : "missing", focus: "chmarl-constraints" },
   ];
 
   return overview;
