@@ -17,12 +17,21 @@ export type ChmarlDataSource = "runtime" | "local-json" | "none";
 export type PortOpsDataSource = "runtime" | "demo" | "local-json" | "none";
 export type WeatherDataSource = "open-meteo" | "runtime" | "none";
 
+export type CoverageDiagnostics = {
+  requireOperationalRegion: boolean;
+  operationalRegionLabel: string;
+  providerRows: number;
+  operationalRows: number;
+  outOfRegionRows: number;
+};
+
 export type DashboardData = {
   source: DashboardDataSource;
   chmarlSource: ChmarlDataSource;
   portOpsSource: PortOpsDataSource;
   weatherSource: WeatherDataSource;
   weatherPoints: MarineWeatherPoint[];
+  coverageDiagnostics?: CoverageDiagnostics;
   chmarlExperimentId?: string;
   chmarlScenarioId?: string;
   chmarlSteps: ChmarlExperimentStep[];
@@ -35,6 +44,16 @@ export type DashboardData = {
   portUtilization: ChartDatum[];
   timelineEvents: TimelineEvent[];
 };
+
+const operationalRegion = {
+  label: "Red Sea / Gulf operational region",
+  minLat: 11,
+  maxLat: 31,
+  minLon: 32,
+  maxLon: 56,
+};
+
+const requireOperationalRegion = import.meta.env.VITE_REQUIRE_OPERATIONAL_REGION !== "false";
 
 const saudiPortReferencePoints = [
   { id: "Jeddah", latitude: 21.4858, longitude: 39.1925 },
@@ -63,6 +82,13 @@ export const fallbackDashboardData: DashboardData = {
   portOpsSource: "none",
   weatherSource: "none",
   weatherPoints: [],
+  coverageDiagnostics: {
+    requireOperationalRegion,
+    operationalRegionLabel: operationalRegion.label,
+    providerRows: 0,
+    operationalRows: 0,
+    outOfRegionRows: 0,
+  },
   chmarlSteps: [],
   metrics: realOnlyMetrics,
   vessels: [],
@@ -84,6 +110,16 @@ function isExternalSource(source: DashboardDataSource) {
 
 function hasPosition(row: Vessel) {
   return Number.isFinite(row.latitude) && Number.isFinite(row.longitude);
+}
+
+function inOperationalRegion(row: Vessel) {
+  if (!hasPosition(row)) return false;
+  const latitude = row.latitude as number;
+  const longitude = row.longitude as number;
+  return latitude >= operationalRegion.minLat
+    && latitude <= operationalRegion.maxLat
+    && longitude >= operationalRegion.minLon
+    && longitude <= operationalRegion.maxLon;
 }
 
 function speedKnots(row: Vessel) {
@@ -164,7 +200,14 @@ function mergeConstraintPressure(experimentRows: ChartDatum[], vesselRows: Vesse
   return [...nonPortRows, ...derivePortPressureFromVessels(vesselRows)];
 }
 
-function externalTimeline(source: DashboardDataSource, rows: Vessel[], chmarlSource: ChmarlDataSource, portOpsSource: PortOpsDataSource): TimelineEvent[] {
+function externalTimeline(source: DashboardDataSource, rows: Vessel[], chmarlSource: ChmarlDataSource, portOpsSource: PortOpsDataSource, coverage?: CoverageDiagnostics): TimelineEvent[] {
+  if (coverage && coverage.providerRows > 0 && coverage.operationalRows === 0 && coverage.outOfRegionRows > 0) {
+    return [{
+      time: "live",
+      title: "AIS feed outside operational region",
+      body: `${coverage.outOfRegionRows} provider rows were outside ${coverage.operationalRegionLabel}; CH-MARL/EcoFair scoring is blocked until regional rows arrive or the production BBOX is restored.`,
+    }];
+  }
   if (source === "aisstream-waiting") {
     return [{ time: "live", title: "AIS connected, waiting for position messages", body: "The backend socket is active, but no positions have been cached for the selected boxes yet." }];
   }
@@ -180,18 +223,29 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     loadMarineWeather().catch(() => null),
   ]);
 
-  const rows = remoteVessels?.vessels ?? [];
+  const providerRows = remoteVessels?.vessels ?? [];
   const source: DashboardDataSource = remoteVessels?.source ?? "none";
   const externalSource = isExternalSource(source);
-  const experimentSteps = runtimeExperiment?.steps ?? [];
-  const chmarlSource: ChmarlDataSource = runtimeExperiment?.source ?? "none";
+  const operationalRows = requireOperationalRegion && externalSource ? providerRows.filter(inOperationalRegion) : providerRows;
+  const outOfRegionRows = requireOperationalRegion && externalSource ? providerRows.length - operationalRows.length : 0;
+  const coverageDiagnostics: CoverageDiagnostics = {
+    requireOperationalRegion,
+    operationalRegionLabel: operationalRegion.label,
+    providerRows: providerRows.length,
+    operationalRows: operationalRows.length,
+    outOfRegionRows,
+  };
+  const regionMismatch = requireOperationalRegion && externalSource && providerRows.length > 0 && operationalRows.length === 0;
+  const rows = regionMismatch ? [] : operationalRows;
+  const experimentSteps = regionMismatch ? [] : runtimeExperiment?.steps ?? [];
+  const chmarlSource: ChmarlDataSource = regionMismatch ? "runtime" : runtimeExperiment?.source ?? "none";
   const portOpsSource: PortOpsDataSource = runtimePortOps ? runtimePortOps.source : "none";
   const weatherSource: WeatherDataSource = marineWeather?.source ?? "none";
   const rewardData = experimentSteps.length > 0 ? toRewardTrend(experimentStepsToRewardTrend(experimentSteps)) : [];
   const experimentConstraintData = experimentSteps.length > 0 ? experimentStepsToConstraintPressure(experimentSteps) : [];
   const vesselConstraintData = externalSource ? deriveConstraintPressureFromVessels(rows) : [];
   const constraintData = experimentSteps.length > 0 ? mergeConstraintPressure(experimentConstraintData, rows) : [...vesselConstraintData, ...derivePortPressureFromVessels(rows)];
-  const timelineData = experimentSteps.length > 0 ? experimentStepsToTimelineEvents(experimentSteps) : externalSource ? externalTimeline(source, rows, chmarlSource, portOpsSource) : [];
+  const timelineData = experimentSteps.length > 0 ? experimentStepsToTimelineEvents(experimentSteps) : externalSource ? externalTimeline(source, rows, chmarlSource, portOpsSource, coverageDiagnostics) : [];
 
   return {
     source,
@@ -199,16 +253,17 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     portOpsSource,
     weatherSource,
     weatherPoints: marineWeather?.points ?? [],
-    chmarlExperimentId: runtimeExperiment?.experimentId ?? experimentSteps[0]?.experimentId,
-    chmarlScenarioId: runtimeExperiment?.scenarioId ?? experimentSteps[0]?.scenarioId,
+    coverageDiagnostics,
+    chmarlExperimentId: regionMismatch ? undefined : runtimeExperiment?.experimentId ?? experimentSteps[0]?.experimentId,
+    chmarlScenarioId: regionMismatch ? undefined : runtimeExperiment?.scenarioId ?? experimentSteps[0]?.scenarioId,
     chmarlSteps: experimentSteps,
     metrics: realOnlyMetrics,
     vessels: rows,
-    portEvents: runtimePortOps?.portEvents ?? [],
-    portQueueStatus: runtimePortOps?.queueStatus ?? [],
+    portEvents: regionMismatch ? [] : runtimePortOps?.portEvents ?? [],
+    portQueueStatus: regionMismatch ? [] : runtimePortOps?.queueStatus ?? [],
     rewardTrend: rewardData,
     constraintPressure: constraintData,
-    portUtilization: runtimePortOps?.portUtilization ?? [],
+    portUtilization: regionMismatch ? [] : runtimePortOps?.portUtilization ?? [],
     timelineEvents: timelineData,
   };
 }
