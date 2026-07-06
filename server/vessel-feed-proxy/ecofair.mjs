@@ -102,7 +102,12 @@ export function createEcoFairRuntime(options = {}) {
     portCapacity: { ...DEFAULT_PORT_CAPACITY, ...(options.portCapacity ?? {}) },
     berthRadiusNm: options.berthRadiusNm ?? 5,
     anchorageRadiusNm: options.anchorageRadiusNm ?? 20,
-    emissionBudgetTonnesPerDay: options.emissionBudgetTonnesPerDay ?? 4000,
+    // Fixed daily budget (t CO2). When 0/unset, the budget scales with the
+    // tracked fleet: budgetTonnesPerVesselPerDay * active vessels. A fixed
+    // budget sized for a small fleet makes the emission penalty dominate the
+    // reward as soon as the live feed tracks hundreds of vessels.
+    emissionBudgetTonnesPerDay: options.emissionBudgetTonnesPerDay ?? 0,
+    budgetTonnesPerVesselPerDay: options.budgetTonnesPerVesselPerDay ?? 60,
     gammaEmis: options.gammaEmis ?? 10,
     gammaFair: options.gammaFair ?? 5,
     lambdaLearningRate: options.lambdaLearningRate ?? 0.05,
@@ -163,6 +168,16 @@ export function createEcoFairRuntime(options = {}) {
     if (state.events.length > cfg.maxEvents) state.events = state.events.slice(-cfg.maxEvents);
   }
 
+  function activeFuelValues() {
+    return [...state.vessels.values()].filter((r) => r.fuelTonnes > 0).map((r) => r.fuelTonnes);
+  }
+
+  /** Daily CO2 budget: fixed if configured, otherwise per-vessel x fleet size. */
+  function dailyBudget() {
+    if (cfg.emissionBudgetTonnesPerDay > 0) return cfg.emissionBudgetTonnesPerDay;
+    return cfg.budgetTonnesPerVesselPerDay * Math.max(1, state.vessels.size);
+  }
+
   function rollEpisodeIfNeeded(nowMs) {
     const day = utcDay(nowMs);
     if (day === state.episodeDate) return;
@@ -176,8 +191,8 @@ export function createEcoFairRuntime(options = {}) {
       date: state.episodeDate,
       totalFuelTonnes: round3(state.totalFuelTonnes),
       totalCo2Tonnes: round3(state.totalCo2Tonnes),
-      emissionBudgetTonnes: cfg.emissionBudgetTonnesPerDay,
-      budgetExcessTonnes: round3(Math.max(0, state.totalCo2Tonnes - cfg.emissionBudgetTonnesPerDay)),
+      emissionBudgetTonnes: round3(dailyBudget()),
+      budgetExcessTonnes: round3(Math.max(0, state.totalCo2Tonnes - dailyBudget())),
       giniFuel: round3(computeGini(fuels)),
       minMaxRatio: round3(computeMinMaxRatio(fuels)),
       lambdaDual: round3(state.lambdaDual),
@@ -194,14 +209,10 @@ export function createEcoFairRuntime(options = {}) {
     // lambda persists across episodes: the dual variable is a running price (paper §3.1).
   }
 
-  function activeFuelValues() {
-    return [...state.vessels.values()].filter((r) => r.fuelTonnes > 0).map((r) => r.fuelTonnes);
-  }
-
   function proratedBudget(nowMs) {
     const dayStart = Date.parse(`${state.episodeDate ?? utcDay(nowMs)}T00:00:00Z`);
     const fraction = Math.min(1, Math.max(0, (nowMs - dayStart) / 86_400_000));
-    return cfg.emissionBudgetTonnesPerDay * fraction;
+    return dailyBudget() * fraction;
   }
 
   /** Ingest the latest vessel rows and integrate fuel/emissions since the last call. */
@@ -262,7 +273,7 @@ export function createEcoFairRuntime(options = {}) {
 
     // Primal-dual multiplier update, rate-limited to once per minute (paper §3.1).
     if (nowMs - state.lastLambdaUpdateMs >= 60_000) {
-      const violation = (state.totalCo2Tonnes - proratedBudget(nowMs)) / Math.max(1, cfg.emissionBudgetTonnesPerDay);
+      const violation = (state.totalCo2Tonnes - proratedBudget(nowMs)) / Math.max(1, dailyBudget());
       state.lambdaDual = Math.max(0, state.lambdaDual + cfg.lambdaLearningRate * violation);
       state.lastLambdaUpdateMs = nowMs;
     }
@@ -311,7 +322,7 @@ export function createEcoFairRuntime(options = {}) {
     const constraints = [
       {
         constraintId: "emission-budget",
-        name: `CO2 vs prorated daily budget (${cfg.emissionBudgetTonnesPerDay} t/day)`,
+        name: `CO2 vs prorated daily budget (${round3(dailyBudget())} t/day${cfg.emissionBudgetTonnesPerDay > 0 ? "" : `, ${cfg.budgetTonnesPerVesselPerDay} t/vessel`})`,
         value: round3(state.totalCo2Tonnes),
         limit: round3(m.budget),
         satisfied: state.totalCo2Tonnes <= m.budget,
@@ -356,7 +367,8 @@ export function createEcoFairRuntime(options = {}) {
         vesselsWithFuel: m.fuels.length,
         totalFuelTonnes: round3(state.totalFuelTonnes),
         totalCo2Tonnes: round3(state.totalCo2Tonnes),
-        emissionBudgetTonnesPerDay: cfg.emissionBudgetTonnesPerDay,
+        emissionBudgetTonnesPerDay: round3(dailyBudget()),
+        budgetMode: cfg.emissionBudgetTonnesPerDay > 0 ? "fixed" : `per-vessel (${cfg.budgetTonnesPerVesselPerDay} t CO2/vessel/day)`,
         proratedBudgetTonnes: round3(m.budget),
         budgetExcessTonnes: round3(m.excess),
         lambdaDual: round3(state.lambdaDual),
@@ -447,7 +459,7 @@ export function createEcoFairRuntime(options = {}) {
       `| Tracked vessels | ${state.vessels.size} |`,
       `| Fleet fuel today (t) | ${round3(state.totalFuelTonnes)} |`,
       `| Fleet CO2 today (t) | ${round3(state.totalCo2Tonnes)} |`,
-      `| Emission budget (t/day) | ${cfg.emissionBudgetTonnesPerDay} |`,
+      `| Emission budget (t/day) | ${round3(dailyBudget())}${cfg.emissionBudgetTonnesPerDay > 0 ? " (fixed)" : ` (${cfg.budgetTonnesPerVesselPerDay} t/vessel x ${state.vessels.size} vessels)`} |`,
       `| Prorated budget now (t) | ${round3(m.budget)} |`,
       `| Budget excess (t) | ${round3(m.excess)} |`,
       `| Dual price lambda | ${round3(state.lambdaDual)} |`,
