@@ -14,6 +14,7 @@
     "dev:vite": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "dev:codespaces": "node scripts/dev-single-port-5173.mjs",
     "proxy": "node server/vessel-feed-proxy/index.mjs",
+    "ingest:experiment": "python3 scripts/chmarl-ingest-bridge.py",
     "diagnose": "node scripts/portal-diagnostics.mjs",
     "diagnose:ais": "node scripts/aisstream-diagnostics.mjs",
     "diagnose:ais-config": "node scripts/check-ais-subscription-config.mjs",
@@ -100,8 +101,8 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.22",
     "globals": "^16.4.0",
-    "typescript": "^5.9.3",
     "typescript-eslint": "^8.45.0",
-    "vite": "^5.4.19"
+    "vite": "^5.4.19",
+    "typescript": "^5.9.3"
   }
 }

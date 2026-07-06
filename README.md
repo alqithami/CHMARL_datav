@@ -1,8 +1,8 @@
 # CH-MARL DataV Platform
 
-A Vite + React + TypeScript dashboard for CH-MARL maritime logistics experiments.
+A Vite + React + TypeScript portal for CH-MARL maritime logistics, developed with the IBM Impact Accelerator for port optimization in Saudi ports and nearby regions.
 
-The project is structured as a runnable CH-MARL interface scaffold with local JSON/GeoJSON sample fixtures, typed data contracts, adapter stubs, interactive scenario switching, remote vessel-feed support, refresh controls, export utilities, and a documented roadmap for vessel, port-event, GeoJSON, experiment-log, scenario, and export integrations.
+The portal runs 24/7 on **real data**: live AIS vessel positions (aisstream.io), Open-Meteo marine weather, port events derived from AIS geofences, and **EcoFair-CH-MARL measures** (emission budgets with a primal-dual price, fuel-based Gini and max-min fairness, and the paper's reward decomposition) computed continuously from the live feed. See [`docs/ECOFAIR_MEASURES.md`](docs/ECOFAIR_MEASURES.md), the paper ([arXiv:2603.14625](https://arxiv.org/abs/2603.14625)), and the reference implementation ([EcoFairCHAMRL](https://github.com/alqithami/EcoFairCHAMRL)).
 
 ## Quick Start
 
@@ -61,7 +61,11 @@ The dashboard refreshes vessel data every 30 seconds and also includes a manual 
 | Scenario catalog | Implemented in `src/scenarios/scenarioCatalog.ts` |
 | Interactive scenario switching | Implemented |
 | Dashboard export tools | Implemented for JSON snapshots, vessel CSV, and paper-ready Markdown reports |
-| Provider-specific live AIS connection | Planned behind the proxy |
+| Live AIS connection (aisstream.io) | Implemented behind the proxy (`AISSTREAM_API_KEY`) |
+| EcoFair-CH-MARL live measures | Implemented in `server/vessel-feed-proxy/ecofair.mjs` (fuel cubic law, emission budget + dual price, fuel Gini / max-min, reward decomposition) |
+| AIS-derived port events, queues, and berth utilization | Implemented (geofence transitions; demo events opt-in only) |
+| Server-side evidence report | Implemented at `GET /api/report` (Markdown, `?format=json`) |
+| EcoFairCHMARL.py research-run ingestion | Implemented via `scripts/chmarl-ingest-bridge.py` and `GET /api/chmarl/episode?source=experiment` |
 
 ## Middle Map
 
@@ -106,6 +110,7 @@ See [`docs/REMOTE_VESSEL_FEED.md`](docs/REMOTE_VESSEL_FEED.md) and [`server/vess
 
 ## Documentation
 
+- EcoFair-CH-MARL live measures: [`docs/ECOFAIR_MEASURES.md`](docs/ECOFAIR_MEASURES.md)
 - Roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md)
 - Data contracts: [`docs/DATA_CONTRACTS.md`](docs/DATA_CONTRACTS.md)
 - Remote vessel feed: [`docs/REMOTE_VESSEL_FEED.md`](docs/REMOTE_VESSEL_FEED.md)

@@ -107,6 +107,24 @@ export function exportVesselCsv(data: DashboardData, scenarioId: string) {
   );
 }
 
+/**
+ * Downloads the backend's live EcoFair-CH-MARL evidence report. The report is
+ * computed server-side from real AIS-derived fuel, emission-budget, fairness,
+ * and port-queue measures (see server/vessel-feed-proxy/ecofair.mjs), so it
+ * remains available and current 24/7 regardless of dashboard state.
+ */
+export async function exportEcoFairServerReport() {
+  const endpoint = (import.meta.env.VITE_ECOFAIR_REPORT_URL as string | undefined)?.trim() || "/api/report";
+  const response = await fetch(endpoint, { headers: { accept: "text/markdown" } });
+  if (!response.ok) throw new Error(`Report endpoint returned ${response.status}`);
+  const markdown = await response.text();
+  downloadTextFile(
+    `ecofair-live-report-${new Date().toISOString().slice(0, 10)}.md`,
+    markdown,
+    "text/markdown;charset=utf-8"
+  );
+}
+
 export function exportOperationalReport(data: DashboardData, scenarioId: string) {
   const createdAt = new Date().toISOString();
   const vesselStatusCounts = countBy(data.vessels.map((vessel) => vessel.status));

@@ -20,7 +20,7 @@ services:
       - key: VITE_PORT_EVENTS_URL
         value: /api/port-events
       - key: VITE_PORT_EVENTS_DEMO_ENABLED
-        value: true
+        value: false
       - key: VITE_WEATHER_URL
         value: /api/weather
       - key: VITE_ALLOW_SAMPLE_DATA
@@ -53,6 +53,26 @@ services:
         value: 15000
       - key: CHMARL_RUNTIME_ENABLED
         value: true
+      - key: ECOFAIR_EMISSION_BUDGET_TONNES_PER_DAY
+        value: 4000
+      - key: ECOFAIR_GAMMA_EMIS
+        value: 10
+      - key: ECOFAIR_GAMMA_FAIR
+        value: 5
+      - key: ECOFAIR_LAMBDA_LR
+        value: 0.05
+      - key: ECOFAIR_GINI_LIMIT
+        value: 0.35
+      - key: ECOFAIR_MINMAX_LIMIT
+        value: 0.4
+      - key: ECOFAIR_BERTH_RADIUS_NM
+        value: 5
+      - key: ECOFAIR_ANCHORAGE_RADIUS_NM
+        value: 20
+      - key: ECOFAIR_TICK_MS
+        value: 60000
+      - key: ECOFAIR_STATE_FILE
+        value: /tmp/ecofair-state.json
       - key: CHMARL_FILE_ENABLED
         value: false
       - key: CHMARL_EXPERIMENT_URL

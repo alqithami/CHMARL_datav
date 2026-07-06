@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Metric, RewardTrendPoint, Vessel } from "@/data/chmarlData";
 import { fallbackDashboardData, loadSampleDashboardData, type ChmarlDataSource, type DashboardData, type DashboardDataSource } from "@/data/loadSampleDashboardData";
-import { exportDashboardSnapshot, exportOperationalReport, exportVesselCsv } from "@/export/dashboardExports";
+import { exportDashboardSnapshot, exportEcoFairServerReport, exportOperationalReport, exportVesselCsv } from "@/export/dashboardExports";
 import { scenarioCatalog } from "@/scenarios/scenarioCatalog";
 import ConstraintChart from "./charts/ConstraintChart";
 import DataQualityPanel from "./DataQualityPanel";
@@ -384,6 +384,15 @@ export default function DashboardShell() {
               <button type="button" onClick={() => exportDashboardSnapshot(dashboardData, selectedScenarioId)}>Snapshot JSON</button>
               <button type="button" onClick={() => exportVesselCsv(dashboardData, selectedScenarioId)}>Vessel CSV</button>
               <button type="button" onClick={() => exportOperationalReport(dashboardData, selectedScenarioId)}>Ops Report</button>
+              <button
+                type="button"
+                onClick={() => {
+                  exportEcoFairServerReport().catch(() => {
+                    window.alert("EcoFair server report is unavailable. Check that the backend proxy is running and reachable at /api/report.");
+                  });
+                }}>
+                EcoFair Report (live)
+              </button>
             </div>
           </details>
         </div>

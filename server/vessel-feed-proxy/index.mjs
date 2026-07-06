@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 import WebSocket from "ws";
+import { createEcoFairRuntime } from "./ecofair.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "dist");
@@ -41,7 +42,26 @@ const UPSTREAM_URL = process.env.UPSTREAM_VESSEL_DATA_URL;
 const UPSTREAM_TOKEN = process.env.UPSTREAM_VESSEL_DATA_TOKEN;
 const AISSTREAM_API_KEY = process.env.AISSTREAM_API_KEY;
 const AISSTREAM_URL = process.env.AISSTREAM_URL ?? "wss://stream.aisstream.io/v0/stream";
-const AISSTREAM_BBOX = process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "true" ? SAUDI_PORT_BBOX : (process.env.AISSTREAM_BBOX ?? REGIONAL_AIS_BBOX);
+function mergeBboxText(...values) {
+  const boxes = [];
+  const seen = new Set();
+  for (const value of values) {
+    for (const box of String(value ?? "").split("|")) {
+      const trimmed = box.trim();
+      if (!trimmed || seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      boxes.push(trimmed);
+    }
+  }
+  return boxes.join("|");
+}
+
+const BASE_AISSTREAM_BBOX = process.env.AISSTREAM_BBOX ?? REGIONAL_AIS_BBOX;
+const AISSTREAM_BBOX = process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "true"
+  ? SAUDI_PORT_BBOX
+  : process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES === "false"
+    ? BASE_AISSTREAM_BBOX
+    : mergeBboxText(BASE_AISSTREAM_BBOX, SAUDI_PORT_BBOX);
 const AISSTREAM_MAX_VESSELS = Number(process.env.AISSTREAM_MAX_VESSELS ?? 750);
 const AISSTREAM_TRAIL_POINTS = Number(process.env.AISSTREAM_TRAIL_POINTS ?? 24);
 const AISSTREAM_MAX_AGE_MS = Number(process.env.AISSTREAM_MAX_AGE_MS ?? 6 * 60 * 60 * 1000);
@@ -60,6 +80,29 @@ const CHMARL_EXPERIMENT_FILE_PATH = resolve(CHMARL_EXPERIMENT_FILE);
 const CHMARL_FILE_ENABLED = process.env.CHMARL_FILE_ENABLED === "true";
 const CHMARL_HISTORY_LIMIT = Number(process.env.CHMARL_HISTORY_LIMIT ?? 96);
 const CHMARL_HISTORY_MIN_INTERVAL_MS = Number(process.env.CHMARL_HISTORY_MIN_INTERVAL_MS ?? 60_000);
+
+// EcoFair-CH-MARL online measurement runtime (paper-faithful measures on live AIS).
+const ECOFAIR_STATE_FILE = process.env.ECOFAIR_STATE_FILE ?? ".runtime/ecofair-state.json";
+const ECOFAIR_STATE_FILE_PATH = resolve(ECOFAIR_STATE_FILE);
+const ECOFAIR_TICK_MS = Number(process.env.ECOFAIR_TICK_MS ?? 60_000);
+let ecofairPortCapacity = {};
+try {
+  ecofairPortCapacity = process.env.ECOFAIR_PORT_CAPACITY ? JSON.parse(process.env.ECOFAIR_PORT_CAPACITY) : {};
+} catch {
+  console.warn("Invalid ECOFAIR_PORT_CAPACITY JSON; using defaults.");
+}
+const ecofair = createEcoFairRuntime({
+  ports: PORT_REFERENCE_POINTS,
+  portCapacity: ecofairPortCapacity,
+  emissionBudgetTonnesPerDay: Number(process.env.ECOFAIR_EMISSION_BUDGET_TONNES_PER_DAY ?? 4000),
+  gammaEmis: Number(process.env.ECOFAIR_GAMMA_EMIS ?? 10),
+  gammaFair: Number(process.env.ECOFAIR_GAMMA_FAIR ?? 5),
+  lambdaLearningRate: Number(process.env.ECOFAIR_LAMBDA_LR ?? 0.05),
+  giniLimit: Number(process.env.ECOFAIR_GINI_LIMIT ?? 0.35),
+  minMaxLimit: Number(process.env.ECOFAIR_MINMAX_LIMIT ?? 0.4),
+  berthRadiusNm: Number(process.env.ECOFAIR_BERTH_RADIUS_NM ?? 5),
+  anchorageRadiusNm: Number(process.env.ECOFAIR_ANCHORAGE_RADIUS_NM ?? 20),
+});
 
 const PORT_EVENTS_URL = process.env.PORT_EVENTS_URL;
 const PORT_EVENTS_TOKEN = process.env.PORT_EVENTS_TOKEN;
@@ -177,10 +220,6 @@ function authorizedIngest(request) {
   return request.headers.authorization === `Bearer ${CHMARL_INGEST_TOKEN}`;
 }
 
-function clamp(value, min = 0, max = 1) {
-  return Math.max(min, Math.min(max, value));
-}
-
 function numberValue(value) {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
   if (typeof value === "string") {
@@ -259,13 +298,6 @@ function distanceNm(a, b) {
   const lat2 = toRad(b.latitude);
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
   return 2 * radiusNm * Math.asin(Math.min(1, Math.sqrt(h)));
-}
-
-function nearestPort(vessel) {
-  if (!Number.isFinite(vessel.latitude) || !Number.isFinite(vessel.longitude)) return null;
-  return PORT_REFERENCE_POINTS
-    .map((port) => ({ port, distance: distanceNm(vessel, port) }))
-    .sort((a, b) => a.distance - b.distance)[0] ?? null;
 }
 
 function normalizeVessel(row) {
@@ -434,205 +466,23 @@ async function ingestChmarl(payload) {
   return updateChmarlState(nextPayload, "ingest");
 }
 
-function gini(values) {
-  const nums = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
-  if (nums.length === 0) return 0;
-  const sum = nums.reduce((a, b) => a + b, 0);
-  if (sum === 0) return 0;
-  return (2 * nums.reduce((acc, value, index) => acc + (index + 1) * value, 0)) / (nums.length * sum) - (nums.length + 1) / nums.length;
-}
-
-function minMaxRatio(values) {
-  const nums = values.filter((value) => Number.isFinite(value) && value >= 0);
-  if (nums.length === 0) return 1;
-  const max = Math.max(...nums);
-  if (max === 0) return 1;
-  return Math.min(...nums) / max;
-}
-
-function ratio(count, total, fallback = 0) {
-  return total > 0 ? count / total : fallback;
-}
-
-function currentChmarlMetrics(vessels) {
-  const total = vessels.length;
-  const speeds = vessels.map(speedKnots).filter((value) => value !== undefined);
-  const moving = speeds.filter((speed) => speed > 0.5).length;
-  const lowSpeed = speeds.filter((speed) => speed <= 0.5).length;
-  const knownSpeedRatio = ratio(speeds.length, total, 0);
-  const movingRatio = ratio(moving, total, 0);
-  const lowSpeedPct = ratio(lowSpeed, total, 0);
-  const validPositionRatio = ratio(vessels.filter((vessel) => Number.isFinite(vessel.latitude) && Number.isFinite(vessel.longitude)).length, total, 0);
-  const freshRatio = ratio(vessels.filter((vessel) => {
-    const ts = timestampMs(vessel.timestamp);
-    return ts === 0 || Date.now() - ts <= 30 * 60 * 1000;
-  }).length, total, 0);
-
-  const nearestCounts = new Map();
-  for (const vessel of vessels) {
-    const nearest = nearestPort(vessel);
-    if (nearest && nearest.distance <= 120) nearestCounts.set(nearest.port.id, (nearestCounts.get(nearest.port.id) ?? 0) + 1);
-  }
-  const busiest = [...nearestCounts.entries()].sort((a, b) => b[1] - a[1])[0];
-  const portPressure = busiest ? ratio(busiest[1], Math.max(1, total), 0) : 0;
-  const speedFairness = speeds.length >= 2 ? clamp(1 - gini(speeds)) : 1;
-  const speedMinMax = minMaxRatio(speeds);
-  const avgSpeed = speeds.length > 0 ? speeds.reduce((sum, value) => sum + value, 0) / speeds.length : 0;
-  const speedScore = clamp(avgSpeed / 14, 0, 1);
-  const throughputScore = clamp(0.7 * movingRatio + 0.3 * knownSpeedRatio, 0, 1);
-  const dataQualityScore = clamp(0.6 * validPositionRatio + 0.4 * freshRatio, 0, 1);
-  const congestionScore = clamp(1 - portPressure, 0, 1);
-  const reward = clamp(
-    0.30 * throughputScore
-    + 0.25 * dataQualityScore
-    + 0.20 * speedFairness
-    + 0.15 * congestionScore
-    + 0.10 * speedScore,
-    0,
-    1,
-  );
-
-  return {
-    total,
-    speeds,
-    moving,
-    lowSpeed,
-    knownSpeedRatio,
-    movingRatio,
-    lowSpeedPct,
-    validPositionRatio,
-    freshRatio,
-    nearestCounts,
-    busiest,
-    portPressure,
-    speedFairness,
-    speedMinMax,
-    avgSpeed,
-    speedScore,
-    throughputScore,
-    dataQualityScore,
-    congestionScore,
-    reward,
-  };
-}
-
-function makeSeverity(satisfied, value, highThreshold) {
-  if (satisfied) return "low";
-  return value >= highThreshold ? "high" : "medium";
-}
-
-function buildChmarlStep(metrics) {
-  const now = new Date().toISOString();
-  const experimentId = `online-${now.slice(0, 10)}`;
-  const constraints = [
-    {
-      constraintId: "ais-data-quality",
-      name: "AIS data quality",
-      value: Number((metrics.dataQualityScore * 100).toFixed(1)),
-      limit: 75,
-      satisfied: metrics.dataQualityScore >= 0.75,
-      severity: makeSeverity(metrics.dataQualityScore >= 0.75, (1 - metrics.dataQualityScore) * 100, 40),
-    },
-    {
-      constraintId: "ais-low-speed",
-      name: "Low speed share",
-      value: Number((metrics.lowSpeedPct * 100).toFixed(1)),
-      limit: 45,
-      satisfied: metrics.lowSpeedPct <= 0.45,
-      severity: makeSeverity(metrics.lowSpeedPct <= 0.45, metrics.lowSpeedPct * 100, 70),
-    },
-    {
-      constraintId: "port-pressure",
-      name: metrics.busiest ? `Port pressure ${metrics.busiest[0]}` : "Port pressure",
-      value: Number((metrics.portPressure * 100).toFixed(1)),
-      limit: 65,
-      satisfied: metrics.portPressure <= 0.65,
-      severity: makeSeverity(metrics.portPressure <= 0.65, metrics.portPressure * 100, 85),
-    },
-    {
-      constraintId: "speed-fairness",
-      name: "Speed fairness",
-      value: Number((metrics.speedFairness * 100).toFixed(1)),
-      limit: 70,
-      satisfied: metrics.speedFairness >= 0.70,
-      severity: makeSeverity(metrics.speedFairness >= 0.70, (1 - metrics.speedFairness) * 100, 45),
-    },
-  ];
-
-  const actions = [
-    { agentId: "coordinator", agentType: "fleet", actionType: "score_live_operational_state", actionValue: Number(metrics.reward.toFixed(3)) },
-    { agentId: "fleet-agent", agentType: "fleet", actionType: "monitor_throughput", actionValue: Number(metrics.throughputScore.toFixed(3)) },
-    { agentId: "vessel-agent", agentType: "vessel", actionType: "monitor_speed_distribution", actionValue: Number(metrics.speedScore.toFixed(3)) },
-    { agentId: "constraint-shield", agentType: "constraint_shield", actionType: "apply_feasibility_guard", actionValue: constraints.every((item) => item.satisfied) },
-  ];
-  if (metrics.busiest) actions.push({ agentId: "port-agent", agentType: "port", actionType: "review_port_cluster", actionValue: metrics.busiest[0], targetId: metrics.busiest[0] });
-
-  const hierarchyDecisions = [
-    {
-      level: "coordinator",
-      decisionId: "reward-index",
-      decisionLabel: `Reward ${metrics.reward.toFixed(3)} from live AIS components`,
-      rationale: "Weighted CH-MARL online inference: throughput, data quality, speed fairness, port pressure, and speed health.",
-    },
-    {
-      level: "fleet",
-      decisionId: "fleet-throughput",
-      decisionLabel: metrics.movingRatio >= 0.5 ? "Fleet movement nominal" : "Fleet movement limited",
-      rationale: `${metrics.moving}/${metrics.total} tracked vessels have SOG above 0.5 kn.`,
-    },
-    {
-      level: "shield",
-      decisionId: "constraint-shield",
-      decisionLabel: constraints.some((item) => !item.satisfied) ? "Constraint shield active" : "Constraint shield nominal",
-      rationale: "Constraints are computed from current live vessel rows; no bundled CH-MARL fixtures are used.",
-    },
-  ];
-
-  return {
-    experimentId,
-    scenarioId: "live-operations",
-    episode: chmarlOnlineHistory.length + 1,
-    step: Math.floor(Date.now() / 1000),
-    timestamp: now,
-    state: {
-      source: "live-ais",
-      vesselCount: metrics.total,
-      nearestPortCounts: Object.fromEntries(metrics.nearestCounts),
-      avgSpeedKnots: Number(metrics.avgSpeed.toFixed(3)),
-      movingRatio: Number(metrics.movingRatio.toFixed(3)),
-      knownSpeedRatio: Number(metrics.knownSpeedRatio.toFixed(3)),
-      dataQualityScore: Number(metrics.dataQualityScore.toFixed(3)),
-      congestionScore: Number(metrics.congestionScore.toFixed(3)),
-      rewardFormula: "0.30 throughput + 0.25 dataQuality + 0.20 fairness + 0.15 congestion + 0.10 speed",
-    },
-    actions,
-    rewards: [
-      { agentId: "coordinator", component: "global", value: Number(metrics.reward.toFixed(3)) },
-      { agentId: "fleet-agent", component: "throughput", value: Number(metrics.throughputScore.toFixed(3)) },
-      { agentId: "constraint-shield", component: "safety", value: Number(metrics.dataQualityScore.toFixed(3)) },
-      { agentId: "coordinator", component: "fairness", value: Number(metrics.speedFairness.toFixed(3)) },
-      { agentId: "port-agent", component: "delay", value: Number((-metrics.portPressure).toFixed(3)) },
-    ],
-    constraints,
-    fairness: [
-      { metricId: "speed-gini", name: "Speed Gini", value: Number((1 - metrics.speedFairness).toFixed(3)), groupBy: "vessel" },
-      { metricId: "speed-minmax", name: "Speed max-min ratio", value: Number(metrics.speedMinMax.toFixed(3)), groupBy: "vessel" },
-    ],
-    hierarchyDecisions,
-  };
-}
-
+/**
+ * Live CH-MARL experiment feed backed by the EcoFair-CH-MARL measurement
+ * runtime (see ecofair.mjs). All rewards, constraints, and fairness metrics
+ * are the paper's measures (arXiv:2603.14625) computed on real AIS rows -
+ * no heuristics, no bundled fixtures.
+ */
 function buildRuntimeChmarlExperiment() {
+  if (!CHMARL_RUNTIME_ENABLED) return null;
   const vessels = sortedAisVessels();
-  if (!CHMARL_RUNTIME_ENABLED || vessels.length === 0) return null;
-  const metrics = currentChmarlMetrics(vessels);
-  const step = buildChmarlStep(metrics);
+  ecofair.update(vessels);
+  if (vessels.length === 0 && ecofair.summary().trackedVessels === 0) return null;
+  const step = ecofair.buildStep(chmarlOnlineHistory.length + 1);
   const signature = JSON.stringify({
     reward: step.rewards[0].value,
-    vesselCount: metrics.total,
-    latest: vessels[0]?.timestamp,
-    moving: metrics.moving,
-    busiest: metrics.busiest?.[0] ?? null,
+    co2: step.state.totalCo2Tonnes,
+    gini: step.state.giniFuel,
+    vessels: step.state.trackedVessels,
   });
   const previous = chmarlOnlineHistory.at(-1);
   const previousMs = previous ? timestampMs(previous.timestamp) : 0;
@@ -640,7 +490,26 @@ function buildRuntimeChmarlExperiment() {
     chmarlOnlineHistory = [...chmarlOnlineHistory, step].slice(-CHMARL_HISTORY_LIMIT);
     lastChmarlSignature = signature;
   }
-  return updateChmarlState({ experimentId: step.experimentId, scenarioId: step.scenarioId, source: "online-runtime", steps: chmarlOnlineHistory }, "online-runtime");
+  return updateChmarlState({ experimentId: step.experimentId, scenarioId: step.scenarioId, source: "ecofair-online", steps: chmarlOnlineHistory }, "ecofair-online");
+}
+
+function loadEcofairStateFromDisk() {
+  try {
+    if (!existsSync(ECOFAIR_STATE_FILE_PATH)) return;
+    ecofair.restore(JSON.parse(readFileSync(ECOFAIR_STATE_FILE_PATH, "utf8")));
+    console.log("EcoFair runtime state restored from disk.");
+  } catch (error) {
+    console.warn("Could not restore EcoFair state:", error instanceof Error ? error.message : error);
+  }
+}
+
+function saveEcofairStateToDisk() {
+  try {
+    mkdirSync(dirname(ECOFAIR_STATE_FILE_PATH), { recursive: true });
+    writeFileSync(ECOFAIR_STATE_FILE_PATH, JSON.stringify(ecofair.serialize()));
+  } catch (error) {
+    console.warn("Could not persist EcoFair state:", error instanceof Error ? error.message : error);
+  }
 }
 
 async function loadChmarlExperiment() {
@@ -718,11 +587,10 @@ async function loadPortOperations() {
   try {
     if (PORT_EVENTS_URL) return updatePortOpsState(await fetchProviderJson(PORT_EVENTS_URL, PORT_EVENTS_TOKEN), "url");
     if (PORT_EVENTS_FILE_ENABLED && existsSync(PORT_EVENTS_FILE_PATH)) return updatePortOpsState(JSON.parse(readFileSync(PORT_EVENTS_FILE_PATH, "utf8")), "file");
-    portOpsState.events = 0;
-    portOpsState.utilizationRows = 0;
-    portOpsState.queueRows = 0;
-    portOpsState.lastError = null;
-    return null;
+    // Default: real port operations derived from live AIS geofences (arrivals,
+    // departures, anchorage queuing, berth occupancy). No demo events.
+    ecofair.update(sortedAisVessels());
+    return updatePortOpsState(ecofair.buildPortOperations(), "ais-derived");
   } catch (error) {
     portOpsState.lastError = error instanceof Error ? error.message : String(error);
     return null;
@@ -915,6 +783,7 @@ function healthPayload() {
     staticDashboard: existsSync(STATIC_INDEX),
     aisstream: { ...aisState, cachedVessels: sortedAisVessels().length },
     chmarl: { ...chmarlState, active: chmarlState.steps > 0 },
+    ecofair: ecofair.summary(),
     portOps: { ...portOpsState, active: portOpsState.events > 0 || portOpsState.utilizationRows > 0 || portOpsState.queueRows > 0 },
     weather: { ...weatherState, active: weatherState.points > 0 },
   };
@@ -922,6 +791,7 @@ function healthPayload() {
 
 function shutdown() {
   saveAisCacheToDisk();
+  saveEcofairStateToDisk();
   process.exit(0);
 }
 
@@ -930,9 +800,24 @@ process.on("SIGTERM", shutdown);
 process.on("beforeExit", saveAisCacheToDisk);
 
 loadAisCacheFromDisk();
+loadEcofairStateFromDisk();
 if (AISSTREAM_CACHE_ENABLED && AISSTREAM_CACHE_FLUSH_MS > 0) {
   const interval = setInterval(saveAisCacheToDisk, AISSTREAM_CACHE_FLUSH_MS);
   interval.unref?.();
+}
+if (ECOFAIR_TICK_MS > 0) {
+  // Keep integrating fuel/emissions and updating the dual price even when no
+  // client is polling, so 24/7 measures stay continuous.
+  const tick = setInterval(() => {
+    try {
+      ecofair.update(sortedAisVessels());
+      buildRuntimeChmarlExperiment();
+      saveEcofairStateToDisk();
+    } catch (error) {
+      console.warn("EcoFair tick failed:", error instanceof Error ? error.message : error);
+    }
+  }, ECOFAIR_TICK_MS);
+  tick.unref?.();
 }
 startAisStream();
 
@@ -958,7 +843,18 @@ createServer(async (request, response) => {
       return sendJson(response, 400, { error: "Failed to ingest CH-MARL payload", detail: error instanceof Error ? error.message : String(error) });
     }
   }
-  if (request.url === "/api/chmarl/episode") {
+  if (request.url?.startsWith("/api/chmarl/episode")) {
+    // ?source=experiment serves the most recently ingested EcoFairCHMARL.py
+    // research run (POST /api/chmarl/ingest), independent of the live feed.
+    const wantsExperiment = new URL(request.url, "http://localhost").searchParams.get("source") === "experiment";
+    if (wantsExperiment) {
+      if (!existsSync(CHMARL_EXPERIMENT_FILE_PATH)) return sendJson(response, 404, { error: "No ingested experiment available. POST results via /api/chmarl/ingest first.", chmarl: chmarlState });
+      try {
+        return sendJson(response, 200, JSON.parse(readFileSync(CHMARL_EXPERIMENT_FILE_PATH, "utf8")));
+      } catch (error) {
+        return sendJson(response, 500, { error: "Stored experiment payload is unreadable", detail: error instanceof Error ? error.message : String(error) });
+      }
+    }
     const experiment = await loadChmarlExperiment();
     if (!experiment || experiment.steps.length === 0) return sendJson(response, 404, { error: "No CH-MARL experiment feed is active", chmarl: chmarlState });
     return sendJson(response, 200, experiment);
@@ -973,11 +869,18 @@ createServer(async (request, response) => {
     if (!weather) return sendJson(response, 502, { error: "No weather feed is active", weather: weatherState });
     return sendJson(response, 200, weather);
   }
+  if (request.url?.startsWith("/api/report")) {
+    ecofair.update(sortedAisVessels());
+    const wantsJson = new URL(request.url, "http://localhost").searchParams.get("format") === "json";
+    if (wantsJson) return sendJson(response, 200, { generatedAt: new Date().toISOString(), summary: ecofair.summary(), state: ecofair.serialize(), markdown: ecofair.buildReport() });
+    response.writeHead(200, { "content-type": "text/markdown; charset=utf-8", "access-control-allow-origin": "*" });
+    return response.end(ecofair.buildReport());
+  }
   const staticMatch = staticFileForUrl(request.url);
   if (staticMatch?.path) return sendFile(response, staticMatch.path);
   if (staticMatch?.statusCode === 403) return sendJson(response, 403, { error: "Forbidden" });
-  if (request.url === "/" || request.url === "") return sendJson(response, 200, { service: "chmarl-backend", endpoints: ["/health", "/api/vessels", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather"] });
-  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/", "/health", "/api/vessels", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather"] });
+  if (request.url === "/" || request.url === "") return sendJson(response, 200, { service: "chmarl-backend", endpoints: ["/health", "/api/vessels", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report"] });
+  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/", "/health", "/api/vessels", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report"] });
 }).listen(PORT, () => {
   console.log(`CH-MARL backend listening at http://localhost:${PORT}`);
   console.log(`AISStream bounding boxes: ${AISSTREAM_BBOX.split("|").length}`);
