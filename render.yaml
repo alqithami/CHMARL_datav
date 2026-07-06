@@ -27,6 +27,8 @@ services:
         value: false
       - key: VITE_ALLOW_SAMPLE_CHMARL
         value: false
+      - key: VITE_REQUIRE_OPERATIONAL_REGION
+        value: true
       - key: AISSTREAM_API_KEY
         sync: false
       - key: AISSTREAM_URL
