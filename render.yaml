@@ -54,7 +54,9 @@ services:
       - key: CHMARL_RUNTIME_ENABLED
         value: true
       - key: ECOFAIR_EMISSION_BUDGET_TONNES_PER_DAY
-        value: 4000
+        value: 0
+      - key: ECOFAIR_BUDGET_TONNES_PER_VESSEL_PER_DAY
+        value: 60
       - key: ECOFAIR_GAMMA_EMIS
         value: 10
       - key: ECOFAIR_GAMMA_FAIR
