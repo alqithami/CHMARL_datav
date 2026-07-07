@@ -204,8 +204,8 @@ function externalTimeline(source: DashboardDataSource, rows: Vessel[], chmarlSou
   if (coverage && coverage.providerRows > 0 && coverage.operationalRows === 0 && coverage.outOfRegionRows > 0) {
     return [{
       time: "live",
-      title: "AIS feed outside operational region",
-      body: `${coverage.outOfRegionRows} provider rows were outside ${coverage.operationalRegionLabel}; CH-MARL/EcoFair scoring is blocked until regional rows arrive or the production BBOX is restored.`,
+      title: "AIS feed outside target region",
+      body: `${coverage.outOfRegionRows} provider rows are outside ${coverage.operationalRegionLabel}. They remain visible for monitoring, but Saudi/EcoFair interpretation is flagged as non-operational evidence.`,
     }];
   }
   if (source === "aisstream-waiting") {
@@ -235,10 +235,9 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     operationalRows: operationalRows.length,
     outOfRegionRows,
   };
-  const regionMismatch = requireOperationalRegion && externalSource && providerRows.length > 0 && operationalRows.length === 0;
-  const rows = regionMismatch ? [] : operationalRows;
-  const experimentSteps = regionMismatch ? [] : runtimeExperiment?.steps ?? [];
-  const chmarlSource: ChmarlDataSource = regionMismatch ? "runtime" : runtimeExperiment?.source ?? "none";
+  const rows = providerRows;
+  const experimentSteps = runtimeExperiment?.steps ?? [];
+  const chmarlSource: ChmarlDataSource = runtimeExperiment?.source ?? "none";
   const portOpsSource: PortOpsDataSource = runtimePortOps ? runtimePortOps.source : "none";
   const weatherSource: WeatherDataSource = marineWeather?.source ?? "none";
   const rewardData = experimentSteps.length > 0 ? toRewardTrend(experimentStepsToRewardTrend(experimentSteps)) : [];
@@ -254,16 +253,16 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     weatherSource,
     weatherPoints: marineWeather?.points ?? [],
     coverageDiagnostics,
-    chmarlExperimentId: regionMismatch ? undefined : runtimeExperiment?.experimentId ?? experimentSteps[0]?.experimentId,
-    chmarlScenarioId: regionMismatch ? undefined : runtimeExperiment?.scenarioId ?? experimentSteps[0]?.scenarioId,
+    chmarlExperimentId: runtimeExperiment?.experimentId ?? experimentSteps[0]?.experimentId,
+    chmarlScenarioId: runtimeExperiment?.scenarioId ?? experimentSteps[0]?.scenarioId,
     chmarlSteps: experimentSteps,
     metrics: realOnlyMetrics,
     vessels: rows,
-    portEvents: regionMismatch ? [] : runtimePortOps?.portEvents ?? [],
-    portQueueStatus: regionMismatch ? [] : runtimePortOps?.queueStatus ?? [],
+    portEvents: runtimePortOps?.portEvents ?? [],
+    portQueueStatus: runtimePortOps?.queueStatus ?? [],
     rewardTrend: rewardData,
     constraintPressure: constraintData,
-    portUtilization: regionMismatch ? [] : runtimePortOps?.portUtilization ?? [],
+    portUtilization: runtimePortOps?.portUtilization ?? [],
     timelineEvents: timelineData,
   };
 }
