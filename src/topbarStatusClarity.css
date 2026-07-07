@@ -1,0 +1,72 @@
+/* The top-right DS/AI/PO/WX/MO/UP abbreviations looked like controls but most were only
+ * passive status chips. This override keeps the compact MAWANI top bar while showing
+ * readable labels and leaving only actual actions (Refresh, Exports) as buttons.
+ */
+
+.status-control-group {
+  align-items: center !important;
+}
+
+.status-control-group .data-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 2rem !important;
+  min-height: 2rem !important;
+  max-width: 13rem !important;
+  padding: 0.35rem 0.55rem !important;
+  overflow: hidden !important;
+  color: var(--mawani-text-primary, #f4f4f4) !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  cursor: default !important;
+}
+
+.status-control-group .data-pill::before,
+.status-control-group .data-pill::after {
+  display: none !important;
+  content: none !important;
+}
+
+.status-control-group > button.pill {
+  width: auto !important;
+  min-width: 4.4rem !important;
+  height: 2rem !important;
+  min-height: 2rem !important;
+  padding: 0.35rem 0.65rem !important;
+  color: var(--mawani-text-primary, #f4f4f4) !important;
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+}
+
+.status-control-group > button.pill::before,
+.status-control-group > button.pill::after {
+  display: none !important;
+  content: none !important;
+}
+
+.actions-menu summary {
+  width: auto !important;
+  min-width: 4.4rem !important;
+  padding: 0.35rem 0.65rem !important;
+  color: var(--mawani-text-primary, #f4f4f4) !important;
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+}
+
+.actions-menu summary::before,
+.actions-menu summary::after {
+  display: none !important;
+  content: none !important;
+}
+
+@media (max-width: 1180px) {
+  .status-control-group .data-pill:nth-child(n+5) {
+    display: none !important;
+  }
+}
