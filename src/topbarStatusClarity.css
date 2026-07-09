@@ -50,6 +50,29 @@
   content: none !important;
 }
 
+.scenario-buttons {
+  display: none !important;
+}
+
+.scenario-bar::before {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: end;
+  align-self: center;
+  content: "Live production mode · scenario simulations disabled";
+  min-height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--mawani-border-subtle, #393939);
+  color: var(--mawani-text-secondary, #c6c6c6);
+  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .actions-menu summary {
   width: auto !important;
   min-width: 4.4rem !important;
@@ -66,7 +89,8 @@
 }
 
 @media (max-width: 1180px) {
-  .status-control-group .data-pill:nth-child(n+5) {
+  .status-control-group .data-pill:nth-child(n+5),
+  .scenario-bar::before {
     display: none !important;
   }
 }
