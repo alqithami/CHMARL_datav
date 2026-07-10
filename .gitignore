@@ -5,6 +5,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+Pasted text*.txt
 
 # Dependencies
 node_modules
@@ -18,11 +19,26 @@ coverage
 .runtime
 runtime
 *.cache.json
+*-cache.json
+manual_vessels.json
+chmarl_episode.json
+ecofair-state.json
+port_events.json
+weather.json
+
+# Local transfer bundles / downloaded artifacts
+*.zip
+*.tar
+*.tar.gz
+CHMARL_datav-main*.zip
+ecofair_inputs_bundle*.zip
 
 # Environment files
 .env
 .env.local
 .env.*.local
+*.env
+*.env.*
 
 # Editor files
 .vscode/*
