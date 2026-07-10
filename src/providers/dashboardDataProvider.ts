@@ -1,6 +1,7 @@
 import type { DashboardDataSource } from "@/data/loadSampleDashboardData";
 import type { Vessel, VesselTrailPoint } from "@/data/chmarlData";
 import { fetchFirstJson } from "./backendUrl";
+import { stabilizeVesselDisplay } from "./vesselDisplayStabilizer";
 
 type RemoteTrailPoint = Partial<VesselTrailPoint> & {
   lat?: string | number;
@@ -148,11 +149,12 @@ function toDashboardVessel(row: RemoteVesselRow): Vessel {
 export async function loadRemoteDashboardVessels(): Promise<DashboardVesselFeed | null> {
   const payload = await fetchFirstJson<RemoteVesselPayload | RemoteVesselRow[]>(endpointUrl());
   if (!payload) return null;
-  const rows = extractRows(payload).map(toDashboardVessel);
+  const incomingRows = extractRows(payload).map(toDashboardVessel);
+  const rows = stabilizeVesselDisplay(incomingRows);
   if (Array.isArray(payload)) {
-    return { source: "remote", vessels: rows, scope: "tracking", trackingRows: rows.length, operationalRows: 0 };
+    return { source: "remote", vessels: rows, scope: "tracking", trackingRows: incomingRows.length, operationalRows: 0 };
   }
-  const trackingRows = payload.counts?.tracking ?? payload.inputs?.trackingRows ?? rows.length;
+  const trackingRows = payload.counts?.tracking ?? payload.inputs?.trackingRows ?? incomingRows.length;
   const operationalRows = payload.counts?.operational ?? payload.inputs?.operationalRows ?? 0;
   return {
     source: normalizeSource(payload.source),
