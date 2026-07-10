@@ -25,6 +25,12 @@ export type CoverageDiagnostics = {
   outOfRegionRows: number;
 };
 
+export type VesselScopeSummary = {
+  trackingRows: number;
+  operationalRows: number;
+  operationalRadiusNm: number;
+};
+
 export type DashboardData = {
   source: DashboardDataSource;
   chmarlSource: ChmarlDataSource;
@@ -32,6 +38,7 @@ export type DashboardData = {
   weatherSource: WeatherDataSource;
   weatherPoints: MarineWeatherPoint[];
   coverageDiagnostics?: CoverageDiagnostics;
+  vesselScope?: VesselScopeSummary;
   chmarlExperimentId?: string;
   chmarlScenarioId?: string;
   chmarlSteps: ChmarlExperimentStep[];
@@ -46,14 +53,14 @@ export type DashboardData = {
 };
 
 const operationalRegion = {
-  label: "Red Sea / Gulf operational region",
+  label: "Monitored port operational scope",
   minLat: 11,
   maxLat: 31,
   minLon: 32,
   maxLon: 56,
 };
 
-const requireOperationalRegion = import.meta.env.VITE_REQUIRE_OPERATIONAL_REGION !== "false";
+const requireOperationalRegion = import.meta.env.VITE_REQUIRE_OPERATIONAL_REGION === "true";
 
 const saudiPortReferencePoints = [
   { id: "Jeddah", latitude: 21.4858, longitude: 39.1925 },
@@ -89,6 +96,7 @@ export const fallbackDashboardData: DashboardData = {
     operationalRows: 0,
     outOfRegionRows: 0,
   },
+  vesselScope: { trackingRows: 0, operationalRows: 0, operationalRadiusNm: portPressureDistanceNm },
   chmarlSteps: [],
   metrics: realOnlyMetrics,
   vessels: [],
@@ -158,17 +166,20 @@ function nearestPort(row: Vessel) {
     .sort((a, b) => a.distance - b.distance)[0];
 }
 
+function operationalVesselRows(rows: Vessel[], radiusNm: number) {
+  return rows.filter((row) => {
+    const nearest = nearestPort(row);
+    return nearest !== undefined && nearest.distance <= radiusNm;
+  });
+}
+
 function derivePortPressureFromVessels(rows: Vessel[]): ChartDatum[] {
   const total = rows.length;
   const counts = new Map(saudiPortReferencePoints.map((port) => [port.id, 0]));
-
   for (const row of rows) {
     const nearest = nearestPort(row);
-    if (nearest && nearest.distance <= portPressureDistanceNm) {
-      counts.set(nearest.port.id, (counts.get(nearest.port.id) ?? 0) + 1);
-    }
+    if (nearest && nearest.distance <= portPressureDistanceNm) counts.set(nearest.port.id, (counts.get(nearest.port.id) ?? 0) + 1);
   }
-
   return saudiPortReferencePoints.map((port) => ({
     name: `AIS pressure ${port.id}`,
     value: pct(counts.get(port.id) ?? 0, total),
@@ -194,25 +205,22 @@ function deriveConstraintPressureFromVessels(rows: Vessel[]): ChartDatum[] {
   ];
 }
 
-function mergeConstraintPressure(experimentRows: ChartDatum[], vesselRows: Vessel[]): ChartDatum[] {
+function mergeConstraintPressure(experimentRows: ChartDatum[], operationalRows: Vessel[]): ChartDatum[] {
   const nonPortRows = experimentRows.filter((row) => !/^Port pressure\b/.test(row.name) && !/^AIS pressure\b/.test(row.name));
-  if (vesselRows.length === 0) return nonPortRows;
-  return [...nonPortRows, ...derivePortPressureFromVessels(vesselRows)];
+  if (operationalRows.length === 0) return nonPortRows;
+  return [...nonPortRows, ...derivePortPressureFromVessels(operationalRows)];
 }
 
-function externalTimeline(source: DashboardDataSource, rows: Vessel[], chmarlSource: ChmarlDataSource, portOpsSource: PortOpsDataSource, coverage?: CoverageDiagnostics): TimelineEvent[] {
-  if (coverage && coverage.providerRows > 0 && coverage.operationalRows === 0 && coverage.outOfRegionRows > 0) {
-    return [{
-      time: "live",
-      title: "AIS feed outside target region",
-      body: `${coverage.outOfRegionRows} provider rows are outside ${coverage.operationalRegionLabel}. They remain visible for monitoring, but Saudi/EcoFair interpretation is flagged as non-operational evidence.`,
-    }];
-  }
+function externalTimeline(source: DashboardDataSource, rows: Vessel[], chmarlSource: ChmarlDataSource, portOpsSource: PortOpsDataSource, vesselScope: VesselScopeSummary): TimelineEvent[] {
   if (source === "aisstream-waiting") {
-    return [{ time: "live", title: "AIS connected, waiting for position messages", body: "The backend socket is active, but no positions have been cached for the selected boxes yet." }];
+    return [{ time: "live", title: "AIS connected, waiting for position messages", body: "The backend socket is active, but no usable positions have entered the tracking cache yet." }];
   }
   if (!isExternalSource(source)) return [];
-  return [{ time: "live", title: chmarlSource !== "none" ? "Live feed + online inference active" : "External feed active", body: `${rows.length} rows are loaded from ${source}. CH-MARL source: ${chmarlSource}. Port source: ${portOpsSource}.` }];
+  return [{
+    time: "live",
+    title: chmarlSource !== "none" ? "Global tracking + port-scoped inference active" : "External tracking feed active",
+    body: `${vesselScope.trackingRows} vessels are available for map tracking; ${vesselScope.operationalRows} vessels within ${vesselScope.operationalRadiusNm} nm of monitored ports are used by EcoFair-CH-MARL. Port source: ${portOpsSource}.`,
+  }];
 }
 
 export async function loadSampleDashboardData(): Promise<DashboardData> {
@@ -226,25 +234,34 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
   const providerRows = remoteVessels?.vessels ?? [];
   const source: DashboardDataSource = remoteVessels?.source ?? "none";
   const externalSource = isExternalSource(source);
-  const operationalRows = requireOperationalRegion && externalSource ? providerRows.filter(inOperationalRegion) : providerRows;
-  const outOfRegionRows = requireOperationalRegion && externalSource ? providerRows.length - operationalRows.length : 0;
+  const operationalRadiusNm = remoteVessels?.operationalRadiusNm ?? portPressureDistanceNm;
+  const derivedOperationalRows = operationalVesselRows(providerRows, operationalRadiusNm);
+  const trackingRows = remoteVessels?.trackingRows ?? providerRows.length;
+  const operationalRows = remoteVessels?.operationalRows ?? derivedOperationalRows.length;
+  const vesselScope: VesselScopeSummary = { trackingRows, operationalRows, operationalRadiusNm };
+  const regionRows = requireOperationalRegion && externalSource ? providerRows.filter(inOperationalRegion).length : operationalRows;
   const coverageDiagnostics: CoverageDiagnostics = {
     requireOperationalRegion,
     operationalRegionLabel: operationalRegion.label,
-    providerRows: providerRows.length,
-    operationalRows: operationalRows.length,
-    outOfRegionRows,
+    providerRows: trackingRows,
+    operationalRows: regionRows,
+    outOfRegionRows: Math.max(0, trackingRows - regionRows),
   };
-  const rows = providerRows;
   const experimentSteps = runtimeExperiment?.steps ?? [];
   const chmarlSource: ChmarlDataSource = runtimeExperiment?.source ?? "none";
   const portOpsSource: PortOpsDataSource = runtimePortOps ? runtimePortOps.source : "none";
   const weatherSource: WeatherDataSource = marineWeather?.source ?? "none";
   const rewardData = experimentSteps.length > 0 ? toRewardTrend(experimentStepsToRewardTrend(experimentSteps)) : [];
   const experimentConstraintData = experimentSteps.length > 0 ? experimentStepsToConstraintPressure(experimentSteps) : [];
-  const vesselConstraintData = externalSource ? deriveConstraintPressureFromVessels(rows) : [];
-  const constraintData = experimentSteps.length > 0 ? mergeConstraintPressure(experimentConstraintData, rows) : [...vesselConstraintData, ...derivePortPressureFromVessels(rows)];
-  const timelineData = experimentSteps.length > 0 ? experimentStepsToTimelineEvents(experimentSteps) : externalSource ? externalTimeline(source, rows, chmarlSource, portOpsSource, coverageDiagnostics) : [];
+  const vesselConstraintData = externalSource ? deriveConstraintPressureFromVessels(providerRows) : [];
+  const constraintData = experimentSteps.length > 0
+    ? mergeConstraintPressure(experimentConstraintData, derivedOperationalRows)
+    : [...vesselConstraintData, ...derivePortPressureFromVessels(derivedOperationalRows)];
+  const timelineData = experimentSteps.length > 0
+    ? experimentStepsToTimelineEvents(experimentSteps)
+    : externalSource
+      ? externalTimeline(source, providerRows, chmarlSource, portOpsSource, vesselScope)
+      : [];
 
   return {
     source,
@@ -253,11 +270,12 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     weatherSource,
     weatherPoints: marineWeather?.points ?? [],
     coverageDiagnostics,
+    vesselScope,
     chmarlExperimentId: runtimeExperiment?.experimentId ?? experimentSteps[0]?.experimentId,
     chmarlScenarioId: runtimeExperiment?.scenarioId ?? experimentSteps[0]?.scenarioId,
     chmarlSteps: experimentSteps,
     metrics: realOnlyMetrics,
-    vessels: rows,
+    vessels: providerRows,
     portEvents: runtimePortOps?.portEvents ?? [],
     portQueueStatus: runtimePortOps?.queueStatus ?? [],
     rewardTrend: rewardData,
