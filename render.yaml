@@ -5,7 +5,7 @@ services:
     plan: starter
     numInstances: 1
     dockerfilePath: ./Dockerfile
-    autoDeployTrigger: commit
+    autoDeployTrigger: checksPass
     healthCheckPath: /health
     maxShutdownDelaySeconds: 60
     disk:
