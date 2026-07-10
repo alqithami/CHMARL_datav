@@ -3,9 +3,15 @@ services:
     name: chmarl-datav
     runtime: docker
     plan: starter
+    numInstances: 1
     dockerfilePath: ./Dockerfile
     autoDeployTrigger: commit
     healthCheckPath: /health
+    maxShutdownDelaySeconds: 60
+    disk:
+      name: chmarl-runtime-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -13,6 +19,8 @@ services:
         value: 8787
       - key: STATIC_DIR
         value: dist
+      - key: RUNTIME_DATA_DIR
+        value: /var/data
       - key: VITE_VESSEL_DATA_URL
         value: /api/vessels
       - key: VITE_CHMARL_EXPERIMENT_URL
@@ -28,7 +36,7 @@ services:
       - key: VITE_ALLOW_SAMPLE_CHMARL
         value: false
       - key: VITE_REQUIRE_OPERATIONAL_REGION
-        value: true
+        value: false
       - key: UPSTREAM_VESSEL_DATA_URL
         sync: false
       - key: UPSTREAM_VESSEL_DATA_TOKEN
@@ -36,7 +44,7 @@ services:
       - key: FIXED_VESSEL_DATA_FILE_ENABLED
         value: true
       - key: FIXED_VESSEL_DATA_FILE
-        value: /tmp/manual_vessels.json
+        value: /var/data/manual-vessels.json
       - key: FIXED_VESSEL_DATA_URL
         value: https://chmarl-datav.onrender.com/data/manual_vessels.sample.json
       - key: FIXED_VESSEL_DATA_TOKEN
@@ -47,30 +55,30 @@ services:
         sync: false
       - key: AISSTREAM_URL
         value: wss://stream.aisstream.io/v0/stream
-      - key: AISSTREAM_FORCE_REGIONAL_BBOX
+      - key: AISSTREAM_GLOBAL_TRACKING_ENABLED
         value: true
+      - key: AISSTREAM_TRACKING_BBOX
+        value: -90,-180;90,180
       - key: AISSTREAM_BBOX
         value: 11,32;31,56
       - key: AISSTREAM_APPEND_SAUDI_PORT_BBOXES
         value: true
-      - key: AISSTREAM_USE_SAUDI_PORT_BBOXES
-        value: false
       - key: AISSTREAM_FILTER_TYPES
-        value: ""
+        value: PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport
       - key: AISSTREAM_MAX_VESSELS
-        value: 750
+        value: 5000
       - key: AISSTREAM_MAX_AGE_MS
         value: 21600000
       - key: AISSTREAM_TRAIL_POINTS
-        value: 24
+        value: 12
       - key: AISSTREAM_CACHE_ENABLED
         value: true
-      - key: RUNTIME_CACHE_SCOPE
-        value: bbox
       - key: AISSTREAM_CACHE_FLUSH_MS
-        value: 15000
+        value: 30000
       - key: CHMARL_RUNTIME_ENABLED
         value: true
+      - key: ECOFAIR_OPERATIONAL_RADIUS_NM
+        value: 120
       - key: ECOFAIR_EMISSION_BUDGET_TONNES_PER_DAY
         value: 0
       - key: ECOFAIR_BUDGET_TONNES_PER_VESSEL_PER_DAY
@@ -91,6 +99,8 @@ services:
         value: 20
       - key: ECOFAIR_TICK_MS
         value: 60000
+      - key: ECOFAIR_STATE_FILE
+        value: /var/data/ecofair-state.json
       - key: CHMARL_FILE_ENABLED
         value: false
       - key: CHMARL_EXPERIMENT_URL
@@ -100,13 +110,13 @@ services:
       - key: CHMARL_INGEST_TOKEN
         sync: false
       - key: CHMARL_EXPERIMENT_FILE
-        value: /tmp/chmarl_episode.json
+        value: /var/data/chmarl-episode.json
       - key: PORT_EVENTS_URL
         sync: false
       - key: PORT_EVENTS_FILE_ENABLED
         value: false
       - key: PORT_EVENTS_FILE
-        value: /tmp/port_events.json
+        value: /var/data/port-events.json
       - key: WEATHER_URL
         sync: false
       - key: WEATHER_TOKEN
@@ -114,4 +124,4 @@ services:
       - key: WEATHER_FILE_ENABLED
         value: false
       - key: WEATHER_FILE
-        value: /tmp/weather.json
+        value: /var/data/weather.json
