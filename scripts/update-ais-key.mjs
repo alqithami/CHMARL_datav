@@ -15,16 +15,24 @@ if (!newKey) {
 const requiredDefaults = new Map([
   ["AISSTREAM_API_KEY", newKey],
   ["AISSTREAM_URL", "wss://stream.aisstream.io/v0/stream"],
-  ["AISSTREAM_FORCE_REGIONAL_BBOX", "true"],
+  ["AISSTREAM_GLOBAL_TRACKING_ENABLED", "true"],
+  ["AISSTREAM_TRACKING_BBOX", "-90,-180;90,180"],
   ["AISSTREAM_BBOX", "11,32;31,56"],
   ["AISSTREAM_APPEND_SAUDI_PORT_BBOXES", "true"],
-  ["AISSTREAM_USE_SAUDI_PORT_BBOXES", "false"],
-  ["AISSTREAM_FILTER_TYPES", ""],
-  ["AISSTREAM_MAX_VESSELS", "750"],
+  ["AISSTREAM_FILTER_TYPES", "PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport"],
+  ["AISSTREAM_MAX_VESSELS", "5000"],
   ["AISSTREAM_MAX_AGE_MS", "21600000"],
-  ["AISSTREAM_TRAIL_POINTS", "24"],
+  ["AISSTREAM_TRAIL_POINTS", "12"],
   ["AISSTREAM_CACHE_ENABLED", "true"],
-  ["RUNTIME_CACHE_SCOPE", "bbox"],
+  ["RUNTIME_DATA_DIR", ".runtime"],
+  ["ECOFAIR_OPERATIONAL_RADIUS_NM", "120"],
+  ["VITE_REQUIRE_OPERATIONAL_REGION", "false"],
+]);
+
+const obsoleteKeys = new Set([
+  "AISSTREAM_FORCE_REGIONAL_BBOX",
+  "AISSTREAM_USE_SAUDI_PORT_BBOXES",
+  "RUNTIME_CACHE_SCOPE",
 ]);
 
 const existingLines = existsSync(envPath) ? readFileSync(envPath, "utf8").split(/\r?\n/) : [];
@@ -38,6 +46,7 @@ for (const line of existingLines) {
     continue;
   }
   const key = match[1];
+  if (obsoleteKeys.has(key)) continue;
   if (requiredDefaults.has(key)) {
     nextLines.push(`${key}=${requiredDefaults.get(key)}`);
     seen.add(key);
@@ -60,7 +69,7 @@ writeFileSync(envPath, `${nextLines.join("\n")}\n`, { mode: 0o600 });
 
 console.log(`Updated ${envPath}`);
 console.log("AISSTREAM_API_KEY=<redacted>");
-console.log("AISSTREAM_BBOX=11,32;31,56");
-console.log("AISSTREAM_APPEND_SAUDI_PORT_BBOXES=true");
-console.log("AISSTREAM_FORCE_REGIONAL_BBOX=true");
-console.log("Next: pnpm cache:clear -- --yes, then restart pnpm dev:proxy.");
+console.log("AISSTREAM_GLOBAL_TRACKING_ENABLED=true");
+console.log("AISSTREAM_TRACKING_BBOX=-90,-180;90,180");
+console.log("ECOFAIR_OPERATIONAL_RADIUS_NM=120");
+console.log("Next: restart pnpm dev:proxy. Clear runtime state only if you intentionally want to discard cached tracking/history.");
