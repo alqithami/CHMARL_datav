@@ -27,6 +27,15 @@ function mergeBboxText(...values) {
   return boxes.join("|");
 }
 
+function stableKey(value) {
+  let hash = 2166136261;
+  for (const char of String(value)) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
 function loadEnvFile(fileName) {
   const filePath = resolve(process.cwd(), fileName);
   if (!existsSync(filePath)) return;
@@ -149,6 +158,12 @@ if (process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES !== "false" || process.env.AI
   process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES = "false";
 }
 
+if (process.env.RUNTIME_CACHE_SCOPE !== "off") {
+  const cacheKey = stableKey(process.env.AISSTREAM_BBOX);
+  process.env.AISSTREAM_CACHE_FILE = `.runtime/ais-cache-${cacheKey}.json`;
+  process.env.ECOFAIR_STATE_FILE = `.runtime/ecofair-state-${cacheKey}.json`;
+}
+
 const proxyPort = process.env.PORT;
 const dashboardPort = process.env.VITE_PORT;
 const viteProxyTarget = process.env.VITE_PROXY_TARGET;
@@ -180,48 +195,34 @@ function run(name, command, args, env = {}) {
 }
 
 function shutdown(code = 0) {
-  for (const child of processes) {
-    if (!child.killed) child.kill("SIGTERM");
+  for (const proc of processes) {
+    try {
+      proc.kill?.();
+    } catch {
+      // already closed
+    }
   }
   process.exit(code);
 }
 
 process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
-process.on("exit", () => {
-  for (const child of processes) {
-    if (!child.killed) child.kill("SIGTERM");
-  }
-});
 
 console.log(`Starting CH-MARL backend on port ${proxyPort}`);
-console.log(process.env.AISSTREAM_API_KEY ? "AISStream API key loaded from environment." : "AISStream API key is missing; vessel feed will wait until configured.");
-console.log(`AISStream bounding boxes: ${process.env.AISSTREAM_BBOX?.split("|").length ?? 0}`);
+if (process.env.AISSTREAM_API_KEY) console.log("AISStream API key loaded from environment.");
+console.log(`AISStream bounding boxes: ${process.env.AISSTREAM_BBOX.split("|").length}`);
 console.log(`AISStream Saudi boxes appended: ${process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES !== "false" ? "yes" : "no"}`);
+console.log(`AISStream cache file: ${process.env.AISSTREAM_CACHE_FILE}`);
 console.log(`AISStream filters: ${process.env.AISSTREAM_FILTER_TYPES || "none"}`);
 console.log(`Port event demo: ${process.env.VITE_PORT_EVENTS_DEMO_ENABLED}`);
 if (backendForwardUrl) console.log(`Backend forwarded URL: ${backendForwardUrl}/health`);
-run("vessel-feed-proxy", "node", ["server/vessel-feed-proxy/index.mjs"], {
-  PORT: proxyPort,
-});
+run("backend", "node", ["server/vessel-feed-proxy/index.mjs"]);
 
 console.log(`Starting dashboard on port ${dashboardPort}`);
 console.log(`Using frontend vessel feed path: ${process.env.VITE_VESSEL_DATA_URL}`);
 console.log(`Proxying Vite API calls to: ${viteProxyTarget}`);
 if (dashboardForwardUrl) console.log(`Dashboard forwarded URL: ${dashboardForwardUrl}/`);
 console.log(`Open the forwarded Codespaces port ${dashboardPort} for the dashboard UI.`);
-run("vite", "pnpm", ["exec", "vite", "--host", "0.0.0.0", "--port", dashboardPort, "--strictPort"], {
-  VITE_VESSEL_DATA_URL: process.env.VITE_VESSEL_DATA_URL,
-  VITE_CHMARL_EXPERIMENT_URL: process.env.VITE_CHMARL_EXPERIMENT_URL,
-  VITE_PORT_EVENTS_URL: process.env.VITE_PORT_EVENTS_URL,
-  VITE_PORT_EVENTS_DEMO_ENABLED: process.env.VITE_PORT_EVENTS_DEMO_ENABLED,
-  VITE_WEATHER_URL: process.env.VITE_WEATHER_URL,
-  VITE_WEATHER_CACHE_MS: process.env.VITE_WEATHER_CACHE_MS ?? "600000",
-  VITE_WEATHER_TIMEOUT_MS: process.env.VITE_WEATHER_TIMEOUT_MS ?? "3000",
-  VITE_ALLOW_SAMPLE_DATA: process.env.VITE_ALLOW_SAMPLE_DATA,
-  VITE_ALLOW_SAMPLE_CHMARL: process.env.VITE_ALLOW_SAMPLE_CHMARL,
-  VITE_PROXY_TARGET: viteProxyTarget,
-});
-
+run("vite", "pnpm", ["exec", "vite", "--host", "0.0.0.0", "--port", String(dashboardPort), "--strictPort"]);
 startDashboardMirror();
 scheduleReadinessProbes();
