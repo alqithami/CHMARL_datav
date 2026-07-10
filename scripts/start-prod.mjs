@@ -26,6 +26,15 @@ function mergeBboxText(...values) {
   return boxes.join("|");
 }
 
+function stableKey(value) {
+  let hash = 2166136261;
+  for (const char of String(value)) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
 function loadEnvFile(fileName) {
   const filePath = resolve(process.cwd(), fileName);
   if (!existsSync(filePath)) return;
@@ -56,17 +65,30 @@ process.env.STATIC_DIR ??= "dist";
 process.env.PORT ??= "8787";
 process.env.ECOFAIR_EMISSION_BUDGET_TONNES_PER_DAY ??= "0";
 process.env.ECOFAIR_BUDGET_TONNES_PER_VESSEL_PER_DAY ??= "60";
-process.env.AISSTREAM_BBOX ??= REGIONAL_AIS_BBOX;
+process.env.AISSTREAM_FORCE_REGIONAL_BBOX ??= "true";
 process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES ??= "true";
-if (process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES !== "false" || process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "true") {
-  process.env.AISSTREAM_BBOX = mergeBboxText(process.env.AISSTREAM_BBOX, SAUDI_PORT_AIS_BBOXES);
-  process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES = "false";
+
+const baseAisBbox = process.env.AISSTREAM_FORCE_REGIONAL_BBOX === "true"
+  ? REGIONAL_AIS_BBOX
+  : process.env.AISSTREAM_BBOX ?? REGIONAL_AIS_BBOX;
+
+process.env.AISSTREAM_BBOX = process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES !== "false" || process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES === "true"
+  ? mergeBboxText(baseAisBbox, SAUDI_PORT_AIS_BBOXES)
+  : baseAisBbox;
+process.env.AISSTREAM_USE_SAUDI_PORT_BBOXES = "false";
+
+if (process.env.RUNTIME_CACHE_SCOPE !== "off") {
+  const cacheKey = stableKey(process.env.AISSTREAM_BBOX);
+  process.env.AISSTREAM_CACHE_FILE = `/tmp/chmarl-ais-cache-${cacheKey}.json`;
+  process.env.ECOFAIR_STATE_FILE = `/tmp/ecofair-state-${cacheKey}.json`;
 }
 
 console.log(`Starting production CH-MARL service on port ${process.env.PORT}`);
 if (process.env.AISSTREAM_API_KEY) console.log("AISStream API key loaded from environment.");
 console.log(`AISStream bounding boxes: ${process.env.AISSTREAM_BBOX?.split("|").length ?? 0}`);
+console.log(`AISStream regional BBOX forced: ${process.env.AISSTREAM_FORCE_REGIONAL_BBOX}`);
 console.log(`AISStream Saudi boxes appended: ${process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES !== "false" ? "yes" : "no"}`);
+console.log(`AISStream cache file: ${process.env.AISSTREAM_CACHE_FILE}`);
 console.log("EcoFair budget default: per-vessel mode unless a positive fixed budget is configured.");
 
 const child = spawn("node", ["server/vessel-feed-proxy/index.mjs"], {
