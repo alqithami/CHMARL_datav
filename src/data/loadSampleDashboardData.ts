@@ -211,7 +211,7 @@ function mergeConstraintPressure(experimentRows: ChartDatum[], operationalRows: 
   return [...nonPortRows, ...derivePortPressureFromVessels(operationalRows)];
 }
 
-function externalTimeline(source: DashboardDataSource, rows: Vessel[], chmarlSource: ChmarlDataSource, portOpsSource: PortOpsDataSource, vesselScope: VesselScopeSummary): TimelineEvent[] {
+function externalTimeline(source: DashboardDataSource, chmarlSource: ChmarlDataSource, portOpsSource: PortOpsDataSource, vesselScope: VesselScopeSummary): TimelineEvent[] {
   if (source === "aisstream-waiting") {
     return [{ time: "live", title: "AIS connected, waiting for position messages", body: "The backend socket is active, but no usable positions have entered the tracking cache yet." }];
   }
@@ -260,7 +260,7 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
   const timelineData = experimentSteps.length > 0
     ? experimentStepsToTimelineEvents(experimentSteps)
     : externalSource
-      ? externalTimeline(source, providerRows, chmarlSource, portOpsSource, vesselScope)
+      ? externalTimeline(source, chmarlSource, portOpsSource, vesselScope)
       : [];
 
   return {
