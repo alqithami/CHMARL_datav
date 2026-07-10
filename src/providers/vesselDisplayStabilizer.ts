@@ -6,10 +6,11 @@ type CachedVessel = {
   sampleScore: number;
 };
 
-const retentionMs = 15 * 60 * 1000;
-const gridDegrees = 10;
+const standardRetentionMs = 60 * 60 * 1000;
+const middleEastRetentionMs = 6 * 60 * 60 * 1000;
+const gridDegrees = 5;
 const maxPerGridCell = 8;
-const maxDisplayRows = 5_500;
+const maxDisplayRows = 6_500;
 
 const cache = new Map<string, CachedVessel>();
 
@@ -42,11 +43,12 @@ function vesselTimestamp(vessel: Vessel) {
 }
 
 /**
- * Global AIS providers can return a different high-volume cohort on every poll.
- * Keeping only each response makes the map appear to alternate between two or
- * more snapshots. This cache retains recently observed rows and applies a
- * deterministic spatial sample, while always prioritising the Middle East
- * operational corridor.
+ * A world AIS subscription can return a different high-volume cohort on each
+ * poll. Rendering only the latest response makes the map look like alternating
+ * screenshots and allows dense European/North-American traffic to crowd out
+ * quieter regions. This cache keeps a deterministic, spatially balanced
+ * display membership and always retains Middle East rows for the full AIS
+ * freshness window.
  */
 export function stabilizeVesselDisplay(rows: Vessel[], now = Date.now()) {
   for (const vessel of rows) {
@@ -59,6 +61,11 @@ export function stabilizeVesselDisplay(rows: Vessel[], now = Date.now()) {
   }
 
   for (const [id, entry] of cache.entries()) {
+    if (!hasCoordinates(entry.vessel)) {
+      cache.delete(id);
+      continue;
+    }
+    const retentionMs = inMiddleEastOperationalCorridor(entry.vessel) ? middleEastRetentionMs : standardRetentionMs;
     if (now - entry.lastObservedAt > retentionMs) cache.delete(id);
   }
 
@@ -80,7 +87,8 @@ export function stabilizeVesselDisplay(rows: Vessel[], now = Date.now()) {
   protectedRows.sort((a, b) => vesselTimestamp(b.vessel) - vesselTimestamp(a.vessel) || a.sampleScore - b.sampleScore);
   const selected: CachedVessel[] = [...protectedRows];
 
-  for (const bucket of cells.values()) {
+  const orderedCells = [...cells.entries()].sort(([a], [b]) => a.localeCompare(b));
+  for (const [, bucket] of orderedCells) {
     bucket.sort((a, b) => a.sampleScore - b.sampleScore);
     selected.push(...bucket.slice(0, maxPerGridCell));
   }
