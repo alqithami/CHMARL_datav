@@ -33,11 +33,15 @@ services:
         sync: false
       - key: UPSTREAM_VESSEL_DATA_TOKEN
         sync: false
-      - key: FIXED_VESSELS_FILE_ENABLED
+      - key: FIXED_VESSEL_DATA_FILE_ENABLED
         value: true
-      - key: FIXED_VESSELS_FILE
-        value: /tmp/fixed_vessels.json
-      - key: FIXED_VESSELS_JSON
+      - key: FIXED_VESSEL_DATA_FILE
+        value: /tmp/manual_vessels.json
+      - key: FIXED_VESSEL_DATA_URL
+        sync: false
+      - key: FIXED_VESSEL_DATA_TOKEN
+        sync: false
+      - key: FIXED_VESSEL_INGEST_TOKEN
         sync: false
       - key: AISSTREAM_API_KEY
         sync: false
