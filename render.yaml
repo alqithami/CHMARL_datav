@@ -29,6 +29,16 @@ services:
         value: false
       - key: VITE_REQUIRE_OPERATIONAL_REGION
         value: true
+      - key: UPSTREAM_VESSEL_DATA_URL
+        sync: false
+      - key: UPSTREAM_VESSEL_DATA_TOKEN
+        sync: false
+      - key: FIXED_VESSELS_FILE_ENABLED
+        value: true
+      - key: FIXED_VESSELS_FILE
+        value: /tmp/fixed_vessels.json
+      - key: FIXED_VESSELS_JSON
+        sync: false
       - key: AISSTREAM_API_KEY
         sync: false
       - key: AISSTREAM_URL
