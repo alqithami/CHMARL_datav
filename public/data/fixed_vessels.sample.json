@@ -1,0 +1,31 @@
+{
+  "updatedAt": "2026-07-10T00:00:00.000Z",
+  "vessels": [
+    {
+      "id": "FIXED-JEDDAH-001",
+      "name": "Manual Jeddah Queue Vessel",
+      "mmsi": "000000001",
+      "route": "Jeddah anchorage → Jeddah",
+      "cargo": "Manual operational input",
+      "eta": "manual",
+      "speedKnots": 0.2,
+      "status": "Watch",
+      "latitude": 21.42,
+      "longitude": 39.12,
+      "timestamp": "2026-07-10T00:00:00.000Z"
+    },
+    {
+      "id": "FIXED-KAEC-001",
+      "name": "Manual King Abdullah Port Vessel",
+      "mmsi": "000000002",
+      "route": "Red Sea approach → King Abdullah Port",
+      "cargo": "Manual operational input",
+      "eta": "manual",
+      "speedKnots": 7.5,
+      "status": "Nominal",
+      "latitude": 22.28,
+      "longitude": 38.98,
+      "timestamp": "2026-07-10T00:00:00.000Z"
+    }
+  ]
+}
