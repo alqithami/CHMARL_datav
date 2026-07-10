@@ -106,3 +106,8 @@ The `/api/chmarl/episode` endpoint serves `global`, `fuel`, `emissions`, `fairne
 | `ECOFAIR_TICK_MS` | `60000` | Background measurement interval. |
 | `ECOFAIR_STATE_FILE` | scoped runtime file | Runtime persistence file. |
 | `ECOFAIR_PORT_CAPACITY` | built-in map | Optional JSON berth-capacity override. |
+
+
+## Fixed/manual vessel input
+
+The runtime can merge live AISStream rows, upstream API rows, and fixed/manual vessel rows. Fixed rows are loaded from `FIXED_VESSEL_DATA_FILE` and can also be written through `POST /api/vessels/ingest`. This is used for known Saudi vessels or test baselines when AISStream does not deliver regional rows.

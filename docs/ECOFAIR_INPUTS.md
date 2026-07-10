@@ -1,12 +1,12 @@
 # EcoFair-CH-MARL input sources
 
-The online EcoFair-CH-MARL runtime should consume the merged vessel feed from:
+The online EcoFair-CH-MARL runtime now consumes the merged vessel feed from:
 
 1. live AISStream rows,
 2. optional upstream vessel API rows (`UPSTREAM_VESSEL_DATA_URL`), and
 3. fixed/manual vessel rows from file or ingest (`FIXED_VESSEL_DATA_FILE`, `/api/vessels/ingest`).
 
-Rows are normalized into the dashboard vessel contract and de-duplicated by vessel ID. Live AIS rows should override upstream/fixed rows with the same ID; upstream rows should override fixed rows. This lets the portal continue scoring with manually supplied Saudi vessels when AISStream is not delivering regional messages.
+Rows are normalized into the dashboard vessel contract and de-duplicated by vessel ID. Live AIS rows override upstream/fixed rows with the same ID; upstream rows override fixed rows. This lets the portal continue scoring with manually supplied Saudi vessels when AISStream is not delivering regional messages.
 
 ## Fixed/manual vessel file
 
