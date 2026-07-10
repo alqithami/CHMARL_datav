@@ -38,7 +38,7 @@ services:
       - key: FIXED_VESSEL_DATA_FILE
         value: /tmp/manual_vessels.json
       - key: FIXED_VESSEL_DATA_URL
-        sync: false
+        value: https://chmarl-datav.onrender.com/data/manual_vessels.sample.json
       - key: FIXED_VESSEL_DATA_TOKEN
         sync: false
       - key: FIXED_VESSEL_INGEST_TOKEN
