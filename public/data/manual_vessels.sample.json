@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "source": "manual-fixed-vessels",
+  "updatedAt": "2026-07-10T00:00:00.000Z",
+  "vessels": [
+    {
+      "id": "MANUAL-JEDDAH-001",
+      "name": "Manual Jeddah Baseline Vessel",
+      "latitude": 21.49,
+      "longitude": 39.18,
+      "sog": 0.2,
+      "speed": "0.2 kn",
+      "cargo": "Manual fixed input",
+      "route": "Manual input → Jeddah",
+      "timestamp": "2026-07-10T00:00:00.000Z"
+    },
+    {
+      "id": "MANUAL-KAEC-001",
+      "name": "Manual KAEC Transit Vessel",
+      "latitude": 22.31,
+      "longitude": 39.18,
+      "sog": 8.4,
+      "speed": "8.4 kn",
+      "cargo": "Manual fixed input",
+      "route": "Manual input → King Abdullah Port",
+      "timestamp": "2026-07-10T00:00:00.000Z"
+    }
+  ]
+}
