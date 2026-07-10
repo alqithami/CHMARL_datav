@@ -38,14 +38,28 @@ type RemoteVesselRow = Partial<Vessel> & {
 
 type RemoteVesselPayload = {
   source?: string;
+  scope?: string;
   vessels?: RemoteVesselRow[];
   data?: RemoteVesselRow[];
   items?: RemoteVesselRow[];
+  counts?: {
+    tracking?: number;
+    operational?: number;
+  };
+  inputs?: {
+    trackingRows?: number;
+    operationalRows?: number;
+    operationalRadiusNm?: number;
+  };
 };
 
 export type DashboardVesselFeed = {
   source: DashboardDataSource;
   vessels: Vessel[];
+  scope: "tracking" | "operational";
+  trackingRows: number;
+  operationalRows: number;
+  operationalRadiusNm?: number;
 };
 
 function endpointUrl() {
@@ -91,7 +105,6 @@ function toNumber(value: unknown): number | undefined {
 
 function normalizeTrail(points: RemoteTrailPoint[] | undefined): VesselTrailPoint[] | undefined {
   if (!Array.isArray(points)) return undefined;
-
   const normalized: VesselTrailPoint[] = [];
   for (const point of points) {
     const latitude = toNumber(point.latitude ?? point.lat);
@@ -101,7 +114,6 @@ function normalizeTrail(points: RemoteTrailPoint[] | undefined): VesselTrailPoin
     if (point.timestamp !== undefined) entry.timestamp = point.timestamp;
     normalized.push(entry);
   }
-
   return normalized.length > 1 ? normalized : undefined;
 }
 
@@ -116,9 +128,6 @@ function toDashboardVessel(row: RemoteVesselRow): Vessel {
   const id = row.id ?? row.vesselId ?? (row.mmsi ? `MMSI-${row.mmsi}` : row.imo ? `IMO-${row.imo}` : name);
   const origin = row.originPort ?? row.origin ?? "Unknown";
   const destination = row.destinationPort ?? row.destination ?? row.dest ?? "Unknown";
-  const latitude = toNumber(row.latitude ?? row.lat);
-  const longitude = toNumber(row.longitude ?? row.lon ?? row.lng);
-
   return {
     id: String(id),
     name: String(name),
@@ -127,8 +136,8 @@ function toDashboardVessel(row: RemoteVesselRow): Vessel {
     eta: row.eta ?? row.ETA ?? "TBD",
     speed: row.speed ?? formatSpeed(row.speedKnots ?? row.sog),
     status: row.status ?? normalizeStatus(row.navStatus),
-    latitude,
-    longitude,
+    latitude: toNumber(row.latitude ?? row.lat),
+    longitude: toNumber(row.longitude ?? row.lon ?? row.lng),
     headingDeg: toNumber(row.headingDeg ?? row.heading),
     courseDeg: toNumber(row.courseDeg ?? row.cog),
     timestamp: row.timestamp,
@@ -139,9 +148,18 @@ function toDashboardVessel(row: RemoteVesselRow): Vessel {
 export async function loadRemoteDashboardVessels(): Promise<DashboardVesselFeed | null> {
   const payload = await fetchFirstJson<RemoteVesselPayload | RemoteVesselRow[]>(endpointUrl());
   if (!payload) return null;
-
+  const rows = extractRows(payload).map(toDashboardVessel);
+  if (Array.isArray(payload)) {
+    return { source: "remote", vessels: rows, scope: "tracking", trackingRows: rows.length, operationalRows: 0 };
+  }
+  const trackingRows = payload.counts?.tracking ?? payload.inputs?.trackingRows ?? rows.length;
+  const operationalRows = payload.counts?.operational ?? payload.inputs?.operationalRows ?? 0;
   return {
-    source: normalizeSource(!Array.isArray(payload) ? payload.source : undefined),
-    vessels: extractRows(payload).map(toDashboardVessel),
+    source: normalizeSource(payload.source),
+    vessels: rows,
+    scope: payload.scope === "operational" ? "operational" : "tracking",
+    trackingRows,
+    operationalRows,
+    operationalRadiusNm: payload.inputs?.operationalRadiusNm,
   };
 }
