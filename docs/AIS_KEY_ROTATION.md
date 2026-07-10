@@ -24,7 +24,8 @@ Do not paste the key into chat. Paste it only into the terminal.
 ```bash
 cd /workspaces/codespaces-blank/CHMARL_datav
 
-git pull --ff-only
+git fetch origin main
+git reset --hard origin/main
 pnpm install
 
 read -rsp "New AISStream key: " AISSTREAM_API_KEY_NEW
@@ -37,6 +38,16 @@ pnpm cache:clear -- --yes
 pkill -f "dev-with-proxy" || true
 pkill -f "vessel-feed-proxy" || true
 pkill -f "vite" || true
+PORT=8787 VITE_PORT=5173 VITE_MIRROR_PORT=3000 pnpm dev:proxy
+```
+
+If local startup fails with `invalid distance too far back`, pull/reset again and remove generated build/runtime files before restarting:
+
+```bash
+git fetch origin main
+git reset --hard origin/main
+rm -rf dist node_modules/.vite .runtime
+pnpm install
 PORT=8787 VITE_PORT=5173 VITE_MIRROR_PORT=3000 pnpm dev:proxy
 ```
 
@@ -98,7 +109,15 @@ curl -s "$LIVE_PORTAL/api/vessels" | python -m json.tool | head -120
 
 ## Fixed/manual fallback rows
 
-AISStream can be empty even when connected. EcoFair-CH-MARL can still run from fixed/manual rows or another API. Re-ingest fixed rows after a Render restart because `/tmp` storage is ephemeral:
+AISStream can be empty even when connected. EcoFair-CH-MARL can still run from fixed/manual rows or another API.
+
+Render now has a persistent fixed-vessel fallback URL:
+
+```text
+FIXED_VESSEL_DATA_URL=https://chmarl-datav.onrender.com/data/manual_vessels.sample.json
+```
+
+This survives Render restarts because the file is built into the static dashboard assets. Runtime ingests to `/tmp/manual_vessels.json` are still useful for temporary operator-provided rows, but `/tmp` can reset after a redeploy or restart. To override the built-in fallback, point `FIXED_VESSEL_DATA_URL` to a stable JSON endpoint that you control, or keep re-ingesting after restart:
 
 ```bash
 PORTAL_BASE_URL=https://chmarl-datav.onrender.com \
