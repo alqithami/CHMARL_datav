@@ -67,8 +67,7 @@ function normalizeSource(value: unknown): DashboardDataSource {
   if (value === "aisstream") return "aisstream";
   if (value === "aisstream-waiting") return "aisstream-waiting";
   if (value === "upstream") return "upstream";
-  if (value === "fixed") return "fixed";
-  if (value === "hybrid") return "hybrid";
+  if (value === "fixed" || value === "hybrid") return "remote";
   if (value === "fallback") return "fallback";
   if (value === "none") return "none";
   return "remote";
