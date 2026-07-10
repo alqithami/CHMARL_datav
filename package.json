@@ -18,6 +18,7 @@
     "ingest:fixed-vessels": "node scripts/ingest-fixed-vessels.mjs",
     "env:ais-key": "node scripts/update-ais-key.mjs",
     "diagnose": "node scripts/portal-diagnostics.mjs",
+    "diagnose:scopes": "node scripts/check-live-scopes.mjs",
     "diagnose:ais": "node scripts/aisstream-diagnostics.mjs",
     "diagnose:ais-config": "node scripts/check-ais-subscription-config.mjs",
     "diagnose:ais-matrix": "node scripts/probe-ais-box-matrix.mjs",
