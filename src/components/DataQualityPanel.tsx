@@ -42,87 +42,69 @@ function weatherCoverage(data: DashboardData) {
   return { marine, fallback };
 }
 
-function regionMismatch(data: DashboardData) {
-  const coverage = data.coverageDiagnostics;
-  return Boolean(coverage?.requireOperationalRegion && coverage.providerRows > 0 && coverage.operationalRows === 0 && coverage.outOfRegionRows > 0);
-}
-
-function vesselStatus(data: DashboardData): QualityItem {
+function trackingStatus(data: DashboardData): QualityItem {
   const coverage = coordinateCoverage(data);
   const stale = staleRows(data);
   const trails = data.vessels.filter((vessel) => vessel.trail && vessel.trail.length > 1).length;
-  const diagnostics = data.coverageDiagnostics;
-
-  if (regionMismatch(data) && diagnostics) {
-    return {
-      label: "Vessel observations",
-      value: `${diagnostics.outOfRegionRows} ignored rows`,
-      detail: `Provider rows are outside ${diagnostics.operationalRegionLabel}; restore the Red Sea/Gulf BBOX before scoring.`,
-      tone: "warn",
-    };
-  }
+  const trackingRows = data.vesselScope?.trackingRows ?? data.vessels.length;
+  const operationalRows = data.vesselScope?.operationalRows ?? 0;
+  const radius = data.vesselScope?.operationalRadiusNm ?? 120;
 
   if (data.source === "aisstream") {
     return {
-      label: "Vessel observations",
-      value: `${data.vessels.length} live rows`,
-      detail: `${coverage}% positioned · ${trails} trails · ${stale} stale`,
-      tone: data.vessels.length > 0 && stale === 0 ? "good" : "warn",
+      label: "Vessel tracking",
+      value: `${trackingRows} live rows`,
+      detail: `${operationalRows} within ${radius} nm port scope · ${coverage}% positioned · ${trails} trails · ${stale} stale`,
+      tone: trackingRows > 0 && stale < trackingRows ? "good" : "warn",
     };
   }
   if (data.source === "aisstream-waiting") {
     return {
-      label: "Vessel observations",
-      value: "No regional rows",
-      detail: "AIS socket is connected, but no usable position rows have arrived for the active region.",
+      label: "Vessel tracking",
+      value: "Waiting for AIS",
+      detail: "The backend websocket remains connected independently of the browser and is waiting for usable position messages.",
       tone: "warn",
     };
   }
   if (data.source === "upstream" || data.source === "remote") {
     return {
-      label: "Vessel observations",
-      value: `${data.vessels.length} provider rows`,
-      detail: `${coverage}% positioned · ${stale} stale`,
-      tone: data.vessels.length > 0 ? "good" : "warn",
+      label: "Vessel tracking",
+      value: `${trackingRows} provider rows`,
+      detail: `${operationalRows} in port calculation scope · ${coverage}% positioned · ${stale} stale`,
+      tone: trackingRows > 0 ? "good" : "warn",
     };
   }
   if (data.source === "local-json") {
-    return { label: "Vessel observations", value: "Sample data", detail: "local fixture vessel rows are enabled", tone: "warn" };
+    return { label: "Vessel tracking", value: "Sample data", detail: "local fixture vessel rows are enabled", tone: "warn" };
   }
-  return { label: "Vessel observations", value: "Missing", detail: "no live AIS or provider vessel rows are available", tone: "missing" };
+  return { label: "Vessel tracking", value: "Missing", detail: "no AIS, upstream, or fixed vessel rows are available", tone: "missing" };
 }
 
 function chmarlStatus(data: DashboardData): QualityItem {
   const reward = latestReward(data);
   const latestStep = data.chmarlSteps.at(-1);
-  if (regionMismatch(data)) {
-    return {
-      label: "CH-MARL / EcoFair",
-      value: "Region blocked",
-      detail: "out-of-region vessel rows were ignored, so reward and constraint scoring are suppressed",
-      tone: "warn",
-    };
-  }
+  const operationalRows = data.vesselScope?.operationalRows ?? 0;
+  const radius = data.vesselScope?.operationalRadiusNm ?? 120;
   if (data.chmarlSource === "runtime" && reward !== undefined) {
     return {
-      label: "CH-MARL / EcoFair",
+      label: "EcoFair-CH-MARL",
       value: reward.toFixed(3),
-      detail: `${data.chmarlSteps.length} steps · ${latestStep?.actions?.length ?? 0} actions · ${latestStep?.constraints?.length ?? 0} constraints`,
+      detail: `${operationalRows} port-scope vessels · ${data.chmarlSteps.length} steps · ${latestStep?.actions?.length ?? 0} actions · ${latestStep?.constraints?.length ?? 0} constraints`,
       tone: reward < 0.45 ? "warn" : "good",
     };
   }
   if (data.chmarlSource === "runtime") {
     return {
-      label: "CH-MARL / EcoFair",
-      value: "Blocked",
-      detail: "runtime is enabled but cannot score until vessel observations arrive",
+      label: "EcoFair-CH-MARL",
+      value: "Waiting for port scope",
+      detail: `runtime is active but needs vessels within ${radius} nm of monitored ports before scoring`,
       tone: "warn",
     };
   }
   if (data.chmarlSource === "local-json") {
-    return { label: "CH-MARL / EcoFair", value: "Sample", detail: "demo episode is enabled", tone: "warn" };
+    return { label: "EcoFair-CH-MARL", value: "Sample", detail: "demo episode is enabled", tone: "warn" };
   }
-  return { label: "CH-MARL / EcoFair", value: "Inactive", detail: "needs vessel rows or an external runtime experiment feed", tone: "missing" };
+  return { label: "EcoFair-CH-MARL", value: "Inactive", detail: "needs port-scope vessel rows or an external experiment feed", tone: "missing" };
 }
 
 function hasNonZeroPortSignal(data: DashboardData) {
@@ -132,16 +114,13 @@ function hasNonZeroPortSignal(data: DashboardData) {
 }
 
 function portStatus(data: DashboardData): QualityItem {
-  if (regionMismatch(data)) {
-    return { label: "Port operations", value: "Region blocked", detail: "AIS-derived queues are hidden because vessel rows are outside the operational region", tone: "warn" };
-  }
   if (data.portOpsSource === "runtime") {
     const nonZero = hasNonZeroPortSignal(data);
     return {
       label: "Port operations",
-      value: nonZero ? "Runtime" : "Zero signal",
+      value: nonZero ? "Operational signal" : "No active pressure",
       detail: `${data.portEvents.length} events · ${data.portQueueStatus.length} queue rows · ${data.portUtilization.length} utilization rows`,
-      tone: nonZero ? "good" : "warn",
+      tone: nonZero ? "good" : "info",
     };
   }
   if (data.portOpsSource === "demo") {
@@ -169,39 +148,37 @@ function sampleStatus(): QualityItem {
   return {
     label: "Fixture data",
     value: enabled ? "Enabled" : "Off",
-    detail: enabled ? "fixture data may appear in the UI" : "production mode; no bundled fixtures",
+    detail: enabled ? "fixture data may appear in the UI" : "production mode; no bundled UI fixtures",
     tone: enabled ? "warn" : "info",
   };
 }
 
 function readinessHeadline(data: DashboardData) {
-  const reward = latestReward(data);
-  const diagnostics = data.coverageDiagnostics;
-  if (regionMismatch(data) && diagnostics) return `${diagnostics.outOfRegionRows} provider rows outside Red Sea/Gulf`;
-  if (data.source === "aisstream-waiting") return "AIS connected · no regional observations";
-  if (data.source === "aisstream" && reward !== undefined) return "Live CH-MARL scoring active";
-  if (data.source === "aisstream") return "Live vessel rows · CH-MARL warming";
-  if (data.source === "upstream" || data.source === "remote") return "Provider vessel feed active";
+  const tracking = data.vesselScope?.trackingRows ?? data.vessels.length;
+  const operational = data.vesselScope?.operationalRows ?? 0;
+  if (data.source === "aisstream-waiting") return "Continuous AIS connection · waiting for positions";
+  if (data.source === "aisstream" && operational > 0) return `${tracking} tracked globally · ${operational} used for port calculations`;
+  if (data.source === "aisstream") return `${tracking} tracked globally · waiting for monitored-port vessels`;
+  if (data.source === "upstream" || data.source === "remote") return `${tracking} tracked · ${operational} used for port calculations`;
   if (data.source === "local-json") return "Sample-data validation mode";
   return "No live vessel observations";
 }
 
-function summaryText(items: QualityItem[], mode: string, updatedAt: string) {
+function summaryText(items: QualityItem[], updatedAt: string) {
   const ready = items.filter((item) => item.tone === "good" || item.tone === "info").length;
   const watch = items.filter((item) => item.tone === "warn").length;
   const missing = items.filter((item) => item.tone === "missing").length;
-  return `${ready} ready · ${watch} blocked/watch · ${missing} missing · mode ${mode} · refreshed ${updatedAt}`;
+  return `${ready} ready · ${watch} watch · ${missing} missing · refreshed ${updatedAt}`;
 }
 
-export default function DataQualityPanel({ data, mode, updatedAt }: DataQualityPanelProps) {
-  const items = [vesselStatus(data), chmarlStatus(data), portStatus(data), weatherStatus(data), sampleStatus()];
-
+export default function DataQualityPanel({ data, updatedAt }: DataQualityPanelProps) {
+  const items = [trackingStatus(data), chmarlStatus(data), portStatus(data), weatherStatus(data), sampleStatus()];
   return (
     <section className="data-quality-panel provider-quality-matrix" aria-label="Live data input readiness">
       <div className="data-quality-summary">
         <span>Live input readiness</span>
         <strong>{readinessHeadline(data)}</strong>
-        <small>{summaryText(items, mode, updatedAt)}</small>
+        <small>{summaryText(items, updatedAt)}</small>
       </div>
       <div className="data-quality-items">
         {items.map((item) => (
