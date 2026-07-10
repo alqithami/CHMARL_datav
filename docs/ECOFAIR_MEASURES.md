@@ -7,8 +7,8 @@ The portal computes EcoFair-CH-MARL fuel, emission, fairness, queue, and reward 
 The runtime now uses one operational vessel set built from all configured sources:
 
 1. AISStream cache rows from `/api/vessels`.
-2. An optional upstream vessel API configured with `UPSTREAM_VESSEL_DATA_URL` and `UPSTREAM_VESSEL_DATA_TOKEN`.
-3. Manual/fixed vessel rows configured with `FIXED_VESSELS_JSON`, `FIXED_VESSELS_FILE`, or written through `POST /api/vessels/fixed`.
+2. Optional upstream vessel API rows configured with `UPSTREAM_VESSEL_DATA_URL` and `UPSTREAM_VESSEL_DATA_TOKEN`.
+3. Fixed/manual vessel rows configured with `FIXED_VESSEL_DATA_FILE`, `FIXED_VESSEL_DATA_URL`, or written through `POST /api/vessels/ingest`.
 
 Rows are normalized, deduplicated by vessel id/MMSI, and then fed into EcoFair-CH-MARL. Fixed rows are intended for known Saudi operational inputs while AIS coverage is incomplete. They are not bundled fixtures; they are explicit operator-provided data.
 
@@ -18,11 +18,12 @@ Example fixed vessel payload:
 {
   "vessels": [
     {
-      "id": "FIXED-JEDDAH-001",
-      "name": "Manual Jeddah Queue Vessel",
-      "speedKnots": 0.2,
-      "latitude": 21.42,
-      "longitude": 39.12,
+      "id": "MANUAL-JEDDAH-001",
+      "name": "Manual Jeddah Baseline Vessel",
+      "speed": "0.2 kn",
+      "sog": 0.2,
+      "latitude": 21.49,
+      "longitude": 39.18,
       "status": "Watch"
     }
   ]
@@ -91,9 +92,11 @@ The `/api/chmarl/episode` endpoint serves `global`, `fuel`, `emissions`, `fairne
 | --- | --- | --- |
 | `UPSTREAM_VESSEL_DATA_URL` | empty | Optional API vessel feed merged into EcoFair input. |
 | `UPSTREAM_VESSEL_DATA_TOKEN` | empty | Optional bearer token for the upstream vessel feed. |
-| `FIXED_VESSELS_JSON` | empty | Inline JSON fixed vessel rows. |
-| `FIXED_VESSELS_FILE_ENABLED` | `true` | Enables fixed vessel file loading. |
-| `FIXED_VESSELS_FILE` | `.runtime/fixed_vessels.json` | Manual fixed vessel file and POST target. |
+| `FIXED_VESSEL_DATA_FILE_ENABLED` | `true` | Enables fixed vessel file loading. |
+| `FIXED_VESSEL_DATA_FILE` | `.runtime/manual_vessels.json` | Manual fixed vessel file and POST target. |
+| `FIXED_VESSEL_DATA_URL` | empty | Optional API/file URL for manual vessel rows. |
+| `FIXED_VESSEL_DATA_TOKEN` | empty | Optional bearer token for fixed vessel URL. |
+| `FIXED_VESSEL_INGEST_TOKEN` | empty | Optional bearer token required by `POST /api/vessels/ingest`. |
 | `ECOFAIR_EMISSION_BUDGET_TONNES_PER_DAY` | `0` | Fixed daily budget. `0` enables per-vessel mode. |
 | `ECOFAIR_BUDGET_TONNES_PER_VESSEL_PER_DAY` | `60` | CO2 allowance per active vessel per UTC day. |
 | `ECOFAIR_GAMMA_EMIS` | `10` | Emission penalty weight. |
@@ -106,8 +109,3 @@ The `/api/chmarl/episode` endpoint serves `global`, `fuel`, `emissions`, `fairne
 | `ECOFAIR_TICK_MS` | `60000` | Background measurement interval. |
 | `ECOFAIR_STATE_FILE` | scoped runtime file | Runtime persistence file. |
 | `ECOFAIR_PORT_CAPACITY` | built-in map | Optional JSON berth-capacity override. |
-
-
-## Fixed/manual vessel input
-
-The runtime can merge live AISStream rows, upstream API rows, and fixed/manual vessel rows. Fixed rows are loaded from `FIXED_VESSEL_DATA_FILE` and can also be written through `POST /api/vessels/ingest`. This is used for known Saudi vessels or test baselines when AISStream does not deliver regional rows.
