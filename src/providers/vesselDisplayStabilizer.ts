@@ -11,6 +11,8 @@ const middleEastRetentionMs = 6 * 60 * 60 * 1000;
 const gridDegrees = 5;
 const maxPerGridCell = 8;
 const maxDisplayRows = 6_500;
+const maxImpliedSpeedKn = 120;
+const minimumJumpDistanceNm = 5;
 
 const cache = new Map<string, CachedVessel>();
 
@@ -24,7 +26,12 @@ function stableScore(value: string) {
 }
 
 function hasCoordinates(vessel: Vessel): vessel is Vessel & { latitude: number; longitude: number } {
-  return Number.isFinite(vessel.latitude) && Number.isFinite(vessel.longitude);
+  return Number.isFinite(vessel.latitude)
+    && Number.isFinite(vessel.longitude)
+    && (vessel.latitude as number) >= -85.051129
+    && (vessel.latitude as number) <= 85.051129
+    && (vessel.longitude as number) >= -180
+    && (vessel.longitude as number) <= 180;
 }
 
 function gridKey(vessel: Vessel & { latitude: number; longitude: number }) {
@@ -42,21 +49,51 @@ function vesselTimestamp(vessel: Vessel) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function distanceNm(a: Vessel & { latitude: number; longitude: number }, b: Vessel & { latitude: number; longitude: number }) {
+  const radiusNm = 3440.065;
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const dLat = toRadians(b.latitude - a.latitude);
+  const dLon = toRadians(b.longitude - a.longitude);
+  const lat1 = toRadians(a.latitude);
+  const lat2 = toRadians(b.latitude);
+  const haversine = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * radiusNm * Math.asin(Math.min(1, Math.sqrt(haversine)));
+}
+
+function acceptsPositionUpdate(existing: Vessel, incoming: Vessel) {
+  if (!hasCoordinates(existing) || !hasCoordinates(incoming)) return true;
+  const existingTimestamp = vesselTimestamp(existing);
+  const incomingTimestamp = vesselTimestamp(incoming);
+  if (existingTimestamp > 0 && incomingTimestamp > 0 && incomingTimestamp < existingTimestamp) return false;
+  if (existingTimestamp > 0 && incomingTimestamp > existingTimestamp) {
+    const elapsedHours = (incomingTimestamp - existingTimestamp) / 3_600_000;
+    const distance = distanceNm(existing, incoming);
+    const impliedSpeed = elapsedHours > 0 ? distance / elapsedHours : 0;
+    if (distance > minimumJumpDistanceNm && impliedSpeed > maxImpliedSpeedKn) return false;
+  }
+  return true;
+}
+
 /**
  * A world AIS subscription can return a different high-volume cohort on each
  * poll. Rendering only the latest response makes the map look like alternating
  * screenshots and allows dense European/North-American traffic to crowd out
  * quieter regions. This cache keeps a deterministic, spatially balanced
- * display membership and always retains Middle East rows for the full AIS
- * freshness window.
+ * display membership, protects Middle East rows, and rejects time-reversed or
+ * physically implausible position jumps.
  */
 export function stabilizeVesselDisplay(rows: Vessel[], now = Date.now()) {
   for (const vessel of rows) {
     if (!vessel.id || !hasCoordinates(vessel)) continue;
+    const existing = cache.get(vessel.id);
+    if (existing && !acceptsPositionUpdate(existing.vessel, vessel)) {
+      cache.set(vessel.id, { ...existing, lastObservedAt: now });
+      continue;
+    }
     cache.set(vessel.id, {
       vessel,
       lastObservedAt: now,
-      sampleScore: stableScore(vessel.id),
+      sampleScore: existing?.sampleScore ?? stableScore(vessel.id),
     });
   }
 
