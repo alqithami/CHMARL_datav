@@ -19,20 +19,23 @@ type ShipMarker = ProjectedPoint & {
   tone: "cyan" | "yellow" | "red" | "blue";
 };
 
-const DEFAULT_CENTER: GeoPoint = { lat: 23.2, lon: 43.5 };
+type MarkerCluster = ProjectedPoint & {
+  key: string;
+  count: number;
+  center: GeoPoint;
+  marker?: ShipMarker;
+};
+
+const PORTS_CENTER: GeoPoint = { lat: 23.2, lon: 43.5 };
+const WORLD_CENTER: GeoPoint = { lat: 18, lon: 5 };
 const DEFAULT_ZOOM = 5;
-const MIN_ZOOM = 4;
+const MIN_ZOOM = 3;
 const MAX_ZOOM = 9;
 const VIEWPORT_TILES_X = 8;
 const VIEWPORT_TILES_Y = 5.3;
-
-const fallbackShipPositions = [
-  { left: 21, top: 60, heading: -8, tone: "yellow" as const },
-  { left: 30, top: 36, heading: 18, tone: "cyan" as const },
-  { left: 70, top: 42, heading: -35, tone: "red" as const },
-  { left: 18, top: 78, heading: 12, tone: "blue" as const },
-  { left: 75, top: 58, heading: -8, tone: "yellow" as const },
-];
+const MARKER_VIEWPORT_MARGIN = 4;
+const CLUSTER_MAX_ZOOM = 4;
+const CLUSTER_CELL_PERCENT = 4;
 
 const portGeo: Record<string, GeoPoint> = {
   Jeddah: { lat: 21.4858, lon: 39.1925 },
@@ -46,13 +49,33 @@ const portGeo: Record<string, GeoPoint> = {
 
 const filterOptions: VesselFilter[] = ["All", "Nominal", "Watch", "Constrained"];
 
+function clampLatitude(latitude: number) {
+  return Math.max(-85.051129, Math.min(85.051129, latitude));
+}
+
+function normalizeLongitude(longitude: number) {
+  return ((longitude + 180) % 360 + 360) % 360 - 180;
+}
+
+function wrappedLongitudeDelta(longitude: number, centerLongitude: number) {
+  return normalizeLongitude(longitude - centerLongitude);
+}
+
 function lonToTileX(lon: number, zoom: number) {
-  return ((lon + 180) / 360) * 2 ** zoom;
+  return ((normalizeLongitude(lon) + 180) / 360) * 2 ** zoom;
 }
 
 function latToTileY(lat: number, zoom: number) {
-  const latRad = (lat * Math.PI) / 180;
+  const latRad = (clampLatitude(lat) * Math.PI) / 180;
   return ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * 2 ** zoom;
+}
+
+function wrappedTileDelta(x: number, centerX: number, zoom: number) {
+  const worldWidth = 2 ** zoom;
+  let delta = x - centerX;
+  if (delta > worldWidth / 2) delta -= worldWidth;
+  if (delta < -worldWidth / 2) delta += worldWidth;
+  return delta;
 }
 
 function projectGeo(point: GeoPoint, center: GeoPoint, zoom: number): ProjectedPoint {
@@ -61,7 +84,7 @@ function projectGeo(point: GeoPoint, center: GeoPoint, zoom: number): ProjectedP
   const x = lonToTileX(point.lon, zoom);
   const y = latToTileY(point.lat, zoom);
   return {
-    left: 50 + ((x - centerX) * 100) / VIEWPORT_TILES_X,
+    left: 50 + (wrappedTileDelta(x, centerX, zoom) * 100) / VIEWPORT_TILES_X,
     top: 50 + ((y - centerY) * 100) / VIEWPORT_TILES_Y,
   };
 }
@@ -83,7 +106,7 @@ function buildTileGrid(center: GeoPoint, zoom: number) {
       if (tileY < 0 || tileY >= maxTile) continue;
       const wrappedX = ((tileX % maxTile) + maxTile) % maxTile;
       tiles.push({
-        key: `${zoom}-${wrappedX}-${tileY}`,
+        key: `${zoom}-${tileX}-${tileY}`,
         href: `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${tileY}.png`,
         x: 50 + ((tileX - centerX) * 100) / VIEWPORT_TILES_X,
         y: 50 + ((tileY - centerY) * 100) / VIEWPORT_TILES_Y,
@@ -109,52 +132,62 @@ function statusClass(status: Vessel["status"]) {
 }
 
 function hasCoordinates(vessel: Vessel): vessel is Vessel & { latitude: number; longitude: number } {
-  return typeof vessel.latitude === "number" && Number.isFinite(vessel.latitude) && typeof vessel.longitude === "number" && Number.isFinite(vessel.longitude);
+  return typeof vessel.latitude === "number"
+    && Number.isFinite(vessel.latitude)
+    && vessel.latitude >= -85.051129
+    && vessel.latitude <= 85.051129
+    && typeof vessel.longitude === "number"
+    && Number.isFinite(vessel.longitude)
+    && vessel.longitude >= -180
+    && vessel.longitude <= 180;
+}
+
+function circularMeanLongitude(points: Array<Vessel & { latitude: number; longitude: number }>) {
+  const vector = points.reduce(
+    (sum, vessel) => {
+      const radians = (vessel.longitude * Math.PI) / 180;
+      return { sin: sum.sin + Math.sin(radians), cos: sum.cos + Math.cos(radians) };
+    },
+    { sin: 0, cos: 0 }
+  );
+  return normalizeLongitude((Math.atan2(vector.sin, vector.cos) * 180) / Math.PI);
 }
 
 function centerOfVessels(vessels: Vessel[]): GeoPoint | undefined {
   const points = vessels.filter(hasCoordinates);
   if (points.length === 0) return undefined;
-  const total = points.reduce((sum, vessel) => ({ lat: sum.lat + vessel.latitude, lon: sum.lon + vessel.longitude }), { lat: 0, lon: 0 });
-  return { lat: total.lat / points.length, lon: total.lon / points.length };
-}
-
-function vesselBounds(vessels: Vessel[]) {
-  const points = vessels.filter(hasCoordinates);
-  if (points.length === 0) return undefined;
-  return points.reduce(
-    (bounds, vessel) => ({
-      minLat: Math.min(bounds.minLat, vessel.latitude),
-      maxLat: Math.max(bounds.maxLat, vessel.latitude),
-      minLon: Math.min(bounds.minLon, vessel.longitude),
-      maxLon: Math.max(bounds.maxLon, vessel.longitude),
-    }),
-    { minLat: points[0].latitude, maxLat: points[0].latitude, minLon: points[0].longitude, maxLon: points[0].longitude }
-  );
+  const latitude = points.reduce((sum, vessel) => sum + vessel.latitude, 0) / points.length;
+  return { lat: latitude, lon: circularMeanLongitude(points) };
 }
 
 function zoomForVessels(vessels: Vessel[]) {
-  const bounds = vesselBounds(vessels);
-  if (!bounds) return DEFAULT_ZOOM;
-  const latSpan = Math.max(0.1, bounds.maxLat - bounds.minLat);
-  const lonSpan = Math.max(0.1, bounds.maxLon - bounds.minLon);
+  const points = vessels.filter(hasCoordinates);
+  if (points.length === 0) return DEFAULT_ZOOM;
+  const center = centerOfVessels(points) ?? PORTS_CENTER;
+  const latitudes = points.map((vessel) => vessel.latitude);
+  const longitudeOffsets = points.map((vessel) => wrappedLongitudeDelta(vessel.longitude, center.lon));
+  const latSpan = Math.max(0.1, Math.max(...latitudes) - Math.min(...latitudes));
+  const lonSpan = Math.max(0.1, Math.max(...longitudeOffsets) - Math.min(...longitudeOffsets));
   const span = Math.max(latSpan * 1.35, lonSpan);
-  if (span > 36) return MIN_ZOOM;
-  if (span > 18) return 5;
-  if (span > 8) return 6;
-  if (span > 4) return 7;
+  if (span > 140) return 3;
+  if (span > 65) return 4;
+  if (span > 28) return 5;
+  if (span > 12) return 6;
+  if (span > 5) return 7;
+  if (span > 2) return 8;
   return MAX_ZOOM;
+}
+
+function isInViewport(point: ProjectedPoint, margin = MARKER_VIEWPORT_MARGIN) {
+  return point.left >= -margin && point.left <= 100 + margin && point.top >= -margin && point.top <= 100 + margin;
 }
 
 function buildTrailPath(vessel: Vessel, center: GeoPoint, zoom: number) {
   const trail = vessel.trail?.filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
   if (!trail || trail.length < 2) return undefined;
-  return trail
-    .map((point, index) => {
-      const projected = projectGeo({ lat: point.latitude, lon: point.longitude }, center, zoom);
-      return `${index === 0 ? "M" : "L"} ${projected.left} ${projected.top}`;
-    })
-    .join(" ");
+  const projected = trail.map((point) => projectGeo({ lat: point.latitude, lon: point.longitude }, center, zoom));
+  if (projected.some((point) => !isInViewport(point, 20))) return undefined;
+  return projected.map((point, index) => `${index === 0 ? "M" : "L"} ${point.left} ${point.top}`).join(" ");
 }
 
 function speedKnots(vessel: Vessel) {
@@ -210,9 +243,30 @@ function eventClass(eventType: PortEvent["eventType"]) {
   return "arrival";
 }
 
+function clusterMarkers(markers: ShipMarker[], zoom: number): MarkerCluster[] {
+  if (zoom > CLUSTER_MAX_ZOOM) return markers.map((marker) => ({ key: marker.vessel.id, count: 1, left: marker.left, top: marker.top, center: { lat: marker.vessel.latitude as number, lon: marker.vessel.longitude as number }, marker }));
+  const buckets = new Map<string, ShipMarker[]>();
+  for (const marker of markers) {
+    const key = `${Math.floor(marker.left / CLUSTER_CELL_PERCENT)}:${Math.floor(marker.top / CLUSTER_CELL_PERCENT)}`;
+    const bucket = buckets.get(key) ?? [];
+    bucket.push(marker);
+    buckets.set(key, bucket);
+  }
+  return [...buckets.entries()].map(([key, bucket]) => {
+    if (bucket.length === 1) {
+      const marker = bucket[0];
+      return { key: marker.vessel.id, count: 1, left: marker.left, top: marker.top, center: { lat: marker.vessel.latitude as number, lon: marker.vessel.longitude as number }, marker };
+    }
+    const left = bucket.reduce((sum, marker) => sum + marker.left, 0) / bucket.length;
+    const top = bucket.reduce((sum, marker) => sum + marker.top, 0) / bucket.length;
+    const center = centerOfVessels(bucket.map((marker) => marker.vessel)) ?? PORTS_CENTER;
+    return { key, count: bucket.length, left, top, center };
+  });
+}
+
 export default function ShipScene({ vessels, portEvents = [], expanded = false }: ShipSceneProps) {
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
-  const [manualCenter, setManualCenter] = useState<GeoPoint>(DEFAULT_CENTER);
+  const [manualCenter, setManualCenter] = useState<GeoPoint>(PORTS_CENTER);
   const [selectedShipId, setSelectedShipId] = useState("");
   const [hoveredShipId, setHoveredShipId] = useState("");
   const [filter, setFilter] = useState<VesselFilter>("All");
@@ -234,24 +288,26 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
   }, [filter, movingOnly, query, sceneVessels, sortMode, staleOnly]);
   const mapCenter = manualCenter;
   const tileGrid = useMemo(() => buildTileGrid(mapCenter, mapZoom), [mapCenter, mapZoom]);
-  const shipMarkers = useMemo<ShipMarker[]>(
-    () => visibleVessels.map((vessel, index) => {
-      const fallback = fallbackShipPositions[index % fallbackShipPositions.length];
-      const projected = hasCoordinates(vessel) ? projectGeo({ lat: vessel.latitude, lon: vessel.longitude }, mapCenter, mapZoom) : fallback;
-      return { vessel, left: projected.left, top: projected.top, heading: vessel.headingDeg ?? vessel.courseDeg ?? fallback.heading, tone: toneForStatus(vessel.status) };
+  const allShipMarkers = useMemo<ShipMarker[]>(
+    () => visibleVessels.filter(hasCoordinates).map((vessel) => {
+      const projected = projectGeo({ lat: vessel.latitude, lon: vessel.longitude }, mapCenter, mapZoom);
+      return { vessel, left: projected.left, top: projected.top, heading: vessel.headingDeg ?? vessel.courseDeg ?? 0, tone: toneForStatus(vessel.status) };
     }),
     [mapCenter, mapZoom, visibleVessels]
   );
+  const shipMarkers = useMemo(() => allShipMarkers.filter((marker) => isInViewport(marker)), [allShipMarkers]);
+  const markerClusters = useMemo(() => clusterMarkers(shipMarkers, mapZoom), [mapZoom, shipMarkers]);
   const eventMarkers = useMemo(
     () => portEvents.map((event) => {
       const port = portGeo[event.portId];
       if (!port) return null;
-      return { event, ...projectGeo(port, mapCenter, mapZoom) };
+      const projected = projectGeo(port, mapCenter, mapZoom);
+      return isInViewport(projected) ? { event, ...projected } : null;
     }).filter((event): event is { event: PortEvent; left: number; top: number } => event !== null),
     [mapCenter, mapZoom, portEvents]
   );
-  const selectedShip = selectedShipId ? shipMarkers.find((ship) => ship.vessel.id === selectedShipId) : undefined;
-  const hoveredShip = hoveredShipId ? shipMarkers.find((ship) => ship.vessel.id === hoveredShipId) : undefined;
+  const selectedShip = selectedShipId ? allShipMarkers.find((ship) => ship.vessel.id === selectedShipId) : undefined;
+  const hoveredShip = hoveredShipId ? allShipMarkers.find((ship) => ship.vessel.id === hoveredShipId) : undefined;
 
   const fitVisibleVessels = () => {
     const center = centerOfVessels(visibleVessels);
@@ -260,11 +316,18 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
     setMapZoom(zoomForVessels(visibleVessels));
   };
 
-  const resetOverview = () => {
+  const showPortsOverview = () => {
     setSelectedShipId("");
     setHoveredShipId("");
-    setManualCenter(DEFAULT_CENTER);
+    setManualCenter(PORTS_CENTER);
     setMapZoom(DEFAULT_ZOOM);
+  };
+
+  const showWorldOverview = () => {
+    setSelectedShipId("");
+    setHoveredShipId("");
+    setManualCenter(WORLD_CENTER);
+    setMapZoom(MIN_ZOOM);
   };
 
   const selectVessel = (vesselId: string) => {
@@ -278,6 +341,23 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
     setSortMode("latest");
     setSelectedShipId("");
   };
+
+  const renderShipMarker = (ship: ShipMarker) => (
+    <button
+      key={ship.vessel.id}
+      type="button"
+      aria-label={`Inspect ${ship.vessel.name}`}
+      title={`Inspect ${ship.vessel.name}`}
+      className={`ship-figurine ${ship.tone} ${ship.vessel.id === selectedShipId ? "selected" : ""}`}
+      style={{ left: `${ship.left}%`, top: `${ship.top}%`, transform: `translate(-50%, -50%) rotate(${ship.heading}deg)` }}
+      onClick={() => selectVessel(ship.vessel.id)}
+      onFocus={() => setHoveredShipId(ship.vessel.id)}
+      onMouseEnter={() => setHoveredShipId(ship.vessel.id)}
+      onBlur={() => setHoveredShipId("")}
+      onMouseLeave={() => setHoveredShipId("")}>
+      <span />
+    </button>
+  );
 
   const vesselDetail = selectedShip ? (
     <section className="expanded-rail-section vessel-detail-section">
@@ -304,11 +384,11 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
 
   return (
     <div className={expanded ? "scene-container static-map-container expanded-map" : "scene-container static-map-container"}>
-      <div className={selectedShip ? "regional-map tile-map is-inspecting" : "regional-map tile-map"} aria-label="CH-MARL maritime tile map inspection view">
+      <div className={selectedShip ? "regional-map tile-map is-inspecting" : "regional-map tile-map"} aria-label="Maritime AIS tracking map">
         <svg className="regional-map-svg tile-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
           {tileGrid.map((tile) => <image key={tile.key} href={tile.href} x={tile.x} y={tile.y} width={tile.width} height={tile.height} opacity="0.78" preserveAspectRatio="none" />)}
           <rect x="0" y="0" width="100" height="100" fill="rgba(2, 10, 20, 0.18)" />
-          {showTrails && visibleVessels.map((vessel) => {
+          {showTrails && shipMarkers.map(({ vessel }) => {
             const trailPath = buildTrailPath(vessel, mapCenter, mapZoom);
             return trailPath ? <path key={`${vessel.id}-trail`} className={`vessel-trail ${statusClass(vessel.status)}`} d={trailPath} fill="none" /> : null;
           })}
@@ -316,8 +396,9 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
 
         {showPorts && Object.entries(portGeo).map(([name, geo]) => {
           const point = projectGeo(geo, mapCenter, mapZoom);
+          if (!isInViewport(point)) return null;
           return (
-            <button key={name} type="button" className="html-port-marker" style={{ left: `${point.left}%`, top: `${point.top}%` }} title={name} aria-label={`Center map on ${name}`} onClick={() => setManualCenter(geo)}>
+            <button key={name} type="button" className="html-port-marker" style={{ left: `${point.left}%`, top: `${point.top}%` }} title={name} aria-label={`Center map on ${name}`} onClick={() => { setManualCenter(geo); setMapZoom(Math.max(mapZoom, 7)); }}>
               <span className="html-port-dot" />
               <span className="html-port-name">{name}</span>
             </button>
@@ -326,20 +407,23 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
 
         {showEvents && eventMarkers.map(({ event, left, top }) => <div key={event.eventId} className={`port-event-marker ${eventClass(event.eventType)}`} style={{ left: `${left}%`, top: `${top}%` }} title={`${labelForEvent(event.eventType)} · ${event.portId}`}><span /></div>)}
 
-        {shipMarkers.map((ship) => <button key={ship.vessel.id} type="button" aria-label={`Inspect ${ship.vessel.name}`} title={`Inspect ${ship.vessel.name}`} className={`ship-figurine ${ship.tone} ${ship.vessel.id === selectedShipId ? "selected" : ""}`} style={{ left: `${ship.left}%`, top: `${ship.top}%`, transform: `translate(-50%, -50%) rotate(${ship.heading}deg)` }} onClick={() => selectVessel(ship.vessel.id)} onFocus={() => setHoveredShipId(ship.vessel.id)} onMouseEnter={() => setHoveredShipId(ship.vessel.id)} onBlur={() => setHoveredShipId("")} onMouseLeave={() => setHoveredShipId("")}><span /></button>)}
+        {markerClusters.map((cluster) => cluster.marker
+          ? renderShipMarker(cluster.marker)
+          : <button key={cluster.key} type="button" className="vessel-cluster" style={{ left: `${cluster.left}%`, top: `${cluster.top}%` }} title={`${cluster.count} vessels · zoom in`} aria-label={`${cluster.count} vessels; zoom in`} onClick={() => { setManualCenter(cluster.center); setMapZoom((zoom) => Math.min(MAX_ZOOM, zoom + 1)); }}><span>{cluster.count}</span></button>)}
       </div>
 
-      {hoveredShip && !selectedShip && <div className="vessel-hover-card" style={{ left: `${hoveredShip.left}%`, top: `${hoveredShip.top}%` }}><strong>{hoveredShip.vessel.name}</strong><span>{hoveredShip.vessel.route}</span><span>{hoveredShip.vessel.speed} · {hoveredShip.vessel.status}</span></div>}
+      {hoveredShip && !selectedShip && isInViewport(hoveredShip) && <div className="vessel-hover-card" style={{ left: `${hoveredShip.left}%`, top: `${hoveredShip.top}%` }}><strong>{hoveredShip.vessel.name}</strong><span>{hoveredShip.vessel.route}</span><span>{hoveredShip.vessel.speed} · {hoveredShip.vessel.status}</span></div>}
 
       <div className="tile-map-controls">
         <button type="button" onClick={() => setMapZoom((zoom) => Math.min(MAX_ZOOM, zoom + 1))}>+</button>
         <button type="button" onClick={() => setMapZoom((zoom) => Math.max(MIN_ZOOM, zoom - 1))}>−</button>
-        <button type="button" onClick={resetOverview}>Regional overview</button>
+        <button type="button" onClick={showWorldOverview}>World view</button>
+        <button type="button" onClick={showPortsOverview}>Ports overview</button>
         <button type="button" onClick={fitVisibleVessels}>Fit vessels</button>
         <button type="button" className={showPorts ? "active layer-toggle" : "layer-toggle"} onClick={() => setShowPorts((value) => !value)}>Ports</button>
         <button type="button" className={showEvents ? "active layer-toggle" : "layer-toggle"} onClick={() => setShowEvents((value) => !value)}>Events</button>
         <button type="button" className={showTrails ? "active layer-toggle" : "layer-toggle"} onClick={() => setShowTrails((value) => !value)}>Trails</button>
-        <span>{visibleVessels.length}/{sceneVessels.length} vessels</span>
+        <span>{shipMarkers.length} in view · {visibleVessels.length}/{sceneVessels.length} tracked</span>
         {expanded && <span>{eventMarkers.length} events</span>}
         <span>Zoom {mapZoom}</span>
       </div>
@@ -349,7 +433,7 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
       {expanded && <aside className="expanded-map-rail" aria-label="Expanded map details">
         {vesselDetail}
         <section className="expanded-rail-section tile-vessel-list" aria-label="Visible vessel list">
-          <div className="tile-vessel-list-header"><strong>Visible vessels</strong><span>{visibleVessels.length}/{sceneVessels.length}</span></div>
+          <div className="tile-vessel-list-header"><strong>Tracked vessels</strong><span>{visibleVessels.length}/{sceneVessels.length}</span></div>
           <div className="rail-search-tools">
             <input value={searchQuery} onChange={(event) => { setSearchQuery(event.target.value); setSelectedShipId(""); }} placeholder="Search name, MMSI, route" aria-label="Search vessels" />
             <select value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)} aria-label="Sort vessels"><option value="latest">Latest update</option><option value="name">Name</option><option value="speed">Speed</option></select>
