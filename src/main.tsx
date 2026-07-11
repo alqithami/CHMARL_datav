@@ -23,6 +23,7 @@ import "./mawaniTopbarCompact.css";
 import "./portCoverageMatrix.css";
 import "./mawaniThemeModes.css";
 import "./topbarStatusClarity.css";
+import "./mapMotionStability.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
