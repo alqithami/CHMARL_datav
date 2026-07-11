@@ -12,17 +12,30 @@ if (!newKey) {
   process.exit(2);
 }
 
+const operationalBbox = [
+  "11,32;31,56",
+  "20.70,38.35;22.95,39.85",
+  "23.25,37.15;24.90,38.90",
+  "16.15,41.75;17.55,43.35",
+  "25.70,49.25;27.25,50.90",
+  "24.35,54.35;25.65,55.75",
+  "29.20,32.00;30.55,33.25",
+].join("|");
+
 const requiredDefaults = new Map([
   ["AISSTREAM_API_KEY", newKey],
   ["AISSTREAM_URL", "wss://stream.aisstream.io/v0/stream"],
   ["AISSTREAM_GLOBAL_TRACKING_ENABLED", "true"],
   ["AISSTREAM_TRACKING_BBOX", "-90,-180;90,180"],
-  ["AISSTREAM_BBOX", "11,32;31,56"],
-  ["AISSTREAM_APPEND_SAUDI_PORT_BBOXES", "true"],
   ["AISSTREAM_FILTER_TYPES", "PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport"],
-  ["AISSTREAM_MAX_VESSELS", "5000"],
+  ["AISSTREAM_OPERATIONAL_PRIORITY_ENABLED", "true"],
+  ["AISSTREAM_OPERATIONAL_BBOX", operationalBbox],
+  ["AISSTREAM_OPERATIONAL_FILTER_TYPES", "PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport,LongRangeAisBroadcastMessage"],
+  ["AISSTREAM_MAX_VESSELS", "8000"],
+  ["AISSTREAM_OPERATIONAL_MAX_VESSELS", "2500"],
   ["AISSTREAM_MAX_AGE_MS", "21600000"],
   ["AISSTREAM_TRAIL_POINTS", "12"],
+  ["AISSTREAM_MAX_IMPLIED_SPEED_KN", "120"],
   ["AISSTREAM_CACHE_ENABLED", "true"],
   ["RUNTIME_DATA_DIR", ".runtime"],
   ["ECOFAIR_OPERATIONAL_RADIUS_NM", "120"],
@@ -32,6 +45,8 @@ const requiredDefaults = new Map([
 const obsoleteKeys = new Set([
   "AISSTREAM_FORCE_REGIONAL_BBOX",
   "AISSTREAM_USE_SAUDI_PORT_BBOXES",
+  "AISSTREAM_APPEND_SAUDI_PORT_BBOXES",
+  "AISSTREAM_BBOX",
   "RUNTIME_CACHE_SCOPE",
 ]);
 
@@ -71,5 +86,7 @@ console.log(`Updated ${envPath}`);
 console.log("AISSTREAM_API_KEY=<redacted>");
 console.log("AISSTREAM_GLOBAL_TRACKING_ENABLED=true");
 console.log("AISSTREAM_TRACKING_BBOX=-90,-180;90,180");
+console.log("AISSTREAM_OPERATIONAL_PRIORITY_ENABLED=true");
+console.log(`AISSTREAM_OPERATIONAL_BBOX=${operationalBbox}`);
 console.log("ECOFAIR_OPERATIONAL_RADIUS_NM=120");
 console.log("Next: restart pnpm dev:proxy. Clear runtime state only if you intentionally want to discard cached tracking/history.");
