@@ -1,0 +1,53 @@
+/* Stable world-scale AIS rendering.
+ * Position changes are applied without long interpolation so vessels do not appear
+ * to travel across land between feed snapshots.
+ */
+
+.ship-figurine {
+  transition: opacity 120ms ease, filter 120ms ease !important;
+  will-change: auto !important;
+}
+
+.vessel-cluster {
+  position: absolute;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(0, 219, 231, 0.72);
+  border-radius: 12px;
+  background: rgba(10, 32, 38, 0.92);
+  color: #f4f4f4;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 1px rgba(22, 22, 22, 0.45);
+  cursor: zoom-in;
+}
+
+.vessel-cluster:hover,
+.vessel-cluster:focus-visible {
+  border-color: #00dbe7;
+  background: #004552;
+  outline: 2px solid rgba(0, 219, 231, 0.34);
+  outline-offset: 2px;
+}
+
+.vessel-cluster span {
+  pointer-events: none;
+}
+
+.tile-map-controls > span {
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ship-figurine,
+  .vessel-cluster {
+    transition: none !important;
+  }
+}
