@@ -1,7 +1,7 @@
 import type { DashboardDataSource } from "@/data/loadSampleDashboardData";
 import type { Vessel, VesselTrailPoint } from "@/data/chmarlData";
 import { fetchFirstJson } from "./backendUrl";
-import { stabilizeVesselDisplay } from "./vesselDisplayStabilizer";
+import { getVesselDisplayStats, stabilizeVesselDisplay } from "./vesselDisplayStabilizer";
 
 type RemoteTrailPoint = Partial<VesselTrailPoint> & {
   lat?: string | number;
@@ -59,6 +59,10 @@ export type DashboardVesselFeed = {
   vessels: Vessel[];
   scope: "tracking" | "operational";
   trackingRows: number;
+  reportedRows: number;
+  freshRows: number;
+  heldRows: number;
+  cachedRows: number;
   operationalRows: number;
   operationalRadiusNm?: number;
 };
@@ -149,18 +153,36 @@ function toDashboardVessel(row: RemoteVesselRow): Vessel {
 export async function loadRemoteDashboardVessels(): Promise<DashboardVesselFeed | null> {
   const payload = await fetchFirstJson<RemoteVesselPayload | RemoteVesselRow[]>(endpointUrl());
   if (!payload) return null;
+
   const incomingRows = extractRows(payload).map(toDashboardVessel);
   const rows = stabilizeVesselDisplay(incomingRows);
+  const displayStats = getVesselDisplayStats();
+
   if (Array.isArray(payload)) {
-    return { source: "remote", vessels: rows, scope: "tracking", trackingRows: incomingRows.length, operationalRows: 0 };
+    return {
+      source: "remote",
+      vessels: rows,
+      scope: "tracking",
+      trackingRows: rows.length,
+      reportedRows: incomingRows.length,
+      freshRows: displayStats.freshRows,
+      heldRows: displayStats.heldRows,
+      cachedRows: displayStats.cachedRows,
+      operationalRows: 0,
+    };
   }
-  const trackingRows = payload.counts?.tracking ?? payload.inputs?.trackingRows ?? incomingRows.length;
+
+  const reportedRows = payload.counts?.tracking ?? payload.inputs?.trackingRows ?? incomingRows.length;
   const operationalRows = payload.counts?.operational ?? payload.inputs?.operationalRows ?? 0;
   return {
     source: normalizeSource(payload.source),
     vessels: rows,
     scope: payload.scope === "operational" ? "operational" : "tracking",
-    trackingRows,
+    trackingRows: rows.length,
+    reportedRows,
+    freshRows: displayStats.freshRows,
+    heldRows: displayStats.heldRows,
+    cachedRows: displayStats.cachedRows,
     operationalRows,
     operationalRadiusNm: payload.inputs?.operationalRadiusNm,
   };
