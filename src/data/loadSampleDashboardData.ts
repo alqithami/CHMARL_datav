@@ -27,6 +27,10 @@ export type CoverageDiagnostics = {
 
 export type VesselScopeSummary = {
   trackingRows: number;
+  reportedRows: number;
+  freshRows: number;
+  heldRows: number;
+  cachedRows: number;
   operationalRows: number;
   operationalRadiusNm: number;
 };
@@ -96,7 +100,15 @@ export const fallbackDashboardData: DashboardData = {
     operationalRows: 0,
     outOfRegionRows: 0,
   },
-  vesselScope: { trackingRows: 0, operationalRows: 0, operationalRadiusNm: portPressureDistanceNm },
+  vesselScope: {
+    trackingRows: 0,
+    reportedRows: 0,
+    freshRows: 0,
+    heldRows: 0,
+    cachedRows: 0,
+    operationalRows: 0,
+    operationalRadiusNm: portPressureDistanceNm,
+  },
   chmarlSteps: [],
   metrics: realOnlyMetrics,
   vessels: [],
@@ -216,10 +228,13 @@ function externalTimeline(source: DashboardDataSource, chmarlSource: ChmarlDataS
     return [{ time: "live", title: "AIS connected, waiting for position messages", body: "The backend socket is active, but no usable positions have entered the tracking cache yet." }];
   }
   if (!isExternalSource(source)) return [];
+  const continuity = vesselScope.heldRows > 0
+    ? `${vesselScope.heldRows} vessels are retained through temporary API gaps.`
+    : "All displayed vessels are present in the latest API snapshot.";
   return [{
     time: "live",
-    title: chmarlSource !== "none" ? "Global tracking + port-scoped inference active" : "External tracking feed active",
-    body: `${vesselScope.trackingRows} vessels are available for map tracking; ${vesselScope.operationalRows} vessels within ${vesselScope.operationalRadiusNm} nm of monitored ports are used by EcoFair-CH-MARL. Port source: ${portOpsSource}.`,
+    title: chmarlSource !== "none" ? "Stable global tracking + port-scoped inference active" : "Stable external tracking feed active",
+    body: `${vesselScope.trackingRows} vessels are retained for map tracking from ${vesselScope.reportedRows} current API rows; ${vesselScope.operationalRows} vessels within ${vesselScope.operationalRadiusNm} nm of monitored ports are used by EcoFair-CH-MARL. ${continuity} Port source: ${portOpsSource}.`,
   }];
 }
 
@@ -237,15 +252,27 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
   const operationalRadiusNm = remoteVessels?.operationalRadiusNm ?? portPressureDistanceNm;
   const derivedOperationalRows = operationalVesselRows(providerRows, operationalRadiusNm);
   const trackingRows = remoteVessels?.trackingRows ?? providerRows.length;
+  const reportedRows = remoteVessels?.reportedRows ?? trackingRows;
+  const freshRows = remoteVessels?.freshRows ?? trackingRows;
+  const heldRows = remoteVessels?.heldRows ?? 0;
+  const cachedRows = remoteVessels?.cachedRows ?? trackingRows;
   const operationalRows = remoteVessels?.operationalRows ?? derivedOperationalRows.length;
-  const vesselScope: VesselScopeSummary = { trackingRows, operationalRows, operationalRadiusNm };
+  const vesselScope: VesselScopeSummary = {
+    trackingRows,
+    reportedRows,
+    freshRows,
+    heldRows,
+    cachedRows,
+    operationalRows,
+    operationalRadiusNm,
+  };
   const regionRows = requireOperationalRegion && externalSource ? providerRows.filter(inOperationalRegion).length : operationalRows;
   const coverageDiagnostics: CoverageDiagnostics = {
     requireOperationalRegion,
     operationalRegionLabel: operationalRegion.label,
-    providerRows: trackingRows,
+    providerRows: reportedRows,
     operationalRows: regionRows,
-    outOfRegionRows: Math.max(0, trackingRows - regionRows),
+    outOfRegionRows: Math.max(0, reportedRows - regionRows),
   };
   const experimentSteps = runtimeExperiment?.steps ?? [];
   const chmarlSource: ChmarlDataSource = runtimeExperiment?.source ?? "none";
