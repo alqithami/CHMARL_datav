@@ -47,30 +47,36 @@ function trackingStatus(data: DashboardData): QualityItem {
   const stale = staleRows(data);
   const trails = data.vessels.filter((vessel) => vessel.trail && vessel.trail.length > 1).length;
   const trackingRows = data.vesselScope?.trackingRows ?? data.vessels.length;
+  const reportedRows = data.vesselScope?.reportedRows ?? trackingRows;
+  const freshRows = data.vesselScope?.freshRows ?? trackingRows;
+  const heldRows = data.vesselScope?.heldRows ?? 0;
   const operationalRows = data.vesselScope?.operationalRows ?? 0;
   const radius = data.vesselScope?.operationalRadiusNm ?? 120;
+  const continuity = heldRows > 0 ? `${heldRows} held through temporary API gaps` : "no rows currently held";
 
   if (data.source === "aisstream") {
     return {
       label: "Vessel tracking",
-      value: `${trackingRows} live rows`,
-      detail: `${operationalRows} within ${radius} nm port scope · ${coverage}% positioned · ${trails} trails · ${stale} stale`,
+      value: `${trackingRows} retained rows`,
+      detail: `${reportedRows} current API · ${freshRows} refreshed · ${continuity} · ${operationalRows} within ${radius} nm port scope · ${coverage}% positioned · ${trails} trails · ${stale} stale`,
       tone: trackingRows > 0 && stale < trackingRows ? "good" : "warn",
     };
   }
   if (data.source === "aisstream-waiting") {
     return {
       label: "Vessel tracking",
-      value: "Waiting for AIS",
-      detail: "The backend websocket remains connected independently of the browser and is waiting for usable position messages.",
+      value: trackingRows > 0 ? `${trackingRows} retained rows` : "Waiting for AIS",
+      detail: trackingRows > 0
+        ? `The latest API snapshot is empty, so ${trackingRows} recent vessel rows remain visible during the retention window.`
+        : "The backend websocket remains connected independently of the browser and is waiting for usable position messages.",
       tone: "warn",
     };
   }
   if (data.source === "upstream" || data.source === "remote") {
     return {
       label: "Vessel tracking",
-      value: `${trackingRows} provider rows`,
-      detail: `${operationalRows} in port calculation scope · ${coverage}% positioned · ${stale} stale`,
+      value: `${trackingRows} retained rows`,
+      detail: `${reportedRows} current provider · ${continuity} · ${operationalRows} in port calculation scope · ${coverage}% positioned · ${stale} stale`,
       tone: trackingRows > 0 ? "good" : "warn",
     };
   }
@@ -155,11 +161,14 @@ function sampleStatus(): QualityItem {
 
 function readinessHeadline(data: DashboardData) {
   const tracking = data.vesselScope?.trackingRows ?? data.vessels.length;
+  const reported = data.vesselScope?.reportedRows ?? tracking;
+  const held = data.vesselScope?.heldRows ?? 0;
   const operational = data.vesselScope?.operationalRows ?? 0;
-  if (data.source === "aisstream-waiting") return "Continuous AIS connection · waiting for positions";
-  if (data.source === "aisstream" && operational > 0) return `${tracking} tracked globally · ${operational} used for port calculations`;
-  if (data.source === "aisstream") return `${tracking} tracked globally · waiting for monitored-port vessels`;
-  if (data.source === "upstream" || data.source === "remote") return `${tracking} tracked · ${operational} used for port calculations`;
+  const continuity = held > 0 ? ` · ${held} retained between updates` : "";
+  if (data.source === "aisstream-waiting") return tracking > 0 ? `${tracking} recent vessels retained while AIS waits` : "Continuous AIS connection · waiting for positions";
+  if (data.source === "aisstream" && operational > 0) return `${tracking} stable display · ${reported} current API · ${operational} port calculations${continuity}`;
+  if (data.source === "aisstream") return `${tracking} stable display · ${reported} current API · waiting for monitored-port vessels${continuity}`;
+  if (data.source === "upstream" || data.source === "remote") return `${tracking} stable display · ${reported} current provider · ${operational} port calculations${continuity}`;
   if (data.source === "local-json") return "Sample-data validation mode";
   return "No live vessel observations";
 }
