@@ -6,6 +6,16 @@ type CachedVessel = {
   sampleScore: number;
 };
 
+export type VesselDisplayStats = {
+  reportedRows: number;
+  displayRows: number;
+  freshRows: number;
+  heldRows: number;
+  cachedRows: number;
+  expiredRows: number;
+  updatedAt: number;
+};
+
 const standardRetentionMs = 60 * 60 * 1000;
 const middleEastRetentionMs = 6 * 60 * 60 * 1000;
 const gridDegrees = 5;
@@ -15,6 +25,16 @@ const maxImpliedSpeedKn = 120;
 const minimumJumpDistanceNm = 5;
 
 const cache = new Map<string, CachedVessel>();
+const selectedIds = new Set<string>();
+let lastStats: VesselDisplayStats = {
+  reportedRows: 0,
+  displayRows: 0,
+  freshRows: 0,
+  heldRows: 0,
+  cachedRows: 0,
+  expiredRows: 0,
+  updatedAt: 0,
+};
 
 function stableScore(value: string) {
   let hash = 2166136261;
@@ -74,17 +94,45 @@ function acceptsPositionUpdate(existing: Vessel, incoming: Vessel) {
   return true;
 }
 
+function stickyBucketSelection(bucket: CachedVessel[]) {
+  const retained = bucket
+    .filter((entry) => selectedIds.has(entry.vessel.id))
+    .sort((a, b) => b.lastObservedAt - a.lastObservedAt || a.sampleScore - b.sampleScore)
+    .slice(0, maxPerGridCell);
+  if (retained.length >= maxPerGridCell) return retained;
+
+  const retainedIds = new Set(retained.map((entry) => entry.vessel.id));
+  const additions = bucket
+    .filter((entry) => !retainedIds.has(entry.vessel.id))
+    .sort((a, b) => a.sampleScore - b.sampleScore)
+    .slice(0, maxPerGridCell - retained.length);
+  return [...retained, ...additions];
+}
+
+function capSelection(entries: CachedVessel[]) {
+  if (entries.length <= maxDisplayRows) return entries;
+  const protectedEntries = entries.filter((entry) => hasCoordinates(entry.vessel) && inMiddleEastOperationalCorridor(entry.vessel));
+  const protectedIds = new Set(protectedEntries.map((entry) => entry.vessel.id));
+  const previouslyVisible = entries.filter((entry) => !protectedIds.has(entry.vessel.id) && selectedIds.has(entry.vessel.id));
+  const newcomers = entries.filter((entry) => !protectedIds.has(entry.vessel.id) && !selectedIds.has(entry.vessel.id));
+
+  protectedEntries.sort((a, b) => vesselTimestamp(b.vessel) - vesselTimestamp(a.vessel) || a.sampleScore - b.sampleScore);
+  previouslyVisible.sort((a, b) => b.lastObservedAt - a.lastObservedAt || a.sampleScore - b.sampleScore);
+  newcomers.sort((a, b) => a.sampleScore - b.sampleScore);
+  return [...protectedEntries, ...previouslyVisible, ...newcomers].slice(0, maxDisplayRows);
+}
+
 /**
  * A world AIS subscription can return a different high-volume cohort on each
- * poll. Rendering only the latest response makes the map look like alternating
- * screenshots and allows dense European/North-American traffic to crowd out
- * quieter regions. This cache keeps a deterministic, spatially balanced
- * display membership, protects Middle East rows, and rejects time-reversed or
- * physically implausible position jumps.
+ * poll. This cache separates "not present in the latest response" from "no
+ * longer tracked". Existing display members remain sticky through short API
+ * gaps and are removed only after their retention window expires.
  */
 export function stabilizeVesselDisplay(rows: Vessel[], now = Date.now()) {
+  const seenIds = new Set<string>();
   for (const vessel of rows) {
     if (!vessel.id || !hasCoordinates(vessel)) continue;
+    seenIds.add(vessel.id);
     const existing = cache.get(vessel.id);
     if (existing && !acceptsPositionUpdate(existing.vessel, vessel)) {
       cache.set(vessel.id, { ...existing, lastObservedAt: now });
@@ -97,18 +145,24 @@ export function stabilizeVesselDisplay(rows: Vessel[], now = Date.now()) {
     });
   }
 
+  let expiredRows = 0;
   for (const [id, entry] of cache.entries()) {
     if (!hasCoordinates(entry.vessel)) {
       cache.delete(id);
+      selectedIds.delete(id);
+      expiredRows += 1;
       continue;
     }
     const retentionMs = inMiddleEastOperationalCorridor(entry.vessel) ? middleEastRetentionMs : standardRetentionMs;
-    if (now - entry.lastObservedAt > retentionMs) cache.delete(id);
+    if (now - entry.lastObservedAt > retentionMs) {
+      cache.delete(id);
+      selectedIds.delete(id);
+      expiredRows += 1;
+    }
   }
 
   const protectedRows: CachedVessel[] = [];
   const cells = new Map<string, CachedVessel[]>();
-
   for (const entry of cache.values()) {
     if (!hasCoordinates(entry.vessel)) continue;
     if (inMiddleEastOperationalCorridor(entry.vessel)) {
@@ -123,24 +177,30 @@ export function stabilizeVesselDisplay(rows: Vessel[], now = Date.now()) {
 
   protectedRows.sort((a, b) => vesselTimestamp(b.vessel) - vesselTimestamp(a.vessel) || a.sampleScore - b.sampleScore);
   const selected: CachedVessel[] = [...protectedRows];
-
-  const orderedCells = [...cells.entries()].sort(([a], [b]) => a.localeCompare(b));
-  for (const [, bucket] of orderedCells) {
-    bucket.sort((a, b) => a.sampleScore - b.sampleScore);
-    selected.push(...bucket.slice(0, maxPerGridCell));
+  for (const [, bucket] of [...cells.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    selected.push(...stickyBucketSelection(bucket));
   }
 
-  if (selected.length > maxDisplayRows) {
-    const protectedIds = new Set(protectedRows.map((entry) => entry.vessel.id));
-    selected.sort((a, b) => {
-      const aProtected = protectedIds.has(a.vessel.id) ? 1 : 0;
-      const bProtected = protectedIds.has(b.vessel.id) ? 1 : 0;
-      return bProtected - aProtected || a.sampleScore - b.sampleScore;
-    });
-    selected.length = maxDisplayRows;
-  }
+  const capped = capSelection(selected);
+  selectedIds.clear();
+  for (const entry of capped) selectedIds.add(entry.vessel.id);
 
-  return selected
+  const freshRows = capped.filter((entry) => seenIds.has(entry.vessel.id)).length;
+  lastStats = {
+    reportedRows: seenIds.size,
+    displayRows: capped.length,
+    freshRows,
+    heldRows: Math.max(0, capped.length - freshRows),
+    cachedRows: cache.size,
+    expiredRows,
+    updatedAt: now,
+  };
+
+  return capped
     .map((entry) => entry.vessel)
     .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+export function getVesselDisplayStats(): VesselDisplayStats {
+  return { ...lastStats };
 }
