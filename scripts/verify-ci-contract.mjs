@@ -74,7 +74,7 @@ requireText(
 );
 requireText("docs/CI_RUNTIME_GOVERNANCE.md", "Node.js 24");
 requireText("docs/CI_RUNTIME_GOVERNANCE.md", "Apply portal resilience patch");
-requireText("docs/PRODUCTION_MONITORING.md", "deployment and data readiness are separate");
+requireText("docs/PRODUCTION_MONITORING.md", "AIS data is considered ready only when");
 forbidText("Dockerfile", "FROM node:20");
 forbidText(".devcontainer/devcontainer.json", "javascript-node:20");
 
