@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: verify-build-${{ github.ref }}
+  group: verify-build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -21,23 +21,31 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version-file: .node-version
+          package-manager-cache: false
 
-      - name: Enable pnpm
+      - name: Enable pinned pnpm
         run: |
           corepack enable
           corepack prepare pnpm@9.15.9 --activate
+          pnpm --version
+
+      - name: Verify CI and release contract
+        run: node scripts/verify-ci-contract.mjs
 
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build production bundle
-        run: pnpm build
+      - name: Lint, build, and verify runtime
+        run: pnpm check
 
-      - name: Verify runtime contract and smoke test
-        run: pnpm verify:runtime
+      - name: Verify generated artifacts
+        run: pnpm verify:dist
+
+      - name: Check repository diff
+        run: git diff --check
