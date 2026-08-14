@@ -7,7 +7,6 @@ const failures = [];
 const approvedWorkflows = new Set([
   "build.yml",
   "ci.yml",
-  "verify-build.yml",
 ]);
 
 function read(relativePath) {
@@ -131,6 +130,13 @@ for (const expected of approvedWorkflows) {
   }
 }
 
+requireText(".github/workflows/build.yml", "push:\n    branches: [main]");
+requireText(".github/workflows/build.yml", "pull_request:\n    branches: [main]");
+requireText(".github/workflows/build.yml", "workflow_dispatch:");
+requireText(".github/workflows/ci.yml", "workflow_dispatch:");
+forbidText(".github/workflows/ci.yml", "pull_request:");
+forbidText(".github/workflows/ci.yml", "push:\n    branches:");
+
 requireText(
   ".github/workflows/build.yml",
   "docker build --tag chmarl-datav:ci ."
@@ -167,5 +173,5 @@ if (failures.length) {
 }
 
 console.log(
-  `CI and runtime contract verification passed (${workflowFiles.length} approved workflows, Node ${read(".node-version").trim()}).`
+  `CI and runtime contract verification passed (${workflowFiles.length} approved workflows, one automatic validation path, Node ${read(".node-version").trim()}).`
 );
