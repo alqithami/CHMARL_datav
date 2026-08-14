@@ -86,6 +86,7 @@ const workflowFiles = fs
 const commonRequirements = [
   "permissions:\n  contents: read",
   "actions/checkout@v6",
+  "persist-credentials: false",
   "actions/setup-node@v6",
   "node-version-file: .node-version",
   "package-manager-cache: false",
