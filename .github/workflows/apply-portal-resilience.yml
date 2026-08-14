@@ -1,0 +1,72 @@
+name: Apply portal resilience patch
+
+on:
+  push:
+    branches:
+      - agent/restore-portal-resilience
+    paths:
+      - scripts/apply-portal-resilience.mjs
+      - scripts/check-runtime-contract.mjs
+      - .github/workflows/apply-portal-resilience.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/restore-portal-resilience
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Apply targeted resilience changes
+        run: node scripts/apply-portal-resilience.mjs
+
+      - name: Resolve and lock dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build production dashboard
+        run: pnpm build
+
+      - name: Verify backend runtime contract
+        run: pnpm verify:runtime
+
+      - name: Check generated diff
+        run: git diff --check
+
+      - name: Commit generated repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            server/vessel-feed-proxy/runtime-v3.mjs \
+            render.yaml \
+            Dockerfile \
+            package.json \
+            pnpm-lock.yaml \
+            .github/workflows/build.yml \
+            .github/workflows/verify-build.yml \
+            .github/workflows/ci.yml
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit."
+            exit 0
+          fi
+          git commit -m "Harden portal runtime and deployment"
+          git push origin HEAD:agent/restore-portal-resilience
