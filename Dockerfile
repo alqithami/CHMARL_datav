@@ -15,7 +15,10 @@ ENV VITE_WEATHER_URL=/api/weather
 ENV VITE_ALLOW_SAMPLE_DATA=false
 ENV VITE_ALLOW_SAMPLE_CHMARL=false
 ENV VITE_REQUIRE_OPERATIONAL_REGION=false
-RUN pnpm check && pnpm verify:dist
+# Repository governance is validated by GitHub Actions before this build. The
+# Docker context intentionally excludes .github, so run only application and
+# runtime checks inside the image build.
+RUN pnpm lint && pnpm build && pnpm verify:runtime && pnpm verify:dist
 
 FROM node:24-slim AS runtime
 WORKDIR /app
