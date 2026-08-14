@@ -1,0 +1,73 @@
+name: Production deployment monitor
+
+on:
+  workflow_dispatch:
+    inputs:
+      portal_url:
+        description: Optional HTTPS deployment origin
+        required: false
+        type: string
+      expected_revision:
+        description: Optional Git revision expected to be serving
+        required: false
+        type: string
+      require_data_ready:
+        description: Fail when the AIS feed has no current vessel rows
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_run:
+    workflows: ["Build"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment-monitor
+  cancel-in-progress: true
+
+jobs:
+  monitor:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    name: Verify deployed revision and data state
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CHMARL_DEPLOYMENT_URL: ${{ inputs.portal_url || vars.CHMARL_DEPLOYMENT_URL || 'https://chmarl-datav.onrender.com' }}
+      EXPECTED_REVISION: ${{ inputs.expected_revision || github.event.workflow_run.head_sha || '' }}
+      REQUIRE_DATA_READY: ${{ inputs.require_data_ready || 'false' }}
+      DEPLOYMENT_CHECK_ATTEMPTS: ${{ github.event_name == 'workflow_run' && '18' || '3' }}
+      DEPLOYMENT_CHECK_RETRY_MS: "20000"
+      DEPLOYMENT_REQUEST_TIMEOUT_MS: "15000"
+
+    steps:
+      - name: Check out monitored source
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Verify production deployment
+        run: node scripts/check-deployed-service.mjs
+
+      - name: Upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chmarl-deployment-monitor-${{ github.run_id }}
+          path: |
+            deployment-monitor.json
+            deployment-monitor.md
+          if-no-files-found: error
+          retention-days: 14
