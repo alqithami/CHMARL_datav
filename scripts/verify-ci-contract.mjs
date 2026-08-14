@@ -103,6 +103,7 @@ const forbiddenFragments = [
   "contents: write",
   "actions/checkout@v4",
   "actions/setup-node@v4",
+  "actions/upload-artifact@v4",
   "node-version: 20",
   "pnpm/action-setup",
   "cache: pnpm",
@@ -184,7 +185,7 @@ requireText(
 );
 requireText(
   ".github/workflows/production-monitor.yml",
-  "actions/upload-artifact@v4"
+  "actions/upload-artifact@v7"
 );
 requireText(
   ".github/workflows/production-monitor.yml",
