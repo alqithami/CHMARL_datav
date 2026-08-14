@@ -50,7 +50,7 @@ jobs:
       - name: Check generated diff
         run: git diff --check
 
-      - name: Commit generated repair
+      - name: Commit generated application repair
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -59,10 +59,7 @@ jobs:
             render.yaml \
             Dockerfile \
             package.json \
-            pnpm-lock.yaml \
-            .github/workflows/build.yml \
-            .github/workflows/verify-build.yml \
-            .github/workflows/ci.yml
+            pnpm-lock.yaml
           if git diff --cached --quiet; then
             echo "No generated changes to commit."
             exit 0
