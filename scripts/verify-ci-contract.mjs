@@ -131,6 +131,19 @@ for (const expected of approvedWorkflows) {
   }
 }
 
+requireText(
+  ".github/workflows/build.yml",
+  "docker build --tag chmarl-datav:ci ."
+);
+requireText(
+  ".github/workflows/build.yml",
+  "http://127.0.0.1:8787/health/live"
+);
+requireText(
+  ".github/workflows/build.yml",
+  "http://127.0.0.1:8787/version"
+);
+
 const forbiddenPayloadPatterns = [
   /\.b64$/i,
   /\.gz\.b64$/i,
