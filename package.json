@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "packageManager": "pnpm@9.15.9",
   "description": "CH-MARL maritime logistics geospatial visualization platform.",
   "scripts": {
@@ -77,6 +80,7 @@
     "test:plan": "node scripts/print-test-plan.mjs",
     "cache:clear": "node scripts/clear-runtime-cache.mjs",
     "verify:dist": "node scripts/verify-build-artifacts.mjs",
+    "verify:ci": "node scripts/verify-ci-contract.mjs",
     "build": "tsc -b && vite build",
     "build:prod": "VITE_VESSEL_DATA_URL=/api/vessels pnpm build",
     "start": "node scripts/start-prod.mjs",
@@ -84,7 +88,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "verify:runtime": "node --check server/vessel-feed-proxy/runtime-v3.mjs && node scripts/check-runtime-contract.mjs && node scripts/smoke-runtime.mjs",
-    "check": "pnpm lint && pnpm build && pnpm verify:runtime"
+    "check": "pnpm verify:ci && pnpm lint && pnpm build && pnpm verify:runtime"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.6",
