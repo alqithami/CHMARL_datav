@@ -3,10 +3,14 @@ name: CI
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    name: Type-check and build
+    name: Production build and runtime smoke test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -22,8 +26,11 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Build
+      - name: Build production bundle
         run: pnpm build
+
+      - name: Verify runtime contract and smoke test
+        run: pnpm verify:runtime
