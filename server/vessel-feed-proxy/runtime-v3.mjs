@@ -7,6 +7,8 @@ import { createEcoFairRuntime } from "./ecofair.mjs";
 const PORT = Number(process.env.PORT ?? 8787);
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "dist");
 const STATIC_INDEX = resolve(STATIC_DIR, "index.html");
+const SERVICE_VERSION = process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? "development";
+const SERVICE_STARTED_AT = new Date().toISOString();
 
 const WORLD_AIS_BBOX = "-90,-180;90,180";
 const REGIONAL_AIS_BBOX = "11,32;31,56";
@@ -214,6 +216,9 @@ const AISSTREAM_MAX_AGE_MS = Math.max(60_000, Number(process.env.AISSTREAM_MAX_A
 const AISSTREAM_CACHE_ENABLED = process.env.AISSTREAM_CACHE_ENABLED !== "false";
 const AISSTREAM_CACHE_FLUSH_MS = Math.max(5_000, Number(process.env.AISSTREAM_CACHE_FLUSH_MS ?? 30_000));
 const AISSTREAM_MAX_IMPLIED_SPEED_KN = Math.max(50, Number(process.env.AISSTREAM_MAX_IMPLIED_SPEED_KN ?? 120));
+const AISSTREAM_HEARTBEAT_MS = Math.max(15_000, Number(process.env.AISSTREAM_HEARTBEAT_MS ?? 30_000));
+const AISSTREAM_SILENCE_TIMEOUT_MS = Math.max(60_000, Number(process.env.AISSTREAM_SILENCE_TIMEOUT_MS ?? 5 * 60_000));
+const MAX_INGEST_BODY_BYTES = Math.max(1_024, Number(process.env.MAX_INGEST_BODY_BYTES ?? 5 * 1024 * 1024));
 const ECOFAIR_OPERATIONAL_RADIUS_NM = Math.max(1, Number(process.env.ECOFAIR_OPERATIONAL_RADIUS_NM ?? 120));
 const ECOFAIR_TICK_MS = Math.max(10_000, Number(process.env.ECOFAIR_TICK_MS ?? 60_000));
 const CHMARL_HISTORY_LIMIT = Math.max(5, Number(process.env.CHMARL_HISTORY_LIMIT ?? 96));
@@ -294,6 +299,11 @@ function createAisState(label, boxes, filters, cacheFile, cacheLimit) {
     lastMessageAt: null,
     lastError: null,
     reconnectAttempt: 0,
+    status: AISSTREAM_API_KEY ? "connecting" : "disabled",
+    openedAt: null,
+    lastPongAt: null,
+    lastCloseAt: null,
+    watchdogRestarts: 0,
     messageCount: 0,
     usablePositionMessages: 0,
     rejectedOutOfOrder: 0,
@@ -457,15 +467,32 @@ async function fetchProviderJson(url, token, timeoutMs = 10_000) {
 
 async function loadFixedVessels() {
   const rows = [];
-  if (FIXED_VESSEL_DATA_URL) rows.push(...rowsFrom(await fetchProviderJson(FIXED_VESSEL_DATA_URL, FIXED_VESSEL_DATA_TOKEN), ["vessels", "data", "items"]));
-  if (FIXED_VESSEL_DATA_FILE_ENABLED && existsSync(FIXED_VESSEL_DATA_FILE)) rows.push(...rowsFrom(JSON.parse(readFileSync(FIXED_VESSEL_DATA_FILE, "utf8")), ["vessels", "data", "items"]));
-  return rows.map((row) => normalizeVessel({ ...row, inputSource: row.inputSource ?? "fixed" })).filter(Boolean);
+  const errors = [];
+  if (FIXED_VESSEL_DATA_URL) {
+    try { rows.push(...rowsFrom(await fetchProviderJson(FIXED_VESSEL_DATA_URL, FIXED_VESSEL_DATA_TOKEN), ["vessels", "data", "items"])); }
+    catch (error) { errors.push(`fixed URL: ${error instanceof Error ? error.message : String(error)}`); }
+  }
+  if (FIXED_VESSEL_DATA_FILE_ENABLED && existsSync(FIXED_VESSEL_DATA_FILE)) {
+    try { rows.push(...rowsFrom(JSON.parse(readFileSync(FIXED_VESSEL_DATA_FILE, "utf8")), ["vessels", "data", "items"])); }
+    catch (error) { errors.push(`fixed file: ${error instanceof Error ? error.message : String(error)}`); }
+  }
+  return {
+    rows: rows.map((row) => normalizeVessel({ ...row, inputSource: row.inputSource ?? "fixed" })).filter(Boolean),
+    errors,
+  };
 }
 
 async function loadUpstreamVessels() {
-  if (!UPSTREAM_URL) return [];
-  const payload = await fetchProviderJson(UPSTREAM_URL, UPSTREAM_TOKEN);
-  return rowsFrom(payload, ["vessels", "data", "items"]).map((row) => normalizeVessel({ ...row, inputSource: row.inputSource ?? "upstream" })).filter(Boolean);
+  if (!UPSTREAM_URL) return { rows: [], errors: [] };
+  try {
+    const payload = await fetchProviderJson(UPSTREAM_URL, UPSTREAM_TOKEN);
+    return {
+      rows: rowsFrom(payload, ["vessels", "data", "items"]).map((row) => normalizeVessel({ ...row, inputSource: row.inputSource ?? "upstream" })).filter(Boolean),
+      errors: [],
+    };
+  } catch (error) {
+    return { rows: [], errors: [`upstream URL: ${error instanceof Error ? error.message : String(error)}`] };
+  }
 }
 
 function operationalVessels(vessels) {
@@ -477,14 +504,17 @@ function operationalVessels(vessels) {
 
 async function loadCombinedVessels() {
   try {
-    const [fixed, upstream] = await Promise.all([loadFixedVessels(), loadUpstreamVessels()]);
+    const [fixedInput, upstreamInput] = await Promise.all([loadFixedVessels(), loadUpstreamVessels()]);
+    const fixed = fixedInput.rows;
+    const upstream = upstreamInput.rows;
+    const providerErrors = [...fixedInput.errors, ...upstreamInput.errors];
     const trackingAis = cacheRows(trackingAisCache, trackingAisState);
-    const priorityAis = cacheRows(operationalAisCache, operationalAisState);
+    const priorityAis = OPERATIONAL_PRIORITY_ENABLED ? cacheRows(operationalAisCache, operationalAisState) : [];
     const merged = new Map();
     for (const row of fixed) merged.set(row.id, row);
     for (const row of upstream) merged.set(row.id, row);
-    for (const row of trackingAis) merged.set(row.id, row);
     for (const row of priorityAis) merged.set(row.id, row);
+    for (const row of trackingAis) merged.set(row.id, row);
     const tracking = [...merged.values()].filter((row) => validCoordinates(row.latitude, row.longitude));
     const operational = operationalVessels(tracking);
     Object.assign(vesselInputState, {
@@ -495,7 +525,7 @@ async function loadCombinedVessels() {
       trackingRows: tracking.length,
       operationalRows: operational.length,
       lastLoadedAt: new Date().toISOString(),
-      lastError: null,
+      lastError: providerErrors.length > 0 ? providerErrors.join("; ") : null,
     });
     lastCombinedVessels = tracking;
     lastOperationalVessels = operational;
@@ -515,12 +545,17 @@ function sourceForTracking() {
 }
 
 function authorized(request, token) {
-  return !token || request.headers.authorization === `Bearer ${token}`;
+  return Boolean(token) && request.headers.authorization === `Bearer ${token}`;
 }
 
 async function readJsonBody(request) {
   const chunks = [];
-  for await (const chunk of request) chunks.push(chunk);
+  let receivedBytes = 0;
+  for await (const chunk of request) {
+    receivedBytes += Buffer.byteLength(chunk);
+    if (receivedBytes > MAX_INGEST_BODY_BYTES) throw new Error(`Request body exceeds ${MAX_INGEST_BODY_BYTES} bytes`);
+    chunks.push(chunk);
+  }
   const text = Buffer.concat(chunks).toString("utf8");
   return text ? JSON.parse(text) : {};
 }
@@ -691,15 +726,51 @@ async function runBackgroundTick() {
   }
 }
 
-function startAisStream({ state, cache, boxes, filters, alsoTracking = false }) {
-  if (!AISSTREAM_API_KEY || stopping) return;
+function scheduleAisReconnect(options) {
+  const { state } = options;
+  if (stopping || !AISSTREAM_API_KEY || state.reconnectTimer) return;
+  const delay = Math.min(30_000, 2_000 * 2 ** state.reconnectAttempt);
+  state.reconnectAttempt += 1;
+  state.status = "reconnecting";
+  state.reconnectTimer = setTimeout(() => {
+    state.reconnectTimer = null;
+    startAisStream(options);
+  }, delay);
+  state.reconnectTimer.unref?.();
+}
+
+function startAisStream({ state, cache, boxes, filters, deriveOperational = false }) {
+  const options = { state, cache, boxes, filters, deriveOperational };
+  if (!AISSTREAM_API_KEY || stopping) {
+    state.status = AISSTREAM_API_KEY ? "stopped" : "disabled";
+    return;
+  }
+  if (state.reconnectTimer) {
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = null;
+  }
   const socket = new WebSocket(AISSTREAM_URL);
   state.socket = socket;
+  state.status = "connecting";
   socket.on("open", () => {
+    const openedAt = new Date().toISOString();
     state.connected = true;
     state.reconnectAttempt = 0;
     state.lastError = null;
+    state.openedAt = openedAt;
+    state.lastPongAt = openedAt;
+    state.status = "connected-waiting";
+    if (deriveOperational) {
+      operationalAisState.enabled = true;
+      operationalAisState.connected = true;
+      operationalAisState.openedAt = openedAt;
+      operationalAisState.status = "derived-waiting";
+      operationalAisState.lastError = null;
+    }
     socket.send(JSON.stringify({ APIKey: AISSTREAM_API_KEY, BoundingBoxes: boxes, ...(filters.length > 0 ? { FilterMessageTypes: filters } : {}) }));
+  });
+  socket.on("pong", () => {
+    state.lastPongAt = new Date().toISOString();
   });
   socket.on("message", (data) => {
     try {
@@ -707,28 +778,55 @@ function startAisStream({ state, cache, boxes, filters, alsoTracking = false }) 
       const raw = JSON.parse(data.toString());
       if (raw.error) {
         state.lastError = String(raw.error);
+        state.status = "provider-error";
         return;
       }
       const vessel = normalizeAisMessage(raw, state.label);
       if (!vessel) return;
+      const receivedAt = new Date().toISOString();
       state.usablePositionMessages += 1;
-      state.lastMessageAt = new Date().toISOString();
+      state.lastMessageAt = receivedAt;
+      state.status = "live";
       mergeAisVessel(cache, state, vessel);
-      if (alsoTracking) mergeAisVessel(trackingAisCache, trackingAisState, vessel);
+      if (deriveOperational) {
+        const nearest = nearestOperationalPort(vessel);
+        if (nearest && nearest.distanceNm <= ECOFAIR_OPERATIONAL_RADIUS_NM) {
+          operationalAisState.messageCount += 1;
+          operationalAisState.usablePositionMessages += 1;
+          operationalAisState.lastMessageAt = receivedAt;
+          operationalAisState.status = "derived-live";
+          mergeAisVessel(operationalAisCache, operationalAisState, vessel);
+        } else {
+          operationalAisCache.delete(vessel.id);
+          operationalAisState.cachedVessels = operationalAisCache.size;
+        }
+      }
     } catch (error) {
       state.lastError = error instanceof Error ? error.message : String(error);
+      state.status = "message-error";
     }
   });
-  socket.on("close", () => {
+  socket.on("close", (code, reason) => {
+    const closedAt = new Date().toISOString();
     state.connected = false;
-    if (stopping) return;
-    const delay = Math.min(30_000, 2_000 * 2 ** state.reconnectAttempt);
-    state.reconnectAttempt += 1;
-    state.reconnectTimer = setTimeout(() => startAisStream({ state, cache, boxes, filters, alsoTracking }), delay);
+    state.lastCloseAt = closedAt;
+    state.socket = null;
+    if (reason?.length) state.lastError = `AIS websocket closed (${code}): ${reason.toString()}`;
+    if (deriveOperational) {
+      operationalAisState.connected = false;
+      operationalAisState.lastCloseAt = closedAt;
+      operationalAisState.status = stopping ? "stopped" : "derived-reconnecting";
+    }
+    if (!stopping) scheduleAisReconnect(options);
   });
   socket.on("error", (error) => {
     state.connected = false;
     state.lastError = error.message;
+    state.status = "socket-error";
+  });
+  socket.on("unexpected-response", (_request, response) => {
+    state.lastError = `AIS websocket rejected the subscription with HTTP ${response.statusCode ?? "unknown"}`;
+    state.status = "provider-error";
   });
 }
 
@@ -738,12 +836,12 @@ function scopedReport() {
     "## Input scope",
     "",
     `- Tracking feed: ${vesselInputState.trackingRows} vessels shown on the map.`,
-    `- Priority regional AIS cache: ${vesselInputState.priorityAisRows} vessels retained independently of global traffic.`,
+    `- Monitored-port AIS cache: ${vesselInputState.priorityAisRows} vessels derived from the single global subscription.`,
     `- Operational calculation feed: ${vesselInputState.operationalRows} vessels within ${ECOFAIR_OPERATIONAL_RADIUS_NM} nm of monitored ports.`,
     "- EcoFair-CH-MARL fuel, emissions, fairness, queue, reward, and constraint calculations use only the operational calculation feed.",
     "",
   ].join("\n");
-  return base.replace("## Fleet measures", `${scopeSection}## Fleet measures`).replace("- Vessel positions: aisstream.io live AIS (Red Sea / Gulf bounding boxes).", "- Vessel tracking: independent global and Red Sea/Gulf AIS subscriptions; operational calculations are restricted to monitored-port geofences.");
+  return base.replace("## Fleet measures", `${scopeSection}## Fleet measures`).replace("- Vessel positions: aisstream.io live AIS (Red Sea / Gulf bounding boxes).", "- Vessel tracking: one resilient global AIS subscription populates both the display cache and the monitored-port operational cache; operational calculations remain restricted to port geofences.");
 }
 
 function staticFileForUrl(requestUrl) {
@@ -779,9 +877,43 @@ function publicAisState(state) {
   return publicState;
 }
 
+function vesselProviderConfigured() {
+  return Boolean(
+    AISSTREAM_API_KEY
+    || UPSTREAM_URL
+    || FIXED_VESSEL_DATA_URL
+    || (FIXED_VESSEL_DATA_FILE_ENABLED && existsSync(FIXED_VESSEL_DATA_FILE))
+  );
+}
+
+function providerState() {
+  if (!vesselProviderConfigured()) return "unconfigured";
+  if (vesselInputState.trackingRows > 0) return trackingAisState.connected ? "live" : "degraded-cache";
+  if (trackingAisState.connected) return "connected-waiting";
+  if (AISSTREAM_API_KEY) return "reconnecting";
+  return "unavailable";
+}
+
+function readinessPayload() {
+  const staticDashboard = existsSync(STATIC_INDEX);
+  const dataReady = vesselInputState.trackingRows > 0;
+  const providerConfigured = vesselProviderConfigured();
+  return {
+    ok: staticDashboard && dataReady,
+    staticDashboard,
+    dataReady,
+    providerConfigured,
+    providerState: providerState(),
+    reason: !staticDashboard ? "production dashboard bundle is missing" : dataReady ? null : providerConfigured ? "provider is configured but no vessel rows are currently available" : "no vessel provider is configured",
+  };
+}
+
 function healthPayload() {
   return {
     ok: true,
+    service: { version: SERVICE_VERSION, startedAt: SERVICE_STARTED_AT, uptimeSeconds: Math.round(process.uptime()) },
+    providerState: providerState(),
+    readiness: readinessPayload(),
     staticDashboard: existsSync(STATIC_INDEX),
     runtime: runtimeState,
     trackingScope: { mode: GLOBAL_TRACKING_ENABLED ? "global" : "regional", bbox: TRACKING_BBOX_TEXT, rows: vesselInputState.trackingRows, maxRows: AISSTREAM_MAX_VESSELS },
@@ -813,8 +945,15 @@ mkdirSync(RUNTIME_DATA_DIR, { recursive: true });
 loadCache(trackingAisCache, trackingAisState);
 loadCache(operationalAisCache, operationalAisState);
 loadEcofairState();
-startAisStream({ state: trackingAisState, cache: trackingAisCache, boxes: TRACKING_BOXES, filters: AISSTREAM_FILTER_TYPES });
-if (OPERATIONAL_PRIORITY_ENABLED) startAisStream({ state: operationalAisState, cache: operationalAisCache, boxes: OPERATIONAL_BOXES, filters: AISSTREAM_OPERATIONAL_FILTER_TYPES, alsoTracking: true });
+startAisStream({
+  state: trackingAisState,
+  cache: trackingAisCache,
+  boxes: TRACKING_BOXES,
+  filters: AISSTREAM_FILTER_TYPES,
+  deriveOperational: OPERATIONAL_PRIORITY_ENABLED,
+});
+operationalAisState.enabled = Boolean(AISSTREAM_API_KEY && OPERATIONAL_PRIORITY_ENABLED);
+operationalAisState.status = OPERATIONAL_PRIORITY_ENABLED && AISSTREAM_API_KEY ? "derived-waiting" : "disabled";
 void runBackgroundTick();
 void currentWeather();
 
@@ -830,6 +969,37 @@ const pruneInterval = setInterval(() => {
   cacheRows(operationalAisCache, operationalAisState);
 }, 60_000);
 pruneInterval.unref?.();
+const aisWatchdogInterval = setInterval(() => {
+  if (stopping || !AISSTREAM_API_KEY) return;
+  const state = trackingAisState;
+  const socket = state.socket;
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    scheduleAisReconnect({
+      state,
+      cache: trackingAisCache,
+      boxes: TRACKING_BOXES,
+      filters: AISSTREAM_FILTER_TYPES,
+      deriveOperational: OPERATIONAL_PRIORITY_ENABLED,
+    });
+    return;
+  }
+  try { socket.ping(); }
+  catch (error) { state.lastError = error instanceof Error ? error.message : String(error); }
+  const lastSignal = Math.max(timestampMs(state.lastMessageAt), timestampMs(state.openedAt));
+  const lastPong = timestampMs(state.lastPongAt);
+  const now = Date.now();
+  const silent = lastSignal > 0 && now - lastSignal > AISSTREAM_SILENCE_TIMEOUT_MS;
+  const heartbeatLost = lastPong > 0 && now - lastPong > AISSTREAM_HEARTBEAT_MS * 3;
+  if (silent || heartbeatLost) {
+    state.watchdogRestarts += 1;
+    state.lastError = silent
+      ? `AIS provider produced no usable positions for ${Math.round((now - lastSignal) / 1000)} seconds`
+      : "AIS websocket heartbeat timed out";
+    state.status = "watchdog-restart";
+    try { socket.terminate(); } catch {}
+  }
+}, AISSTREAM_HEARTBEAT_MS);
+aisWatchdogInterval.unref?.();
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
@@ -844,11 +1014,28 @@ createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", "http://localhost");
   const path = url.pathname;
 
-  if (path === "/health") {
+  if (path === "/health/live") {
+    const staticDashboard = existsSync(STATIC_INDEX);
+    return sendJson(response, staticDashboard ? 200 : 503, {
+      ok: staticDashboard,
+      staticDashboard,
+      service: { version: SERVICE_VERSION, startedAt: SERVICE_STARTED_AT, uptimeSeconds: Math.round(process.uptime()) },
+    });
+  }
+
+  if (path === "/health" || path === "/health/ready") {
     await loadCombinedVessels();
-    await currentPortOperations();
-    await currentWeather();
-    return sendJson(response, 200, healthPayload());
+    if (path === "/health") {
+      await currentPortOperations();
+      await currentWeather();
+      return sendJson(response, 200, healthPayload());
+    }
+    const readiness = readinessPayload();
+    return sendJson(response, readiness.ok ? 200 : 503, readiness);
+  }
+
+  if (path === "/version") {
+    return sendJson(response, 200, { version: SERVICE_VERSION, startedAt: SERVICE_STARTED_AT });
   }
 
   if (path === "/api/vessels" || path === "/api/vessels/operations") {
@@ -867,6 +1054,7 @@ createServer(async (request, response) => {
   }
 
   if (path === "/api/vessels/ingest" && request.method === "POST") {
+    if (!FIXED_VESSEL_INGEST_TOKEN) return sendJson(response, 503, { error: "Vessel ingest is disabled; configure FIXED_VESSEL_INGEST_TOKEN" });
     if (!authorized(request, FIXED_VESSEL_INGEST_TOKEN)) return sendJson(response, 401, { error: "Unauthorized vessel ingest" });
     try {
       const result = writeFixedVessels(await readJsonBody(request));
@@ -878,6 +1066,7 @@ createServer(async (request, response) => {
   }
 
   if ((path === "/api/chmarl/episode" || path === "/api/chmarl/ingest") && request.method === "POST") {
+    if (!CHMARL_INGEST_TOKEN) return sendJson(response, 503, { error: "CH-MARL ingest is disabled; configure CHMARL_INGEST_TOKEN" });
     if (!authorized(request, CHMARL_INGEST_TOKEN)) return sendJson(response, 401, { error: "Unauthorized CH-MARL ingest" });
     try { return sendJson(response, 200, ingestChmarl(await readJsonBody(request))); }
     catch (error) { return sendJson(response, 400, { error: "Failed to ingest CH-MARL payload", detail: error instanceof Error ? error.message : String(error) }); }
@@ -914,11 +1103,11 @@ createServer(async (request, response) => {
   const staticMatch = staticFileForUrl(request.url);
   if (staticMatch?.path) return sendFile(response, staticMatch.path);
   if (staticMatch?.statusCode === 403) return sendJson(response, 403, { error: "Forbidden" });
-  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/health", "/api/vessels", "/api/vessels/operations", "/api/vessels?scope=operational", "/api/vessels/ingest", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report"] });
+  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/health", "/health/live", "/health/ready", "/version", "/api/vessels", "/api/vessels/operations", "/api/vessels?scope=operational", "/api/vessels/ingest", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report"] });
 }).listen(PORT, "0.0.0.0", () => {
   console.log(`CH-MARL backend listening at http://0.0.0.0:${PORT}`);
   console.log(`Global AIS boxes: ${TRACKING_BOXES.length}; cache limit: ${AISSTREAM_MAX_VESSELS}`);
-  console.log(`Operational AIS priority: ${OPERATIONAL_PRIORITY_ENABLED ? "enabled" : "disabled"}; boxes: ${OPERATIONAL_BOXES.length}; cache limit: ${AISSTREAM_OPERATIONAL_MAX_VESSELS}`);
+  console.log(`Operational AIS derivation: ${OPERATIONAL_PRIORITY_ENABLED ? "enabled" : "disabled"}; monitored boxes: ${OPERATIONAL_BOXES.length}; cache limit: ${AISSTREAM_OPERATIONAL_MAX_VESSELS}`);
   console.log(`EcoFair operational radius: ${ECOFAIR_OPERATIONAL_RADIUS_NM} nm around ${PORT_REFERENCE_POINTS.length} monitored ports`);
   console.log(`Runtime data directory: ${RUNTIME_DATA_DIR}`);
   if (AISSTREAM_API_KEY) console.log("AISStream live mode enabled.");

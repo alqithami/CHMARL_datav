@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   build:
-    name: TypeScript and Vite build
+    name: Production build and runtime smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -33,8 +33,11 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.9 --activate
 
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build production bundle
         run: pnpm build
+
+      - name: Verify runtime contract and smoke test
+        run: pnpm verify:runtime
