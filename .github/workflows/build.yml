@@ -18,7 +18,7 @@ jobs:
   build:
     name: Production build and runtime smoke test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -50,3 +50,33 @@ jobs:
 
       - name: Check repository diff
         run: git diff --check
+
+      - name: Build production container
+        run: docker build --tag chmarl-datav:ci .
+
+      - name: Smoke production container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --name chmarl-datav-ci --publish 8787:8787 chmarl-datav:ci
+          cleanup() {
+            docker logs chmarl-datav-ci || true
+            docker rm --force chmarl-datav-ci >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:8787/health/live > /tmp/chmarl-live.json; then
+              break
+            fi
+            if [[ "${attempt}" == "30" ]]; then
+              echo "The production container did not become live in time." >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+          cat /tmp/chmarl-live.json
+          curl --fail --silent --show-error http://127.0.0.1:8787/version
+          curl --fail --silent --show-error http://127.0.0.1:8787/ > /tmp/chmarl-index.html
+          grep --quiet '<div id="root"></div>' /tmp/chmarl-index.html
