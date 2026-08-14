@@ -1,8 +1,8 @@
-FROM node:20-slim AS build
+FROM node:24-slim AS build
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
@@ -15,16 +15,19 @@ ENV VITE_WEATHER_URL=/api/weather
 ENV VITE_ALLOW_SAMPLE_DATA=false
 ENV VITE_ALLOW_SAMPLE_CHMARL=false
 ENV VITE_REQUIRE_OPERATIONAL_REGION=false
-RUN pnpm build
+# Repository governance is validated by GitHub Actions before this build. The
+# Docker context intentionally excludes .github, so run only application and
+# runtime checks inside the image build.
+RUN pnpm lint && pnpm build && pnpm verify:runtime && pnpm verify:dist
 
-FROM node:20-slim AS runtime
+FROM node:24-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8787
 ENV STATIC_DIR=dist
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --prod --frozen-lockfile
 COPY --from=build /app/dist ./dist
