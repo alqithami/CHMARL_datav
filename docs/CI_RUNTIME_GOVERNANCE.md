@@ -13,9 +13,10 @@ The baseline is declared in `.node-version`, `package.json`, the permanent workf
 
 The reviewed workflows are:
 
-- `.github/workflows/build.yml` — automatic pull-request and `main` validation, plus manual dispatch;
-- `.github/workflows/verify-build.yml` — independent production-bundle and runtime verification;
+- `.github/workflows/build.yml` — the single authoritative automatic validation path for pull requests and `main` pushes, plus manual dispatch;
 - `.github/workflows/ci.yml` — manually dispatched operator verification.
+
+The retired `.github/workflows/verify-build.yml` duplicated most of `build.yml`. Running both on the same commit produced redundant checks and could send a failure notification for an intermediate revision even after the corrected revision passed. Automatic validation is therefore intentionally consolidated in `build.yml`.
 
 All permanent workflows must:
 
@@ -25,6 +26,8 @@ All permanent workflows must:
 - activate the pinned pnpm version through Corepack;
 - verify `pnpm-lock.yaml` with `pnpm install --frozen-lockfile`;
 - run the CI contract, lint, production build, runtime smoke test, artifact verification, and `git diff --check`.
+
+The automatic `build.yml` workflow additionally builds and starts the production Docker image, then verifies `/health/live`, `/version`, and the static dashboard before a Render deployment can proceed.
 
 ## Prohibited repair mechanisms
 
