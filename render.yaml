@@ -6,7 +6,8 @@ services:
     numInstances: 1
     dockerfilePath: ./Dockerfile
     autoDeployTrigger: checksPass
-    healthCheckPath: /health
+    healthCheckPath: /health/live
+    renderSubdomainPolicy: enabled
     maxShutdownDelaySeconds: 60
     disk:
       name: chmarl-runtime-data
@@ -79,6 +80,10 @@ services:
         value: 4
       - key: AISSTREAM_MAX_IMPLIED_SPEED_KN
         value: 120
+      - key: AISSTREAM_HEARTBEAT_MS
+        value: 30000
+      - key: AISSTREAM_SILENCE_TIMEOUT_MS
+        value: 300000
       - key: AISSTREAM_CACHE_ENABLED
         value: true
       - key: AISSTREAM_CACHE_FILE
