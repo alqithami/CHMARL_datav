@@ -218,6 +218,7 @@ const AISSTREAM_CACHE_FLUSH_MS = Math.max(5_000, Number(process.env.AISSTREAM_CA
 const AISSTREAM_MAX_IMPLIED_SPEED_KN = Math.max(50, Number(process.env.AISSTREAM_MAX_IMPLIED_SPEED_KN ?? 120));
 const AISSTREAM_HEARTBEAT_MS = Math.max(15_000, Number(process.env.AISSTREAM_HEARTBEAT_MS ?? 30_000));
 const AISSTREAM_SILENCE_TIMEOUT_MS = Math.max(60_000, Number(process.env.AISSTREAM_SILENCE_TIMEOUT_MS ?? 5 * 60_000));
+const MAX_INGEST_BODY_BYTES = Math.max(1_024, Number(process.env.MAX_INGEST_BODY_BYTES ?? 5 * 1024 * 1024));
 const ECOFAIR_OPERATIONAL_RADIUS_NM = Math.max(1, Number(process.env.ECOFAIR_OPERATIONAL_RADIUS_NM ?? 120));
 const ECOFAIR_TICK_MS = Math.max(10_000, Number(process.env.ECOFAIR_TICK_MS ?? 60_000));
 const CHMARL_HISTORY_LIMIT = Math.max(5, Number(process.env.CHMARL_HISTORY_LIMIT ?? 96));
@@ -466,15 +467,32 @@ async function fetchProviderJson(url, token, timeoutMs = 10_000) {
 
 async function loadFixedVessels() {
   const rows = [];
-  if (FIXED_VESSEL_DATA_URL) rows.push(...rowsFrom(await fetchProviderJson(FIXED_VESSEL_DATA_URL, FIXED_VESSEL_DATA_TOKEN), ["vessels", "data", "items"]));
-  if (FIXED_VESSEL_DATA_FILE_ENABLED && existsSync(FIXED_VESSEL_DATA_FILE)) rows.push(...rowsFrom(JSON.parse(readFileSync(FIXED_VESSEL_DATA_FILE, "utf8")), ["vessels", "data", "items"]));
-  return rows.map((row) => normalizeVessel({ ...row, inputSource: row.inputSource ?? "fixed" })).filter(Boolean);
+  const errors = [];
+  if (FIXED_VESSEL_DATA_URL) {
+    try { rows.push(...rowsFrom(await fetchProviderJson(FIXED_VESSEL_DATA_URL, FIXED_VESSEL_DATA_TOKEN), ["vessels", "data", "items"])); }
+    catch (error) { errors.push(`fixed URL: ${error instanceof Error ? error.message : String(error)}`); }
+  }
+  if (FIXED_VESSEL_DATA_FILE_ENABLED && existsSync(FIXED_VESSEL_DATA_FILE)) {
+    try { rows.push(...rowsFrom(JSON.parse(readFileSync(FIXED_VESSEL_DATA_FILE, "utf8")), ["vessels", "data", "items"])); }
+    catch (error) { errors.push(`fixed file: ${error instanceof Error ? error.message : String(error)}`); }
+  }
+  return {
+    rows: rows.map((row) => normalizeVessel({ ...row, inputSource: row.inputSource ?? "fixed" })).filter(Boolean),
+    errors,
+  };
 }
 
 async function loadUpstreamVessels() {
-  if (!UPSTREAM_URL) return [];
-  const payload = await fetchProviderJson(UPSTREAM_URL, UPSTREAM_TOKEN);
-  return rowsFrom(payload, ["vessels", "data", "items"]).map((row) => normalizeVessel({ ...row, inputSource: row.inputSource ?? "upstream" })).filter(Boolean);
+  if (!UPSTREAM_URL) return { rows: [], errors: [] };
+  try {
+    const payload = await fetchProviderJson(UPSTREAM_URL, UPSTREAM_TOKEN);
+    return {
+      rows: rowsFrom(payload, ["vessels", "data", "items"]).map((row) => normalizeVessel({ ...row, inputSource: row.inputSource ?? "upstream" })).filter(Boolean),
+      errors: [],
+    };
+  } catch (error) {
+    return { rows: [], errors: [`upstream URL: ${error instanceof Error ? error.message : String(error)}`] };
+  }
 }
 
 function operationalVessels(vessels) {
@@ -486,14 +504,17 @@ function operationalVessels(vessels) {
 
 async function loadCombinedVessels() {
   try {
-    const [fixed, upstream] = await Promise.all([loadFixedVessels(), loadUpstreamVessels()]);
+    const [fixedInput, upstreamInput] = await Promise.all([loadFixedVessels(), loadUpstreamVessels()]);
+    const fixed = fixedInput.rows;
+    const upstream = upstreamInput.rows;
+    const providerErrors = [...fixedInput.errors, ...upstreamInput.errors];
     const trackingAis = cacheRows(trackingAisCache, trackingAisState);
-    const priorityAis = cacheRows(operationalAisCache, operationalAisState);
+    const priorityAis = OPERATIONAL_PRIORITY_ENABLED ? cacheRows(operationalAisCache, operationalAisState) : [];
     const merged = new Map();
     for (const row of fixed) merged.set(row.id, row);
     for (const row of upstream) merged.set(row.id, row);
-    for (const row of trackingAis) merged.set(row.id, row);
     for (const row of priorityAis) merged.set(row.id, row);
+    for (const row of trackingAis) merged.set(row.id, row);
     const tracking = [...merged.values()].filter((row) => validCoordinates(row.latitude, row.longitude));
     const operational = operationalVessels(tracking);
     Object.assign(vesselInputState, {
@@ -504,7 +525,7 @@ async function loadCombinedVessels() {
       trackingRows: tracking.length,
       operationalRows: operational.length,
       lastLoadedAt: new Date().toISOString(),
-      lastError: null,
+      lastError: providerErrors.length > 0 ? providerErrors.join("; ") : null,
     });
     lastCombinedVessels = tracking;
     lastOperationalVessels = operational;
@@ -524,12 +545,17 @@ function sourceForTracking() {
 }
 
 function authorized(request, token) {
-  return !token || request.headers.authorization === `Bearer ${token}`;
+  return Boolean(token) && request.headers.authorization === `Bearer ${token}`;
 }
 
 async function readJsonBody(request) {
   const chunks = [];
-  for await (const chunk of request) chunks.push(chunk);
+  let receivedBytes = 0;
+  for await (const chunk of request) {
+    receivedBytes += Buffer.byteLength(chunk);
+    if (receivedBytes > MAX_INGEST_BODY_BYTES) throw new Error(`Request body exceeds ${MAX_INGEST_BODY_BYTES} bytes`);
+    chunks.push(chunk);
+  }
   const text = Buffer.concat(chunks).toString("utf8");
   return text ? JSON.parse(text) : {};
 }
@@ -770,6 +796,9 @@ function startAisStream({ state, cache, boxes, filters, deriveOperational = fals
           operationalAisState.lastMessageAt = receivedAt;
           operationalAisState.status = "derived-live";
           mergeAisVessel(operationalAisCache, operationalAisState, vessel);
+        } else {
+          operationalAisCache.delete(vessel.id);
+          operationalAisState.cachedVessels = operationalAisCache.size;
         }
       }
     } catch (error) {
@@ -848,8 +877,17 @@ function publicAisState(state) {
   return publicState;
 }
 
+function vesselProviderConfigured() {
+  return Boolean(
+    AISSTREAM_API_KEY
+    || UPSTREAM_URL
+    || FIXED_VESSEL_DATA_URL
+    || (FIXED_VESSEL_DATA_FILE_ENABLED && existsSync(FIXED_VESSEL_DATA_FILE))
+  );
+}
+
 function providerState() {
-  if (!AISSTREAM_API_KEY && !UPSTREAM_URL && !FIXED_VESSEL_DATA_URL && !FIXED_VESSEL_DATA_FILE_ENABLED) return "unconfigured";
+  if (!vesselProviderConfigured()) return "unconfigured";
   if (vesselInputState.trackingRows > 0) return trackingAisState.connected ? "live" : "degraded-cache";
   if (trackingAisState.connected) return "connected-waiting";
   if (AISSTREAM_API_KEY) return "reconnecting";
@@ -859,7 +897,7 @@ function providerState() {
 function readinessPayload() {
   const staticDashboard = existsSync(STATIC_INDEX);
   const dataReady = vesselInputState.trackingRows > 0;
-  const providerConfigured = Boolean(AISSTREAM_API_KEY || UPSTREAM_URL || FIXED_VESSEL_DATA_URL || FIXED_VESSEL_DATA_FILE_ENABLED);
+  const providerConfigured = vesselProviderConfigured();
   return {
     ok: staticDashboard && dataReady,
     staticDashboard,
@@ -915,7 +953,7 @@ startAisStream({
   deriveOperational: OPERATIONAL_PRIORITY_ENABLED,
 });
 operationalAisState.enabled = Boolean(AISSTREAM_API_KEY && OPERATIONAL_PRIORITY_ENABLED);
-operationalAisState.status = OPERATIONAL_PRIORITY_ENABLED ? "derived-waiting" : "disabled";
+operationalAisState.status = OPERATIONAL_PRIORITY_ENABLED && AISSTREAM_API_KEY ? "derived-waiting" : "disabled";
 void runBackgroundTick();
 void currentWeather();
 
@@ -947,7 +985,7 @@ const aisWatchdogInterval = setInterval(() => {
   }
   try { socket.ping(); }
   catch (error) { state.lastError = error instanceof Error ? error.message : String(error); }
-  const lastSignal = timestampMs(state.lastMessageAt) || timestampMs(state.openedAt);
+  const lastSignal = Math.max(timestampMs(state.lastMessageAt), timestampMs(state.openedAt));
   const lastPong = timestampMs(state.lastPongAt);
   const now = Date.now();
   const silent = lastSignal > 0 && now - lastSignal > AISSTREAM_SILENCE_TIMEOUT_MS;
@@ -977,7 +1015,12 @@ createServer(async (request, response) => {
   const path = url.pathname;
 
   if (path === "/health/live") {
-    return sendJson(response, 200, { ok: true, service: { version: SERVICE_VERSION, startedAt: SERVICE_STARTED_AT, uptimeSeconds: Math.round(process.uptime()) } });
+    const staticDashboard = existsSync(STATIC_INDEX);
+    return sendJson(response, staticDashboard ? 200 : 503, {
+      ok: staticDashboard,
+      staticDashboard,
+      service: { version: SERVICE_VERSION, startedAt: SERVICE_STARTED_AT, uptimeSeconds: Math.round(process.uptime()) },
+    });
   }
 
   if (path === "/health" || path === "/health/ready") {
@@ -1011,6 +1054,7 @@ createServer(async (request, response) => {
   }
 
   if (path === "/api/vessels/ingest" && request.method === "POST") {
+    if (!FIXED_VESSEL_INGEST_TOKEN) return sendJson(response, 503, { error: "Vessel ingest is disabled; configure FIXED_VESSEL_INGEST_TOKEN" });
     if (!authorized(request, FIXED_VESSEL_INGEST_TOKEN)) return sendJson(response, 401, { error: "Unauthorized vessel ingest" });
     try {
       const result = writeFixedVessels(await readJsonBody(request));
@@ -1022,6 +1066,7 @@ createServer(async (request, response) => {
   }
 
   if ((path === "/api/chmarl/episode" || path === "/api/chmarl/ingest") && request.method === "POST") {
+    if (!CHMARL_INGEST_TOKEN) return sendJson(response, 503, { error: "CH-MARL ingest is disabled; configure CHMARL_INGEST_TOKEN" });
     if (!authorized(request, CHMARL_INGEST_TOKEN)) return sendJson(response, 401, { error: "Unauthorized CH-MARL ingest" });
     try { return sendJson(response, 200, ingestChmarl(await readJsonBody(request))); }
     catch (error) { return sendJson(response, 400, { error: "Failed to ingest CH-MARL payload", detail: error instanceof Error ? error.message : String(error) }); }

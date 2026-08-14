@@ -84,6 +84,8 @@ services:
         value: 30000
       - key: AISSTREAM_SILENCE_TIMEOUT_MS
         value: 300000
+      - key: MAX_INGEST_BODY_BYTES
+        value: 5242880
       - key: AISSTREAM_CACHE_ENABLED
         value: true
       - key: AISSTREAM_CACHE_FILE

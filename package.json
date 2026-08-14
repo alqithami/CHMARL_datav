@@ -83,7 +83,7 @@
     "start:prod": "node scripts/start-prod.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
-    "verify:runtime": "node --check server/vessel-feed-proxy/runtime-v3.mjs && node scripts/check-runtime-contract.mjs",
+    "verify:runtime": "node --check server/vessel-feed-proxy/runtime-v3.mjs && node scripts/check-runtime-contract.mjs && node scripts/smoke-runtime.mjs",
     "check": "pnpm lint && pnpm build && pnpm verify:runtime"
   },
   "dependencies": {
