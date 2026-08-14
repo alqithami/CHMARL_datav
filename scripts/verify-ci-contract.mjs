@@ -36,10 +36,12 @@ function forbidText(relativePath, text) {
 
 [
   ".node-version",
+  ".devcontainer/devcontainer.json",
   "Dockerfile",
   "package.json",
   "pnpm-lock.yaml",
   "scripts/verify-ci-contract.mjs",
+  "docs/CI_RUNTIME_GOVERNANCE.md",
 ].forEach(requireFile);
 
 if (exists(".node-version") && read(".node-version").trim() !== "24") {
@@ -52,9 +54,21 @@ requireText(
   "package.json",
   '"verify:ci": "node scripts/verify-ci-contract.mjs"'
 );
+requireText("package.json", '"check": "pnpm verify:ci &&');
 requireText("Dockerfile", "FROM node:24-slim AS build");
 requireText("Dockerfile", "FROM node:24-slim AS runtime");
+requireText(
+  ".devcontainer/devcontainer.json",
+  "mcr.microsoft.com/devcontainers/javascript-node:24"
+);
+requireText(
+  ".devcontainer/devcontainer.json",
+  "pnpm install --frozen-lockfile"
+);
+requireText("docs/CI_RUNTIME_GOVERNANCE.md", "Node.js 24");
+requireText("docs/CI_RUNTIME_GOVERNANCE.md", "Apply portal resilience patch");
 forbidText("Dockerfile", "FROM node:20");
+forbidText(".devcontainer/devcontainer.json", "javascript-node:20");
 
 const workflowDirectory = path.join(root, ".github", "workflows");
 const workflowFiles = fs
