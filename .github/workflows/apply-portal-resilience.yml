@@ -1,19 +1,18 @@
-name: Apply portal resilience patch
+name: Finalize portal resilience patch
 
 on:
   push:
     branches:
       - agent/restore-portal-resilience
     paths:
-      - scripts/apply-portal-resilience.mjs
-      - scripts/check-runtime-contract.mjs
+      - scripts/finalize-portal-resilience.mjs
       - .github/workflows/apply-portal-resilience.yml
 
 permissions:
   contents: write
 
 jobs:
-  apply:
+  finalize:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -35,34 +34,33 @@ jobs:
         with:
           node-version: 20
 
-      - name: Apply targeted resilience changes
-        run: node scripts/apply-portal-resilience.mjs
+      - name: Apply reviewed runtime refinements
+        run: node scripts/finalize-portal-resilience.mjs
 
-      - name: Resolve and lock dependencies
-        run: pnpm install --no-frozen-lockfile
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build production dashboard
         run: pnpm build
 
-      - name: Verify backend runtime contract
+      - name: Verify runtime contract and smoke test
         run: pnpm verify:runtime
 
       - name: Check generated diff
         run: git diff --check
 
-      - name: Commit generated application repair
+      - name: Commit reviewed runtime refinements
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
             server/vessel-feed-proxy/runtime-v3.mjs \
             render.yaml \
-            Dockerfile \
             package.json \
-            pnpm-lock.yaml
+            scripts/check-runtime-contract.mjs
           if git diff --cached --quiet; then
             echo "No generated changes to commit."
             exit 0
           fi
-          git commit -m "Harden portal runtime and deployment"
+          git commit -m "Refine portal resilience safeguards"
           git push origin HEAD:agent/restore-portal-resilience
