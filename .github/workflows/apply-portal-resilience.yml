@@ -34,7 +34,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
 
       - name: Apply targeted resilience changes
         run: node scripts/apply-portal-resilience.mjs
