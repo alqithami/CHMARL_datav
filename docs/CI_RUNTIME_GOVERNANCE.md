@@ -14,11 +14,12 @@ The baseline is declared in `.node-version`, `package.json`, the permanent workf
 The reviewed workflows are:
 
 - `.github/workflows/build.yml` — the single authoritative automatic validation path for pull requests and `main` pushes, plus manual dispatch;
-- `.github/workflows/ci.yml` — manually dispatched operator verification.
+- `.github/workflows/ci.yml` — manually dispatched operator verification;
+- `.github/workflows/production-monitor.yml` — release-aware monitoring of the deployed Render service and its separate AIS data state.
 
-The retired `.github/workflows/verify-build.yml` duplicated most of `build.yml`. Running both on the same commit produced redundant checks and could send a failure notification for an intermediate revision even after the corrected revision passed. Automatic validation is therefore intentionally consolidated in `build.yml`.
+The retired `.github/workflows/verify-build.yml` duplicated most of `build.yml`. Running both on the same commit produced redundant checks and could send a failure notification for an intermediate revision even after the corrected revision passed. Automatic build validation is therefore intentionally consolidated in `build.yml`.
 
-All permanent workflows must:
+The build workflows must:
 
 - use `actions/checkout@v6` and `actions/setup-node@v6`;
 - read `.node-version` rather than pinning a different runtime in YAML;
@@ -28,6 +29,8 @@ All permanent workflows must:
 - run the CI contract, lint, production build, runtime smoke test, artifact verification, and `git diff --check`.
 
 The automatic `build.yml` workflow additionally builds and starts the production Docker image, then verifies `/health/live`, `/version`, and the static dashboard before a Render deployment can proceed.
+
+The production monitor remains read-only and dependency-free. It runs after a successful main-branch Build, on a six-hour schedule, or manually. It waits for the exact revision to reach Render, verifies the public dashboard and API contracts, and uploads a retained report. AIS provider silence is emitted as a warning unless strict data readiness is explicitly requested; application or release failures remain hard failures.
 
 ## Prohibited repair mechanisms
 
@@ -57,6 +60,14 @@ git diff --check
 
 `pnpm check` begins with `pnpm verify:ci`, which validates the supported workflow and runtime contract before linting, building, and running the production server smoke test.
 
+Run the external production monitor separately:
+
+```bash
+pnpm monitor:production
+```
+
 ## Deployment interpretation
 
 `/health/live` represents process and static-dashboard liveness. `/health/ready` represents truthful vessel-data readiness and can remain HTTP 503 when AISStream is connected but no current position messages have been received. A successful deployment therefore requires the exact release to appear in `/version` and `/health/live`; data readiness must be assessed separately rather than masked by the deployment probe.
+
+The production monitoring policy and strict-data option are documented in `docs/PRODUCTION_MONITORING.md`.

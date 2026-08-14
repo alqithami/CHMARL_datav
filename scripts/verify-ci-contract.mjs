@@ -7,7 +7,9 @@ const failures = [];
 const approvedWorkflows = new Set([
   "build.yml",
   "ci.yml",
+  "production-monitor.yml",
 ]);
+const buildWorkflows = new Set(["build.yml", "ci.yml"]);
 
 function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
@@ -40,7 +42,9 @@ function forbidText(relativePath, text) {
   "package.json",
   "pnpm-lock.yaml",
   "scripts/verify-ci-contract.mjs",
+  "scripts/check-deployed-service.mjs",
   "docs/CI_RUNTIME_GOVERNANCE.md",
+  "docs/PRODUCTION_MONITORING.md",
 ].forEach(requireFile);
 
 if (exists(".node-version") && read(".node-version").trim() !== "24") {
@@ -52,6 +56,10 @@ requireText("package.json", '"packageManager": "pnpm@9.15.9"');
 requireText(
   "package.json",
   '"verify:ci": "node scripts/verify-ci-contract.mjs"'
+);
+requireText(
+  "package.json",
+  '"monitor:production": "node scripts/check-deployed-service.mjs"'
 );
 requireText("package.json", '"check": "pnpm verify:ci &&');
 requireText("Dockerfile", "FROM node:24-slim AS build");
@@ -66,6 +74,7 @@ requireText(
 );
 requireText("docs/CI_RUNTIME_GOVERNANCE.md", "Node.js 24");
 requireText("docs/CI_RUNTIME_GOVERNANCE.md", "Apply portal resilience patch");
+requireText("docs/PRODUCTION_MONITORING.md", "AIS data is considered ready only when");
 forbidText("Dockerfile", "FROM node:20");
 forbidText(".devcontainer/devcontainer.json", "javascript-node:20");
 
@@ -73,6 +82,37 @@ const workflowDirectory = path.join(root, ".github", "workflows");
 const workflowFiles = fs
   .readdirSync(workflowDirectory, { withFileTypes: true })
   .filter(entry => entry.isFile() && /\.ya?ml$/i.test(entry.name));
+
+const commonRequirements = [
+  "permissions:\n  contents: read",
+  "actions/checkout@v6",
+  "persist-credentials: false",
+  "actions/setup-node@v6",
+  "node-version-file: .node-version",
+  "package-manager-cache: false",
+];
+const buildRequirements = [
+  "corepack prepare pnpm@9.15.9 --activate",
+  "node scripts/verify-ci-contract.mjs",
+  "pnpm install --frozen-lockfile",
+  "pnpm check",
+  "pnpm verify:dist",
+  "git diff --check",
+];
+const forbiddenFragments = [
+  "contents: write",
+  "actions/checkout@v4",
+  "actions/setup-node@v4",
+  "node-version: 20",
+  "pnpm/action-setup",
+  "cache: pnpm",
+  "ref: agent/",
+  "persist-credentials: true",
+  "git push",
+  "base64 --decode",
+  "gzip --decompress",
+  "Apply portal resilience patch",
+];
 
 for (const entry of workflowFiles) {
   const workflowPath = `.github/workflows/${entry.name}`;
@@ -84,39 +124,20 @@ for (const entry of workflowFiles) {
     );
   }
 
-  const requirements = [
-    "permissions:\n  contents: read",
-    "actions/checkout@v6",
-    "actions/setup-node@v6",
-    "node-version-file: .node-version",
-    "package-manager-cache: false",
-    "corepack prepare pnpm@9.15.9 --activate",
-    "node scripts/verify-ci-contract.mjs",
-    "pnpm install --frozen-lockfile",
-    "pnpm check",
-    "pnpm verify:dist",
-    "git diff --check",
-  ];
-  for (const requirement of requirements) {
+  for (const requirement of commonRequirements) {
     if (!source.includes(requirement)) {
       failures.push(`${workflowPath} is missing: ${requirement}`);
     }
   }
 
-  const forbiddenFragments = [
-    "contents: write",
-    "actions/checkout@v4",
-    "actions/setup-node@v4",
-    "node-version: 20",
-    "pnpm/action-setup",
-    "cache: pnpm",
-    "ref: agent/",
-    "persist-credentials: true",
-    "git push",
-    "base64 --decode",
-    "gzip --decompress",
-    "Apply portal resilience patch",
-  ];
+  if (buildWorkflows.has(entry.name)) {
+    for (const requirement of buildRequirements) {
+      if (!source.includes(requirement)) {
+        failures.push(`${workflowPath} is missing: ${requirement}`);
+      }
+    }
+  }
+
   for (const fragment of forbiddenFragments) {
     if (source.includes(fragment)) {
       failures.push(`${workflowPath} contains forbidden workflow fragment: ${fragment}`);
@@ -150,6 +171,42 @@ requireText(
   "http://127.0.0.1:8787/version"
 );
 
+requireText(".github/workflows/production-monitor.yml", "workflow_run:");
+requireText(".github/workflows/production-monitor.yml", "workflows: [\"Build\"]");
+requireText(".github/workflows/production-monitor.yml", "schedule:");
+requireText(
+  ".github/workflows/production-monitor.yml",
+  "https://chmarl-datav.onrender.com"
+);
+requireText(
+  ".github/workflows/production-monitor.yml",
+  "node scripts/check-deployed-service.mjs"
+);
+requireText(
+  ".github/workflows/production-monitor.yml",
+  "actions/upload-artifact@v4"
+);
+requireText(
+  ".github/workflows/production-monitor.yml",
+  "EXPECTED_REVISION"
+);
+requireText(
+  "scripts/check-deployed-service.mjs",
+  "A connected AIS socket with zero current position messages is recorded as degraded data"
+);
+requireText(
+  "scripts/check-deployed-service.mjs",
+  "REQUIRE_DATA_READY"
+);
+requireText(
+  "scripts/check-deployed-service.mjs",
+  'request("/health/live", [200], true)'
+);
+requireText(
+  "scripts/check-deployed-service.mjs",
+  'request("/health/ready", [200, 503], true)'
+);
+
 const forbiddenPayloadPatterns = [
   /\.b64$/i,
   /\.gz\.b64$/i,
@@ -173,5 +230,5 @@ if (failures.length) {
 }
 
 console.log(
-  `CI and runtime contract verification passed (${workflowFiles.length} approved workflows, one automatic validation path, Node ${read(".node-version").trim()}).`
+  `CI and runtime contract verification passed (${workflowFiles.length} approved workflows, one automatic build path, one deployment monitor, Node ${read(".node-version").trim()}).`
 );

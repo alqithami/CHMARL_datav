@@ -56,6 +56,7 @@
     "wait:portal": "node scripts/wait-for-portal.mjs",
     "wait:vessels": "node scripts/wait-for-vessels.mjs",
     "smoke": "node scripts/portal-smoke-test.mjs",
+    "monitor:production": "node scripts/check-deployed-service.mjs",
     "watch:vessels": "node scripts/watch-vessel-feed.mjs",
     "watch:health": "node scripts/watch-health.mjs",
     "watch:chmarl": "node scripts/watch-chmarl.mjs",
