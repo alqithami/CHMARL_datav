@@ -40,32 +40,14 @@ services:
         value: false
       - key: VITE_REQUIRE_OPERATIONAL_REGION
         value: false
-      - key: UPSTREAM_VESSEL_DATA_URL
-        sync: false
-      - key: UPSTREAM_VESSEL_DATA_TOKEN
-        sync: false
-      - key: FIXED_VESSEL_DATA_FILE_ENABLED
-        value: true
-      - key: FIXED_VESSEL_DATA_FILE
-        value: /var/data/manual-vessels.json
-      - key: FIXED_VESSEL_DATA_URL
-        value: https://chmarl-datav.onrender.com/data/manual_vessels.sample.json
-      - key: FIXED_VESSEL_DATA_TOKEN
-        sync: false
-      - key: FIXED_VESSEL_INGEST_TOKEN
-        sync: false
       - key: AISSTREAM_API_KEY
         sync: false
       - key: AISSTREAM_URL
         value: wss://stream.aisstream.io/v0/stream
       - key: AISSTREAM_GLOBAL_TRACKING_ENABLED
-        value: false
-      - key: AISSTREAM_TRACKING_BBOX
-        value: 11,32;31,56
-      - key: AISSTREAM_BBOX
-        value: 11,32;31,56
-      - key: AISSTREAM_APPEND_SAUDI_PORT_BBOXES
         value: true
+      - key: AISSTREAM_TRACKING_BBOX
+        value: -90,-180;90,180
       - key: AISSTREAM_FILTER_TYPES
         value: ""
       - key: AISSTREAM_OPERATIONAL_PRIORITY_ENABLED
@@ -75,13 +57,13 @@ services:
       - key: AISSTREAM_OPERATIONAL_FILTER_TYPES
         value: PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport,LongRangeAisBroadcastMessage
       - key: AISSTREAM_MAX_VESSELS
-        value: 5000
+        value: 20000
       - key: AISSTREAM_OPERATIONAL_MAX_VESSELS
         value: 3000
       - key: AISSTREAM_MAX_AGE_MS
         value: 21600000
       - key: AISSTREAM_TRAIL_POINTS
-        value: 12
+        value: 4
       - key: AISSTREAM_MAX_IMPLIED_SPEED_KN
         value: 120
       - key: AISSTREAM_HEARTBEAT_MS
