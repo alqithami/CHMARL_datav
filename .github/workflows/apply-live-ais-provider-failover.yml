@@ -6,6 +6,7 @@ on:
       - agent/live-ais-provider-failover
     paths:
       - scripts/apply-live-ais-provider-failover.mjs
+      - scripts/fix-live-ais-provider-failover-installer.mjs
       - server/vessel-feed-proxy/datalastic-live-ais.mjs
       - scripts/smoke-live-ais-failover.mjs
       - .github/workflows/apply-live-ais-provider-failover.yml
@@ -42,6 +43,11 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.9 --activate
           pnpm --version
+
+      - name: Repair and validate one-time installer
+        run: |
+          node scripts/fix-live-ais-provider-failover-installer.mjs
+          node --check scripts/apply-live-ais-provider-failover.mjs
 
       - name: Apply genuine live AIS failover changes
         run: node scripts/apply-live-ais-provider-failover.mjs
