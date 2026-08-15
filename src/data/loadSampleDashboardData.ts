@@ -125,7 +125,7 @@ function toRewardTrend(points: (string | number)[][]): RewardTrendPoint[] {
 }
 
 function isExternalSource(source: DashboardDataSource) {
-  return source === "aisstream" || source === "aisstream-waiting" || source === "upstream" || source === "remote";
+  return source === "aisstream" || source === "aisstream-waiting";
 }
 
 function hasPosition(row: Vessel) {
@@ -233,8 +233,8 @@ function externalTimeline(source: DashboardDataSource, chmarlSource: ChmarlDataS
     : "All displayed vessels are present in the latest API snapshot.";
   return [{
     time: "live",
-    title: chmarlSource !== "none" ? "Stable global tracking + port-scoped inference active" : "Stable external tracking feed active",
-    body: `${vesselScope.trackingRows} vessels are retained for map tracking from ${vesselScope.reportedRows} current API rows; ${vesselScope.operationalRows} vessels within ${vesselScope.operationalRadiusNm} nm of monitored ports are used by EcoFair-CH-MARL. ${continuity} Port source: ${portOpsSource}.`,
+    title: chmarlSource !== "none" ? "Stable global tracking + port-scoped inference active" : "Live AIS tracking feed active",
+    body: `${vesselScope.trackingRows} vessels are retained for map tracking from ${vesselScope.reportedRows} live AIS API rows; ${vesselScope.operationalRows} vessels within ${vesselScope.operationalRadiusNm} nm of monitored ports are used by EcoFair-CH-MARL. ${continuity} Port source: ${portOpsSource}.`,
   }];
 }
 

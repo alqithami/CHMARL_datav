@@ -18,7 +18,6 @@
     "dev:codespaces": "node scripts/dev-single-port-5173.mjs",
     "proxy": "node server/vessel-feed-proxy/index.mjs",
     "ingest:experiment": "python3 scripts/chmarl-ingest-bridge.py",
-    "ingest:fixed-vessels": "node scripts/ingest-fixed-vessels.mjs",
     "env:ais-key": "node scripts/update-ais-key.mjs",
     "diagnose": "node scripts/portal-diagnostics.mjs",
     "diagnose:scopes": "node scripts/check-live-scopes.mjs",
@@ -88,7 +87,7 @@
     "start:prod": "node scripts/start-prod.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
-    "verify:runtime": "node --check server/vessel-feed-proxy/runtime-v3.mjs && node scripts/check-runtime-contract.mjs && node scripts/smoke-runtime.mjs",
+    "verify:runtime": "node --check server/vessel-feed-proxy/runtime-v3.mjs && node scripts/check-runtime-contract.mjs && node scripts/smoke-runtime.mjs && node scripts/smoke-ais-live.mjs",
     "check": "pnpm verify:ci && pnpm lint && pnpm build && pnpm verify:runtime"
   },
   "dependencies": {

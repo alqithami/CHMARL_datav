@@ -197,18 +197,16 @@ function normalizeAisMessage(raw, inputSource) {
   });
 }
 
-const GLOBAL_TRACKING_ENABLED = process.env.AISSTREAM_GLOBAL_TRACKING_ENABLED !== "false";
-const TRACKING_BBOX_TEXT = GLOBAL_TRACKING_ENABLED
-  ? (process.env.AISSTREAM_TRACKING_BBOX ?? WORLD_AIS_BBOX)
-  : mergeBboxes(process.env.AISSTREAM_BBOX ?? REGIONAL_AIS_BBOX, process.env.AISSTREAM_APPEND_SAUDI_PORT_BBOXES === "false" ? "" : SAUDI_PORT_BBOX);
+const GLOBAL_TRACKING_ENABLED = true;
+const TRACKING_BBOX_TEXT = WORLD_AIS_BBOX;
 const OPERATIONAL_PRIORITY_ENABLED = process.env.AISSTREAM_OPERATIONAL_PRIORITY_ENABLED !== "false";
 const OPERATIONAL_BBOX_TEXT = process.env.AISSTREAM_OPERATIONAL_BBOX ?? mergeBboxes(REGIONAL_AIS_BBOX, SAUDI_PORT_BBOX);
 const TRACKING_BOXES = parseBoundingBoxes(TRACKING_BBOX_TEXT);
 const OPERATIONAL_BOXES = parseBoundingBoxes(OPERATIONAL_BBOX_TEXT);
-const AISSTREAM_API_KEY = process.env.AISSTREAM_API_KEY;
+const AISSTREAM_API_KEY = String(process.env.AISSTREAM_API_KEY ?? "").trim();
 const AISSTREAM_URL = process.env.AISSTREAM_URL ?? "wss://stream.aisstream.io/v0/stream";
-const AISSTREAM_FILTER_TYPES = (process.env.AISSTREAM_FILTER_TYPES ?? "PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport").split(",").map((item) => item.trim()).filter(Boolean);
-const AISSTREAM_OPERATIONAL_FILTER_TYPES = (process.env.AISSTREAM_OPERATIONAL_FILTER_TYPES ?? "PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport,LongRangeAisBroadcastMessage").split(",").map((item) => item.trim()).filter(Boolean);
+const AISSTREAM_FILTER_TYPES = [];
+const AISSTREAM_OPERATIONAL_FILTER_TYPES = [];
 const AISSTREAM_MAX_VESSELS = Math.max(100, Number(process.env.AISSTREAM_MAX_VESSELS ?? 8000));
 const AISSTREAM_OPERATIONAL_MAX_VESSELS = Math.max(100, Number(process.env.AISSTREAM_OPERATIONAL_MAX_VESSELS ?? 2500));
 const AISSTREAM_TRAIL_POINTS = Math.max(2, Number(process.env.AISSTREAM_TRAIL_POINTS ?? 12));
@@ -234,17 +232,10 @@ function runtimePath(envName, fallbackName) {
 const TRACKING_AIS_CACHE_FILE = runtimePath("AISSTREAM_CACHE_FILE", "ais-tracking-cache.json");
 const OPERATIONAL_AIS_CACHE_FILE = runtimePath("AISSTREAM_OPERATIONAL_CACHE_FILE", "ais-operational-cache.json");
 const ECOFAIR_STATE_FILE = runtimePath("ECOFAIR_STATE_FILE", "ecofair-state.json");
-const FIXED_VESSEL_DATA_FILE = runtimePath("FIXED_VESSEL_DATA_FILE", "manual-vessels.json");
 const CHMARL_EXPERIMENT_FILE = runtimePath("CHMARL_EXPERIMENT_FILE", "chmarl-episode.json");
 const PORT_EVENTS_FILE = runtimePath("PORT_EVENTS_FILE", "port-events.json");
 const WEATHER_FILE = runtimePath("WEATHER_FILE", "weather.json");
 
-const UPSTREAM_URL = process.env.UPSTREAM_VESSEL_DATA_URL;
-const UPSTREAM_TOKEN = process.env.UPSTREAM_VESSEL_DATA_TOKEN;
-const FIXED_VESSEL_DATA_URL = process.env.FIXED_VESSEL_DATA_URL;
-const FIXED_VESSEL_DATA_TOKEN = process.env.FIXED_VESSEL_DATA_TOKEN;
-const FIXED_VESSEL_DATA_FILE_ENABLED = process.env.FIXED_VESSEL_DATA_FILE_ENABLED !== "false";
-const FIXED_VESSEL_INGEST_TOKEN = process.env.FIXED_VESSEL_INGEST_TOKEN;
 const CHMARL_RUNTIME_ENABLED = process.env.CHMARL_RUNTIME_ENABLED !== "false";
 const CHMARL_EXPERIMENT_URL = process.env.CHMARL_EXPERIMENT_URL;
 const CHMARL_EXPERIMENT_TOKEN = process.env.CHMARL_EXPERIMENT_TOKEN;
@@ -297,6 +288,9 @@ function createAisState(label, boxes, filters, cacheFile, cacheLimit) {
     boundingBoxes: boxes,
     filterTypes: filters,
     lastMessageAt: null,
+    lastFrameAt: null,
+    subscriptionSentAt: null,
+    subscription: null,
     lastError: null,
     reconnectAttempt: 0,
     status: AISSTREAM_API_KEY ? "connecting" : "disabled",
@@ -326,16 +320,10 @@ const operationalAisState = createAisState("operational-priority", OPERATIONAL_B
 const vesselInputState = {
   aisRows: 0,
   priorityAisRows: 0,
-  upstreamConfigured: Boolean(UPSTREAM_URL),
-  upstreamRows: 0,
-  fixedUrlConfigured: Boolean(FIXED_VESSEL_DATA_URL),
-  fixedFile: FIXED_VESSEL_DATA_FILE,
-  fixedRows: 0,
   trackingRows: 0,
   operationalRows: 0,
   operationalRadiusNm: ECOFAIR_OPERATIONAL_RADIUS_NM,
   lastLoadedAt: null,
-  lastIngestedAt: null,
   lastError: null,
 };
 
@@ -465,36 +453,6 @@ async function fetchProviderJson(url, token, timeoutMs = 10_000) {
   }
 }
 
-async function loadFixedVessels() {
-  const rows = [];
-  const errors = [];
-  if (FIXED_VESSEL_DATA_URL) {
-    try { rows.push(...rowsFrom(await fetchProviderJson(FIXED_VESSEL_DATA_URL, FIXED_VESSEL_DATA_TOKEN), ["vessels", "data", "items"])); }
-    catch (error) { errors.push(`fixed URL: ${error instanceof Error ? error.message : String(error)}`); }
-  }
-  if (FIXED_VESSEL_DATA_FILE_ENABLED && existsSync(FIXED_VESSEL_DATA_FILE)) {
-    try { rows.push(...rowsFrom(JSON.parse(readFileSync(FIXED_VESSEL_DATA_FILE, "utf8")), ["vessels", "data", "items"])); }
-    catch (error) { errors.push(`fixed file: ${error instanceof Error ? error.message : String(error)}`); }
-  }
-  return {
-    rows: rows.map((row) => normalizeVessel({ ...row, inputSource: row.inputSource ?? "fixed" })).filter(Boolean),
-    errors,
-  };
-}
-
-async function loadUpstreamVessels() {
-  if (!UPSTREAM_URL) return { rows: [], errors: [] };
-  try {
-    const payload = await fetchProviderJson(UPSTREAM_URL, UPSTREAM_TOKEN);
-    return {
-      rows: rowsFrom(payload, ["vessels", "data", "items"]).map((row) => normalizeVessel({ ...row, inputSource: row.inputSource ?? "upstream" })).filter(Boolean),
-      errors: [],
-    };
-  } catch (error) {
-    return { rows: [], errors: [`upstream URL: ${error instanceof Error ? error.message : String(error)}`] };
-  }
-}
-
 function operationalVessels(vessels) {
   return vessels.filter((vessel) => {
     const nearest = nearestOperationalPort(vessel);
@@ -504,28 +462,17 @@ function operationalVessels(vessels) {
 
 async function loadCombinedVessels() {
   try {
-    const [fixedInput, upstreamInput] = await Promise.all([loadFixedVessels(), loadUpstreamVessels()]);
-    const fixed = fixedInput.rows;
-    const upstream = upstreamInput.rows;
-    const providerErrors = [...fixedInput.errors, ...upstreamInput.errors];
     const trackingAis = cacheRows(trackingAisCache, trackingAisState);
     const priorityAis = OPERATIONAL_PRIORITY_ENABLED ? cacheRows(operationalAisCache, operationalAisState) : [];
-    const merged = new Map();
-    for (const row of fixed) merged.set(row.id, row);
-    for (const row of upstream) merged.set(row.id, row);
-    for (const row of priorityAis) merged.set(row.id, row);
-    for (const row of trackingAis) merged.set(row.id, row);
-    const tracking = [...merged.values()].filter((row) => validCoordinates(row.latitude, row.longitude));
+    const tracking = trackingAis.filter((row) => validCoordinates(row.latitude, row.longitude));
     const operational = operationalVessels(tracking);
     Object.assign(vesselInputState, {
       aisRows: trackingAis.length,
       priorityAisRows: priorityAis.length,
-      upstreamRows: upstream.length,
-      fixedRows: fixed.length,
       trackingRows: tracking.length,
       operationalRows: operational.length,
       lastLoadedAt: new Date().toISOString(),
-      lastError: providerErrors.length > 0 ? providerErrors.join("; ") : null,
+      lastError: null,
     });
     lastCombinedVessels = tracking;
     lastOperationalVessels = operational;
@@ -538,9 +485,7 @@ async function loadCombinedVessels() {
 }
 
 function sourceForTracking() {
-  if (vesselInputState.aisRows > 0 || vesselInputState.priorityAisRows > 0) return "aisstream";
-  if (vesselInputState.upstreamRows > 0) return "upstream";
-  if (vesselInputState.fixedRows > 0) return "remote";
+  if (vesselInputState.aisRows > 0) return "aisstream";
   return AISSTREAM_API_KEY ? "aisstream-waiting" : "none";
 }
 
@@ -558,15 +503,6 @@ async function readJsonBody(request) {
   }
   const text = Buffer.concat(chunks).toString("utf8");
   return text ? JSON.parse(text) : {};
-}
-
-function writeFixedVessels(payload) {
-  const vessels = rowsFrom(payload, ["vessels", "data", "items"]).map((row) => normalizeVessel({ ...row, inputSource: row.inputSource ?? "fixed" })).filter(Boolean);
-  const next = { ok: true, version: 3, source: payload?.source ?? "manual-fixed-vessels", updatedAt: new Date().toISOString(), vessels, fixedFile: FIXED_VESSEL_DATA_FILE };
-  mkdirSync(dirname(FIXED_VESSEL_DATA_FILE), { recursive: true });
-  writeFileSync(FIXED_VESSEL_DATA_FILE, JSON.stringify(next, null, 2));
-  vesselInputState.lastIngestedAt = next.updatedAt;
-  return next;
 }
 
 function updateChmarlState(payload, source) {
@@ -767,7 +703,10 @@ function startAisStream({ state, cache, boxes, filters, deriveOperational = fals
       operationalAisState.status = "derived-waiting";
       operationalAisState.lastError = null;
     }
-    socket.send(JSON.stringify({ APIKey: AISSTREAM_API_KEY, BoundingBoxes: boxes, ...(filters.length > 0 ? { FilterMessageTypes: filters } : {}) }));
+    const subscription = { APIKey: AISSTREAM_API_KEY, BoundingBoxes: boxes };
+    state.subscriptionSentAt = new Date().toISOString();
+    state.subscription = { boundingBoxes: boxes, filterMessageTypes: [] };
+    socket.send(JSON.stringify(subscription));
   });
   socket.on("pong", () => {
     state.lastPongAt = new Date().toISOString();
@@ -775,6 +714,7 @@ function startAisStream({ state, cache, boxes, filters, deriveOperational = fals
   socket.on("message", (data) => {
     try {
       state.messageCount += 1;
+      state.lastFrameAt = new Date().toISOString();
       const raw = JSON.parse(data.toString());
       if (raw.error) {
         state.lastError = String(raw.error);
@@ -878,12 +818,7 @@ function publicAisState(state) {
 }
 
 function vesselProviderConfigured() {
-  return Boolean(
-    AISSTREAM_API_KEY
-    || UPSTREAM_URL
-    || FIXED_VESSEL_DATA_URL
-    || (FIXED_VESSEL_DATA_FILE_ENABLED && existsSync(FIXED_VESSEL_DATA_FILE))
-  );
+  return Boolean(AISSTREAM_API_KEY);
 }
 
 function providerState() {
@@ -925,7 +860,7 @@ function healthPayload() {
     ecofair: ecofair.summary(),
     portOps: { ...portOpsState, active: portOpsState.events > 0 || portOpsState.utilizationRows > 0 || portOpsState.queueRows > 0 },
     weather: { ...weatherState, active: weatherState.points > 0 },
-    persistence: { dataDir: RUNTIME_DATA_DIR, trackingCacheFile: TRACKING_AIS_CACHE_FILE, operationalCacheFile: OPERATIONAL_AIS_CACHE_FILE, ecofairStateFile: ECOFAIR_STATE_FILE, fixedVesselFile: FIXED_VESSEL_DATA_FILE },
+    persistence: { dataDir: RUNTIME_DATA_DIR, trackingCacheFile: TRACKING_AIS_CACHE_FILE, operationalCacheFile: OPERATIONAL_AIS_CACHE_FILE, ecofairStateFile: ECOFAIR_STATE_FILE },
   };
 }
 
@@ -985,7 +920,7 @@ const aisWatchdogInterval = setInterval(() => {
   }
   try { socket.ping(); }
   catch (error) { state.lastError = error instanceof Error ? error.message : String(error); }
-  const lastSignal = Math.max(timestampMs(state.lastMessageAt), timestampMs(state.openedAt));
+  const lastSignal = Math.max(timestampMs(state.lastFrameAt), timestampMs(state.openedAt));
   const lastPong = timestampMs(state.lastPongAt);
   const now = Date.now();
   const silent = lastSignal > 0 && now - lastSignal > AISSTREAM_SILENCE_TIMEOUT_MS;
@@ -993,7 +928,7 @@ const aisWatchdogInterval = setInterval(() => {
   if (silent || heartbeatLost) {
     state.watchdogRestarts += 1;
     state.lastError = silent
-      ? `AIS provider produced no usable positions for ${Math.round((now - lastSignal) / 1000)} seconds`
+      ? `AIS provider produced no frames for ${Math.round((now - lastSignal) / 1000)} seconds`
       : "AIS websocket heartbeat timed out";
     state.status = "watchdog-restart";
     try { socket.terminate(); } catch {}
@@ -1053,18 +988,6 @@ createServer(async (request, response) => {
     });
   }
 
-  if (path === "/api/vessels/ingest" && request.method === "POST") {
-    if (!FIXED_VESSEL_INGEST_TOKEN) return sendJson(response, 503, { error: "Vessel ingest is disabled; configure FIXED_VESSEL_INGEST_TOKEN" });
-    if (!authorized(request, FIXED_VESSEL_INGEST_TOKEN)) return sendJson(response, 401, { error: "Unauthorized vessel ingest" });
-    try {
-      const result = writeFixedVessels(await readJsonBody(request));
-      await runBackgroundTick();
-      return sendJson(response, 200, result);
-    } catch (error) {
-      return sendJson(response, 400, { error: "Failed to ingest fixed vessel payload", detail: error instanceof Error ? error.message : String(error) });
-    }
-  }
-
   if ((path === "/api/chmarl/episode" || path === "/api/chmarl/ingest") && request.method === "POST") {
     if (!CHMARL_INGEST_TOKEN) return sendJson(response, 503, { error: "CH-MARL ingest is disabled; configure CHMARL_INGEST_TOKEN" });
     if (!authorized(request, CHMARL_INGEST_TOKEN)) return sendJson(response, 401, { error: "Unauthorized CH-MARL ingest" });
@@ -1100,10 +1023,12 @@ createServer(async (request, response) => {
     return response.end(report);
   }
 
+  if (path.startsWith("/api/")) return sendJson(response, 404, { error: "API endpoint not found" });
+
   const staticMatch = staticFileForUrl(request.url);
   if (staticMatch?.path) return sendFile(response, staticMatch.path);
   if (staticMatch?.statusCode === 403) return sendJson(response, 403, { error: "Forbidden" });
-  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/health", "/health/live", "/health/ready", "/version", "/api/vessels", "/api/vessels/operations", "/api/vessels?scope=operational", "/api/vessels/ingest", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report"] });
+  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/health", "/health/live", "/health/ready", "/version", "/api/vessels", "/api/vessels/operations", "/api/vessels?scope=operational", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report"] });
 }).listen(PORT, "0.0.0.0", () => {
   console.log(`CH-MARL backend listening at http://0.0.0.0:${PORT}`);
   console.log(`Global AIS boxes: ${TRACKING_BOXES.length}; cache limit: ${AISSTREAM_MAX_VESSELS}`);

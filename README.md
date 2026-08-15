@@ -17,7 +17,7 @@ pnpm dev:codespaces
 
 Open the forwarded Vite port from the Codespaces **Ports** tab, usually port `5173`.
 
-## One-Terminal Remote Feed Demo
+## One-Terminal Live AIS Development
 
 To run both the local vessel-feed proxy and the dashboard from one Codespaces terminal:
 
@@ -37,7 +37,7 @@ http://localhost:5173/              # dashboard
 Open port `5173` from the Codespaces **Ports** tab. The dashboard should show:
 
 ```text
-Data: remote
+Data: AIS live
 ```
 
 The dashboard refreshes vessel data every 30 seconds and also includes a manual **Refresh** button in the header.
@@ -49,8 +49,7 @@ The dashboard refreshes vessel data every 30 seconds and also includes a manual 
 | Dashboard shell | Implemented |
 | Vessel inspection map | Implemented with map tiles, clickable ship markers, vessel trails, hover cards, filters, fit controls, port-event markers, and detail cards |
 | KPI, reward, constraint, port, timeline, and vessel-table panels | Implemented |
-| Local JSON sample data layer | Implemented in `public/data/` |
-| Remote vessel feed | Implemented through `VITE_VESSEL_DATA_URL` |
+| Live vessel feed | AISStream-only through the backend proxy and `VITE_VESSEL_DATA_URL` |
 | Local vessel-feed proxy | Implemented in `server/vessel-feed-proxy/` |
 | Manual and timed vessel refresh | Implemented |
 | Dashboard data loading | Implemented through `src/data/loadSampleDashboardData.ts` |
@@ -86,20 +85,12 @@ Export Report
 
 `Export JSON` downloads a scenario snapshot containing metrics, vessels, port events, reward trends, constraint pressure, port utilization, and timeline events. `Export CSV` downloads the current vessel table with coordinates, status, and trail-count metadata. `Export Report` downloads a paper-ready Markdown evidence report summarizing the scenario, KPI table, vessel-status distribution, port-event distribution, constraint pressure, port utilization, and hierarchy decision timeline.
 
-## Local Data Fixtures
+## Live AIS Vessel Feed
 
-The first data-driven mock layer is available under `public/data/`:
+Production vessel rows come only from the backend AISStream connection. Bundled vessel files and manual ingest are not supported. When AIS is unavailable, the dashboard reports zero live vessels rather than inserting placeholders.
 
-```text
-public/data/vessels.sample.json
-public/data/port_events.sample.json
-public/data/chmarl_episode.sample.json
-public/data/maritime_layers.sample.geojson
-```
+The frontend reads the same-origin AIS endpoint through:
 
-The dashboard fetches these files at runtime and falls back to bundled data only where the active runtime configuration permits it. The production Render configuration disables sample vessel and CH-MARL data.
-
-## Remote Vessel Feed
 
 The frontend can read vessel rows from a backend endpoint through:
 

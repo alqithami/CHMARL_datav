@@ -85,11 +85,7 @@ function extractRows(payload: unknown): RemoteVesselRow[] {
 function normalizeSource(value: unknown): DashboardDataSource {
   if (value === "aisstream") return "aisstream";
   if (value === "aisstream-waiting") return "aisstream-waiting";
-  if (value === "upstream") return "upstream";
-  if (value === "fixed" || value === "hybrid") return "remote";
-  if (value === "fallback") return "fallback";
-  if (value === "none") return "none";
-  return "remote";
+  return "none";
 }
 
 function normalizeStatus(value: unknown): Vessel["status"] {
@@ -160,7 +156,7 @@ export async function loadRemoteDashboardVessels(): Promise<DashboardVesselFeed 
 
   if (Array.isArray(payload)) {
     return {
-      source: "remote",
+      source: "aisstream",
       vessels: rows,
       scope: "tracking",
       trackingRows: rows.length,
