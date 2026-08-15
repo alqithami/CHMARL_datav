@@ -65,18 +65,19 @@ function trackingStatus(data: DashboardData): QualityItem {
   if (data.source === "aisstream-waiting") {
     return {
       label: "Vessel tracking",
-      value: trackingRows > 0 ? `${trackingRows} retained rows` : "Waiting for AIS",
+      value: trackingRows > 0 ? `${trackingRows} retained rows` : "AIS provider silent",
       detail: trackingRows > 0
-        ? `The latest API snapshot is empty, so ${trackingRows} recent vessel rows remain visible during the retention window.`
-        : "The backend websocket remains connected independently of the browser and is waiting for usable position messages.",
+        ? `The latest AIS snapshot is empty, so ${trackingRows} recent vessel rows remain visible during the retention window.`
+        : "The backend websocket is open, but the provider has not delivered any usable position messages. Verify the AIS key and regional subscription; configured fixed or upstream rows are used automatically.",
       tone: "warn",
     };
   }
   if (data.source === "upstream" || data.source === "remote") {
+    const providerLabel = data.source === "upstream" ? "upstream API" : "fixed/fallback feed";
     return {
       label: "Vessel tracking",
       value: `${trackingRows} retained rows`,
-      detail: `${reportedRows} current provider · ${continuity} · ${operationalRows} in port calculation scope · ${coverage}% positioned · ${stale} stale`,
+      detail: `${reportedRows} current ${providerLabel} · ${continuity} · ${operationalRows} in port calculation scope · ${coverage}% positioned · ${stale} stale`,
       tone: trackingRows > 0 ? "good" : "warn",
     };
   }
@@ -165,10 +166,11 @@ function readinessHeadline(data: DashboardData) {
   const held = data.vesselScope?.heldRows ?? 0;
   const operational = data.vesselScope?.operationalRows ?? 0;
   const continuity = held > 0 ? ` · ${held} retained between updates` : "";
-  if (data.source === "aisstream-waiting") return tracking > 0 ? `${tracking} recent vessels retained while AIS waits` : "Continuous AIS connection · waiting for positions";
+  if (data.source === "aisstream-waiting") return tracking > 0 ? `${tracking} recent vessels retained while AIS is silent` : "AIS connected but silent · no usable positions";
   if (data.source === "aisstream" && operational > 0) return `${tracking} stable display · ${reported} current API · ${operational} port calculations${continuity}`;
   if (data.source === "aisstream") return `${tracking} stable display · ${reported} current API · waiting for monitored-port vessels${continuity}`;
-  if (data.source === "upstream" || data.source === "remote") return `${tracking} stable display · ${reported} current provider · ${operational} port calculations${continuity}`;
+  if (data.source === "upstream") return `${tracking} stable display · ${reported} current upstream API · ${operational} port calculations${continuity}`;
+  if (data.source === "remote") return `${tracking} fallback vessel rows · ${operational} port calculations${continuity}`;
   if (data.source === "local-json") return "Sample-data validation mode";
   return "No live vessel observations";
 }

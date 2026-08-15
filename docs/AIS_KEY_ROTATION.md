@@ -1,6 +1,6 @@
-# AIS key rotation and runtime reset
+# AIS key rotation and silent-provider recovery
 
-Use this when AISStream stays connected but returns zero provider messages, or when a key may have expired or been revoked.
+Use this when AISStream opens a websocket but returns zero usable vessel positions, or when a key may have expired, been revoked, or is incompatible with the active subscription.
 
 ## What the symptoms mean
 
@@ -11,15 +11,18 @@ If `/health` shows:
   "enabled": true,
   "connected": true,
   "messageCount": 0,
+  "usablePositionMessages": 0,
   "cachedVessels": 0
 }
 ```
 
-then the key is loaded and the websocket is open, but AISStream is not sending messages for the active subscription. If `enabled` is false, the key is missing.
+then the key is loaded and the websocket is open, but AISStream is not delivering usable position messages for the active subscription. The dashboard now reports this condition as **AIS provider silent** rather than implying that vessel rows are about to appear.
+
+If `enabled` is false, the key is missing. If `lastError` is populated, inspect that error before changing the subscription.
 
 ## Local / Codespaces rotation
 
-Do not paste the key into chat. Paste it only into the terminal.
+Do not paste the key into chat or commit it to GitHub. Paste it only into the terminal.
 
 ```bash
 cd /workspaces/codespaces-blank/CHMARL_datav
@@ -41,7 +44,7 @@ pkill -f "vite" || true
 PORT=8787 VITE_PORT=5173 VITE_MIRROR_PORT=3000 pnpm dev:proxy
 ```
 
-If local startup fails with `invalid distance too far back`, pull/reset again and remove generated build/runtime files before restarting:
+If local startup fails with `invalid distance too far back`, reset generated state before restarting:
 
 ```bash
 git fetch origin main
@@ -54,11 +57,20 @@ PORT=8787 VITE_PORT=5173 VITE_MIRROR_PORT=3000 pnpm dev:proxy
 In a second terminal:
 
 ```bash
-PORTAL_BASE_URL=http://127.0.0.1:8787 pnpm run diagnose:saudi-ais || true
+pnpm run diagnose:ais-config
+pnpm run diagnose:ais
+pnpm run diagnose:ais-matrix
 PORTAL_BASE_URL=http://127.0.0.1:8787 pnpm run summary:ports
 ```
 
-## Render rotation
+Interpret the result conservatively:
+
+- socket opens and messages arrive: the provider/key/subscription is working;
+- socket opens but every box returns zero messages: the provider or key is silent;
+- provider error or rejected websocket: fix the reported key/subscription error;
+- fallback rows appear but AIS counters stay at zero: the portal is operational, but the rows are not live AIS.
+
+## Render recovery
 
 Go to:
 
@@ -66,7 +78,7 @@ Go to:
 Render Dashboard -> chmarl-datav -> Environment
 ```
 
-Update only:
+Update the secret only in Render:
 
 ```text
 AISSTREAM_API_KEY=<new key>
@@ -76,22 +88,22 @@ Keep these production values:
 
 ```text
 AISSTREAM_URL=wss://stream.aisstream.io/v0/stream
-AISSTREAM_FORCE_REGIONAL_BBOX=true
+AISSTREAM_GLOBAL_TRACKING_ENABLED=false
+AISSTREAM_TRACKING_BBOX=11,32;31,56
 AISSTREAM_BBOX=11,32;31,56
 AISSTREAM_APPEND_SAUDI_PORT_BBOXES=true
-AISSTREAM_USE_SAUDI_PORT_BBOXES=false
 AISSTREAM_FILTER_TYPES=
-AISSTREAM_MAX_VESSELS=750
+AISSTREAM_MAX_VESSELS=5000
 AISSTREAM_MAX_AGE_MS=21600000
-AISSTREAM_TRAIL_POINTS=24
-RUNTIME_CACHE_SCOPE=bbox
+AISSTREAM_TRAIL_POINTS=12
+AISSTREAM_CACHE_ENABLED=true
+AISSTREAM_CACHE_FILE=/var/data/ais-tracking-cache.json
+AISSTREAM_OPERATIONAL_CACHE_FILE=/var/data/ais-operational-cache.json
+FIXED_VESSEL_DATA_FILE_ENABLED=true
+FIXED_VESSEL_DATA_URL=https://chmarl-datav.onrender.com/data/manual_vessels.sample.json
 ```
 
-To force Render to drop old cached AIS/EcoFair state, change the cache scope once:
-
-```text
-RUNTIME_CACHE_SCOPE=bbox-v2
-```
+The regional subscription is intentional. A worldwide subscription creates unnecessary load and makes diagnosis harder. Leave `AISSTREAM_FILTER_TYPES` empty until the provider is confirmed to deliver positions.
 
 Then run:
 
@@ -99,25 +111,51 @@ Then run:
 Manual Deploy -> Clear build cache & deploy
 ```
 
-After the deploy, verify:
+## Verify the deployed service
 
 ```bash
 export LIVE_PORTAL="https://chmarl-datav.onrender.com"
-curl -s "$LIVE_PORTAL/health" | python -m json.tool | head -140
-curl -s "$LIVE_PORTAL/api/vessels" | python -m json.tool | head -120
+
+curl -s "$LIVE_PORTAL/health" | python -m json.tool | head -180
+curl -s "$LIVE_PORTAL/api/vessels" | python -m json.tool | head -160
 ```
 
-## Fixed/manual fallback rows
+For live AIS operation, verify:
 
-AISStream can be empty even when connected. EcoFair-CH-MARL can still run from fixed/manual rows or another API.
+```text
+aisstream.connected = true
+aisstream.messageCount > 0
+aisstream.usablePositionMessages > 0
+vesselInputs.aisRows > 0
+counts.tracking > 0
+source = aisstream
+```
 
-Render now has a persistent fixed-vessel fallback URL:
+When AISStream is silent, the configured continuity feed should still produce:
+
+```text
+vesselInputs.fixedRows > 0
+counts.tracking > 0
+source = remote
+```
+
+If both `aisRows` and `fixedRows` remain zero, verify that Render applied `FIXED_VESSEL_DATA_URL` and that this URL returns JSON:
+
+```bash
+curl -s "$LIVE_PORTAL/data/manual_vessels.sample.json" | python -m json.tool
+```
+
+## Fixed/manual continuity rows
+
+The bundled fixed-vessel file prevents the dashboard from remaining empty while AISStream is silent:
 
 ```text
 FIXED_VESSEL_DATA_URL=https://chmarl-datav.onrender.com/data/manual_vessels.sample.json
 ```
 
-This survives Render restarts because the file is built into the static dashboard assets. Runtime ingests to `/tmp/manual_vessels.json` are still useful for temporary operator-provided rows, but `/tmp` can reset after a redeploy or restart. To override the built-in fallback, point `FIXED_VESSEL_DATA_URL` to a stable JSON endpoint that you control, or keep re-ingesting after restart:
+These rows survive Render restarts because the JSON file is part of the deployed static assets. They are **continuity/demo inputs, not live AIS observations**. The interface labels them as a fixed/fallback feed.
+
+To override the bundled continuity rows, point `FIXED_VESSEL_DATA_URL` to a stable JSON endpoint that you control, or ingest operator-provided rows:
 
 ```bash
 PORTAL_BASE_URL=https://chmarl-datav.onrender.com \
@@ -125,7 +163,7 @@ FIXED_VESSELS_FILE=public/data/manual_vessels.sample.json \
 pnpm run ingest:fixed-vessels
 ```
 
-Then verify `/health` shows `fixedRows > 0` and `/api/chmarl/episode` is active.
+Then verify `/health` shows `fixedRows > 0` and `/api/vessels` reports at least one tracking row.
 
 ## Repository hygiene
 
