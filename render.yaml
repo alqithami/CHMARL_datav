@@ -84,6 +84,26 @@ services:
         value: /var/data/ais-operational-cache.json
       - key: AISSTREAM_CACHE_FLUSH_MS
         value: 30000
+      - key: DATALASTIC_AIS_ENABLED
+        value: true
+      - key: DATALASTIC_API_KEY
+        sync: false
+      - key: DATALASTIC_API_BASE_URL
+        value: https://api.datalastic.com/api/v0
+      - key: DATALASTIC_ACTIVATION_DELAY_MS
+        value: 45000
+      - key: DATALASTIC_SCAN_INTERVAL_MS
+        value: 900000
+      - key: DATALASTIC_TIMEOUT_MS
+        value: 15000
+      - key: DATALASTIC_SCAN_RADIUS_NM
+        value: 50
+      - key: DATALASTIC_MAX_AGE_MS
+        value: 2700000
+      - key: DATALASTIC_MAX_VESSELS
+        value: 5000
+      - key: DATALASTIC_SCAN_POINT_IDS
+        value: "Jeddah,King Abdullah Port"
       - key: CHMARL_RUNTIME_ENABLED
         value: true
       - key: ECOFAIR_OPERATIONAL_RADIUS_NM

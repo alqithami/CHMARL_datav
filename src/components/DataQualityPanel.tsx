@@ -62,13 +62,29 @@ function trackingStatus(data: DashboardData): QualityItem {
       tone: trackingRows > 0 && stale < trackingRows ? "good" : "warn",
     };
   }
+  if (data.source === "datalastic") {
+    return {
+      label: "Vessel tracking",
+      value: `${trackingRows} live AIS rows`,
+      detail: `Datalastic genuine AIS failover is active because AISStream is not delivering frames · ${operationalRows} within ${radius} nm port scope · ${coverage}% positioned · ${stale} stale`,
+      tone: trackingRows > 0 && stale < trackingRows ? "good" : "warn",
+    };
+  }
+  if (data.source === "ais-multi-provider") {
+    return {
+      label: "Vessel tracking",
+      value: `${trackingRows} multi-provider AIS rows`,
+      detail: `AISStream and Datalastic genuine AIS observations are merged by MMSI · ${operationalRows} within ${radius} nm port scope · ${coverage}% positioned · ${stale} stale`,
+      tone: trackingRows > 0 && stale < trackingRows ? "good" : "warn",
+    };
+  }
   if (data.source === "aisstream-waiting") {
     return {
       label: "Vessel tracking",
       value: trackingRows > 0 ? `${trackingRows} retained rows` : "AIS provider silent",
       detail: trackingRows > 0
         ? `The latest AIS snapshot is empty, so ${trackingRows} recent vessel rows remain visible during the retention window.`
-        : "The backend websocket is open, but the provider has not delivered any usable live AIS position messages yet.",
+        : "AISStream is connected but delivering no frames. The portal will use Datalastic genuine live AIS automatically when DATALASTIC_API_KEY is configured in Render.",
       tone: "warn",
     };
   }
@@ -157,7 +173,9 @@ function readinessHeadline(data: DashboardData) {
   const held = data.vesselScope?.heldRows ?? 0;
   const operational = data.vesselScope?.operationalRows ?? 0;
   const continuity = held > 0 ? ` · ${held} retained between updates` : "";
-  if (data.source === "aisstream-waiting") return tracking > 0 ? `${tracking} recent vessels retained while AIS is silent` : "AIS connected but silent · no usable positions";
+  if (data.source === "aisstream-waiting") return tracking > 0 ? `${tracking} recent vessels retained while AIS is silent` : "AISStream silent · secondary live AIS not active";
+  if (data.source === "datalastic") return `Datalastic live AIS failover · ${tracking} vessels · ${operational} port calculations`;
+  if (data.source === "ais-multi-provider") return `Multi-provider live AIS · ${tracking} vessels · ${operational} port calculations`;
   if (data.source === "aisstream" && operational > 0) return `${tracking} stable display · ${reported} current API · ${operational} port calculations${continuity}`;
   if (data.source === "aisstream") return `${tracking} stable display · ${reported} current API · waiting for monitored-port vessels${continuity}`;
   if (data.source === "local-json") return "Sample-data validation mode";

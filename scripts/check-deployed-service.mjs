@@ -111,9 +111,14 @@ function numeric(value) {
 }
 
 function providerSnapshot(vessels) {
-  const health = vessels?.health ?? {};
+  const source = vessels?.source ?? null;
+  const providers = vessels?.providers ?? {};
+  const primaryHealth = vessels?.health ?? providers.aisstream ?? {};
+  const health = source === "datalastic"
+    ? (providers.datalastic ?? primaryHealth)
+    : primaryHealth;
   return {
-    source: vessels?.source ?? null,
+    source,
     scope: vessels?.scope ?? null,
     trackingRows: numeric(vessels?.counts?.tracking),
     operationalRows: numeric(vessels?.counts?.operational),
@@ -125,7 +130,10 @@ function providerSnapshot(vessels) {
     openedAt: health?.openedAt ?? null,
     lastMessageAt: health?.lastMessageAt ?? null,
     lastCloseAt: health?.lastCloseAt ?? null,
-    watchdogRestarts: numeric(health?.watchdogRestarts),
+    watchdogRestarts: numeric(primaryHealth?.watchdogRestarts),
+    activeProvider: source === "datalastic" ? "datalastic" : source === "ais-multi-provider" ? "multi-provider" : "aisstream",
+    datalasticStatus: providers.datalastic?.status ?? null,
+    datalasticRows: numeric(vessels?.inputs?.datalasticRows),
   };
 }
 
