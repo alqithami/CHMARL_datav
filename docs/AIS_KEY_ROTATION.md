@@ -153,7 +153,9 @@ The bundled fixed-vessel file prevents the dashboard from remaining empty while 
 FIXED_VESSEL_DATA_URL=https://chmarl-datav.onrender.com/data/manual_vessels.sample.json
 ```
 
-These rows survive Render restarts because the JSON file is part of the deployed static assets. They are **continuity/demo inputs, not live AIS observations**. The interface labels them as a fixed/fallback feed.
+At production startup, `scripts/start-prod.mjs` also copies the bundled JSON into the configured `FIXED_VESSEL_DATA_FILE` when the persistent file does not yet exist. This makes continuity independent of whether Render has already synchronized the fallback URL environment variable.
+
+These rows survive Render restarts because the seeded file is stored on the persistent runtime disk. They are **continuity/demo inputs, not live AIS observations**. The interface labels them as a fixed/fallback feed.
 
 To override the bundled continuity rows, point `FIXED_VESSEL_DATA_URL` to a stable JSON endpoint that you control, or ingest operator-provided rows:
 

@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const WORLD_AIS_BBOX = "-90,-180;90,180";
 const REGIONAL_AIS_BBOX = "11,32;31,56";
@@ -56,6 +56,7 @@ process.env.AISSTREAM_CACHE_FILE ??= join(process.env.RUNTIME_DATA_DIR, "ais-tra
 process.env.AISSTREAM_OPERATIONAL_CACHE_FILE ??= join(process.env.RUNTIME_DATA_DIR, "ais-operational-cache.json");
 process.env.ECOFAIR_STATE_FILE ??= join(process.env.RUNTIME_DATA_DIR, "ecofair-state.json");
 process.env.FIXED_VESSEL_DATA_FILE ??= join(process.env.RUNTIME_DATA_DIR, "manual-vessels.json");
+process.env.FIXED_VESSEL_DATA_FILE_ENABLED ??= "true";
 process.env.CHMARL_EXPERIMENT_FILE ??= join(process.env.RUNTIME_DATA_DIR, "chmarl-episode.json");
 process.env.PORT_EVENTS_FILE ??= join(process.env.RUNTIME_DATA_DIR, "port-events.json");
 process.env.WEATHER_FILE ??= join(process.env.RUNTIME_DATA_DIR, "weather.json");
@@ -64,6 +65,18 @@ process.env.ECOFAIR_OPERATIONAL_RADIUS_NM ??= "120";
 process.env.ECOFAIR_EMISSION_BUDGET_TONNES_PER_DAY ??= "0";
 process.env.ECOFAIR_BUDGET_TONNES_PER_VESSEL_PER_DAY ??= "60";
 
+const configuredFixedVesselFile = resolve(process.env.FIXED_VESSEL_DATA_FILE);
+const bundledFixedVesselFile = resolve(process.env.STATIC_DIR, "data", "manual_vessels.sample.json");
+if (
+  process.env.FIXED_VESSEL_DATA_FILE_ENABLED !== "false"
+  && !existsSync(configuredFixedVesselFile)
+  && existsSync(bundledFixedVesselFile)
+) {
+  mkdirSync(dirname(configuredFixedVesselFile), { recursive: true });
+  copyFileSync(bundledFixedVesselFile, configuredFixedVesselFile);
+  console.log(`Seeded fixed vessel continuity file: ${configuredFixedVesselFile}`);
+}
+
 console.log(`Starting production CH-MARL service on port ${process.env.PORT}`);
 if (process.env.AISSTREAM_API_KEY) console.log("AISStream API key loaded from environment.");
 console.log(`Global AIS tracking: ${process.env.AISSTREAM_GLOBAL_TRACKING_ENABLED}`);
@@ -71,6 +84,7 @@ console.log(`Global AIS BBOX: ${process.env.AISSTREAM_TRACKING_BBOX}`);
 console.log(`Operational AIS priority: ${process.env.AISSTREAM_OPERATIONAL_PRIORITY_ENABLED}`);
 console.log(`Operational AIS boxes: ${process.env.AISSTREAM_OPERATIONAL_BBOX.split("|").length}`);
 console.log(`Runtime data directory: ${process.env.RUNTIME_DATA_DIR}`);
+console.log(`Fixed vessel continuity file: ${process.env.FIXED_VESSEL_DATA_FILE}`);
 console.log(`EcoFair operational radius: ${process.env.ECOFAIR_OPERATIONAL_RADIUS_NM} nm`);
 
 const child = spawn("node", ["server/vessel-feed-proxy/index.mjs"], {
