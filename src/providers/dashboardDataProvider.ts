@@ -84,6 +84,8 @@ function extractRows(payload: unknown): RemoteVesselRow[] {
 
 function normalizeSource(value: unknown): DashboardDataSource {
   if (value === "aisstream") return "aisstream";
+  if (value === "datalastic") return "datalastic";
+  if (value === "ais-multi-provider") return "ais-multi-provider";
   if (value === "aisstream-waiting") return "aisstream-waiting";
   return "none";
 }
@@ -142,6 +144,7 @@ function toDashboardVessel(row: RemoteVesselRow): Vessel {
     headingDeg: toNumber(row.headingDeg ?? row.heading),
     courseDeg: toNumber(row.courseDeg ?? row.cog),
     timestamp: row.timestamp,
+    inputSource: row.inputSource,
     trail: normalizeTrail(row.trail ?? row.history ?? row.track),
   };
 }

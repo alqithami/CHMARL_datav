@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { dirname, extname, join, resolve } from "node:path";
 import WebSocket from "ws";
 import { createEcoFairRuntime } from "./ecofair.mjs";
+import { createDatalasticLiveAisProvider } from "./datalastic-live-ais.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "dist");
@@ -230,6 +231,22 @@ const AISSTREAM_MAX_IMPLIED_SPEED_KN = Math.max(50, Number(process.env.AISSTREAM
 const AISSTREAM_HEARTBEAT_MS = Math.max(1_000, Number(process.env.AISSTREAM_HEARTBEAT_MS ?? 10_000));
 const AISSTREAM_FIRST_FRAME_TIMEOUT_MS = Math.max(1_000, Number(process.env.AISSTREAM_FIRST_FRAME_TIMEOUT_MS ?? 30_000));
 const AISSTREAM_SILENCE_TIMEOUT_MS = Math.max(15_000, Number(process.env.AISSTREAM_SILENCE_TIMEOUT_MS ?? 90_000));
+const DATALASTIC_AIS_ENABLED = process.env.DATALASTIC_AIS_ENABLED !== "false";
+const DATALASTIC_API_KEY = String(process.env.DATALASTIC_API_KEY ?? "").trim();
+const DATALASTIC_API_BASE_URL = process.env.DATALASTIC_API_BASE_URL ?? "https://api.datalastic.com/api/v0";
+const DATALASTIC_ACTIVATION_DELAY_MS = Math.max(250, Number(process.env.DATALASTIC_ACTIVATION_DELAY_MS ?? 45_000));
+const DATALASTIC_SCAN_INTERVAL_MS = Math.max(1_000, Number(process.env.DATALASTIC_SCAN_INTERVAL_MS ?? 15 * 60_000));
+const DATALASTIC_TIMEOUT_MS = Math.max(1_000, Number(process.env.DATALASTIC_TIMEOUT_MS ?? 15_000));
+const DATALASTIC_SCAN_RADIUS_NM = Math.min(50, Math.max(1, Number(process.env.DATALASTIC_SCAN_RADIUS_NM ?? 50)));
+const DATALASTIC_MAX_AGE_MS = Math.max(60_000, Number(process.env.DATALASTIC_MAX_AGE_MS ?? 45 * 60_000));
+const DATALASTIC_MAX_VESSELS = Math.max(1, Number(process.env.DATALASTIC_MAX_VESSELS ?? 5000));
+const DATALASTIC_SCAN_POINT_SELECTION = String(process.env.DATALASTIC_SCAN_POINT_IDS ?? "Jeddah,King Abdullah Port")
+  .split(",")
+  .map((item) => item.trim())
+  .filter(Boolean);
+const DATALASTIC_SCAN_POINTS = DATALASTIC_SCAN_POINT_SELECTION.some((item) => item.toLowerCase() === "all")
+  ? PORT_REFERENCE_POINTS
+  : PORT_REFERENCE_POINTS.filter((port) => DATALASTIC_SCAN_POINT_SELECTION.includes(port.id));
 const MAX_INGEST_BODY_BYTES = Math.max(1_024, Number(process.env.MAX_INGEST_BODY_BYTES ?? 5 * 1024 * 1024));
 const ECOFAIR_OPERATIONAL_RADIUS_NM = Math.max(1, Number(process.env.ECOFAIR_OPERATIONAL_RADIUS_NM ?? 120));
 const ECOFAIR_TICK_MS = Math.max(10_000, Number(process.env.ECOFAIR_TICK_MS ?? 60_000));
@@ -343,9 +360,22 @@ function createAisState(label, boxes, filters, cacheFile, cacheLimit) {
 
 const trackingAisState = createAisState("global-tracking", TRACKING_BOXES, AISSTREAM_FILTER_TYPES, TRACKING_AIS_CACHE_FILE, AISSTREAM_MAX_VESSELS);
 const operationalAisState = createAisState("operational-priority", OPERATIONAL_BOXES, AISSTREAM_OPERATIONAL_FILTER_TYPES, OPERATIONAL_AIS_CACHE_FILE, AISSTREAM_OPERATIONAL_MAX_VESSELS);
+const datalasticProvider = createDatalasticLiveAisProvider({
+  apiKey: DATALASTIC_AIS_ENABLED ? DATALASTIC_API_KEY : "",
+  baseUrl: DATALASTIC_API_BASE_URL,
+  scanPoints: DATALASTIC_SCAN_POINTS,
+  radiusNm: DATALASTIC_SCAN_RADIUS_NM,
+  scanIntervalMs: DATALASTIC_SCAN_INTERVAL_MS,
+  timeoutMs: DATALASTIC_TIMEOUT_MS,
+  maxAgeMs: DATALASTIC_MAX_AGE_MS,
+  maxVessels: DATALASTIC_MAX_VESSELS,
+});
 
 const vesselInputState = {
   aisRows: 0,
+  aisstreamRows: 0,
+  datalasticRows: 0,
+  activeProviders: [],
   priorityAisRows: 0,
   trackingRows: 0,
   operationalRows: 0,
@@ -487,14 +517,34 @@ function operationalVessels(vessels) {
   });
 }
 
+function datalasticFailoverDue() {
+  if (!DATALASTIC_AIS_ENABLED || !DATALASTIC_API_KEY || DATALASTIC_SCAN_POINTS.length === 0) return false;
+  const lastPrimaryFrame = timestampMs(trackingAisState.lastFrameAt);
+  if (lastPrimaryFrame > 0 && Date.now() - lastPrimaryFrame < AISSTREAM_SILENCE_TIMEOUT_MS) return false;
+  const serviceStartedAt = timestampMs(SERVICE_STARTED_AT);
+  return serviceStartedAt === 0 || Date.now() - serviceStartedAt >= DATALASTIC_ACTIVATION_DELAY_MS;
+}
+
 async function loadCombinedVessels() {
   try {
+    if (datalasticFailoverDue()) await datalasticProvider.refresh();
     const trackingAis = cacheRows(trackingAisCache, trackingAisState);
+    const datalasticAis = datalasticProvider.rows().map((row) => normalizeVessel(row)).filter(Boolean);
     const priorityAis = OPERATIONAL_PRIORITY_ENABLED ? cacheRows(operationalAisCache, operationalAisState) : [];
-    const tracking = trackingAis.filter((row) => validCoordinates(row.latitude, row.longitude));
+    const merged = new Map();
+    for (const row of datalasticAis) merged.set(row.id, row);
+    for (const row of trackingAis) merged.set(row.id, row);
+    const tracking = [...merged.values()].filter((row) => validCoordinates(row.latitude, row.longitude));
     const operational = operationalVessels(tracking);
+    const activeProviders = [
+      ...(trackingAis.length > 0 ? ["aisstream"] : []),
+      ...(datalasticAis.length > 0 ? ["datalastic"] : []),
+    ];
     Object.assign(vesselInputState, {
-      aisRows: trackingAis.length,
+      aisRows: tracking.length,
+      aisstreamRows: trackingAis.length,
+      datalasticRows: datalasticAis.length,
+      activeProviders,
       priorityAisRows: priorityAis.length,
       trackingRows: tracking.length,
       operationalRows: operational.length,
@@ -512,8 +562,12 @@ async function loadCombinedVessels() {
 }
 
 function sourceForTracking() {
-  if (vesselInputState.aisRows > 0) return "aisstream";
-  return AISSTREAM_API_KEY ? "aisstream-waiting" : "none";
+  const aisstreamRows = Number(vesselInputState.aisstreamRows ?? 0);
+  const datalasticRows = Number(vesselInputState.datalasticRows ?? 0);
+  if (aisstreamRows > 0 && datalasticRows > 0) return "ais-multi-provider";
+  if (aisstreamRows > 0) return "aisstream";
+  if (datalasticRows > 0) return "datalastic";
+  return AISSTREAM_API_KEY || DATALASTIC_API_KEY ? "aisstream-waiting" : "none";
 }
 
 function authorized(request, token) {
@@ -868,7 +922,7 @@ function scopedReport() {
     "- EcoFair-CH-MARL fuel, emissions, fairness, queue, reward, and constraint calculations use only the operational calculation feed.",
     "",
   ].join("\n");
-  return base.replace("## Fleet measures", `${scopeSection}## Fleet measures`).replace("- Vessel positions: aisstream.io live AIS (Red Sea / Gulf bounding boxes).", "- Vessel tracking: one self-healing AISStream connection starts with worldwide coverage and rotates among genuine live-AIS subscription profiles when a connected socket produces no frames; it populates both the display cache and the monitored-port operational cache; operational calculations remain restricted to port geofences.");
+  return base.replace("## Fleet measures", `${scopeSection}## Fleet measures`).replace("- Vessel positions: aisstream.io live AIS (Red Sea / Gulf bounding boxes).", "- Vessel tracking: AISStream remains the primary worldwide live AIS source. When it produces no frames, the runtime can activate a separately authenticated Datalastic live AIS scan around monitored ports. Both sources contain genuine AIS observations; no manual or synthetic vessel rows are accepted.");
 }
 
 function staticFileForUrl(requestUrl) {
@@ -905,14 +959,18 @@ function publicAisState(state) {
 }
 
 function vesselProviderConfigured() {
-  return Boolean(AISSTREAM_API_KEY);
+  return Boolean(AISSTREAM_API_KEY || DATALASTIC_API_KEY);
 }
 
 function providerState() {
   if (!vesselProviderConfigured()) return "unconfigured";
-  if (vesselInputState.trackingRows > 0) return trackingAisState.connected ? "live" : "degraded-cache";
-  if (trackingAisState.connected) return "connected-waiting";
-  if (AISSTREAM_API_KEY) return "reconnecting";
+  if (vesselInputState.trackingRows > 0) return sourceForTracking() === "ais-multi-provider" ? "live-multi-provider" : "live";
+  const datalasticState = datalasticProvider.publicState();
+  if (["unauthorized", "credits-exhausted", "rate-limited", "provider-error", "request-error", "timeout"].includes(datalasticState.status)) {
+    return "datalastic-" + datalasticState.status;
+  }
+  if (trackingAisState.connected) return DATALASTIC_API_KEY ? "aisstream-silent-failover-waiting" : "connected-waiting";
+  if (AISSTREAM_API_KEY || DATALASTIC_API_KEY) return "reconnecting";
   return "unavailable";
 }
 
@@ -939,7 +997,8 @@ function healthPayload() {
     staticDashboard: existsSync(STATIC_INDEX),
     runtime: runtimeState,
     trackingScope: {
-      mode: GLOBAL_TRACKING_ENABLED ? "global" : "regional",
+      mode: sourceForTracking() === "datalastic" ? "monitored-port-failover" : (GLOBAL_TRACKING_ENABLED ? "global" : "regional"),
+      source: sourceForTracking(),
       bbox: TRACKING_BBOX_TEXT,
       activeProfile: trackingAisState.activeProfile,
       activeProfileDescription: trackingAisState.activeProfileDescription,
@@ -953,6 +1012,7 @@ function healthPayload() {
     vesselInputs: vesselInputState,
     aisstream: publicAisState(trackingAisState),
     operationalAisstream: publicAisState(operationalAisState),
+    datalastic: datalasticProvider.publicState(),
     chmarl: { ...chmarlState, active: chmarlState.steps > 0 },
     ecofair: ecofair.summary(),
     portOps: { ...portOpsState, active: portOpsState.events > 0 || portOpsState.utilizationRows > 0 || portOpsState.queueRows > 0 },
@@ -963,6 +1023,7 @@ function healthPayload() {
 
 function shutdown() {
   stopping = true;
+  datalasticProvider.shutdown();
   for (const state of [trackingAisState, operationalAisState]) {
     if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
     try { state.socket?.close(); } catch {}
@@ -1088,6 +1149,10 @@ createServer(async (request, response) => {
       inputs: vesselInputState,
       health: publicAisState(trackingAisState),
       operationalHealth: publicAisState(operationalAisState),
+      providers: {
+        aisstream: publicAisState(trackingAisState),
+        datalastic: datalasticProvider.publicState(),
+      },
     });
   }
 
@@ -1139,4 +1204,6 @@ createServer(async (request, response) => {
   console.log(`EcoFair operational radius: ${ECOFAIR_OPERATIONAL_RADIUS_NM} nm around ${PORT_REFERENCE_POINTS.length} monitored ports`);
   console.log(`Runtime data directory: ${RUNTIME_DATA_DIR}`);
   if (AISSTREAM_API_KEY) console.log("AISStream live mode enabled.");
+  if (DATALASTIC_API_KEY) console.log(`Datalastic live AIS failover enabled for ${DATALASTIC_SCAN_POINTS.map((point) => point.id).join(", ") || "no scan points"}.`);
+  else console.log("Datalastic live AIS failover is not configured.");
 });

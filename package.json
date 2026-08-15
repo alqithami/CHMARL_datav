@@ -87,7 +87,7 @@
     "start:prod": "node scripts/start-prod.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
-    "verify:runtime": "node --check server/vessel-feed-proxy/runtime-v3.mjs && node scripts/check-runtime-contract.mjs && node scripts/smoke-runtime.mjs && node scripts/smoke-ais-live.mjs",
+    "verify:runtime": "node --check server/vessel-feed-proxy/runtime-v3.mjs && node --check server/vessel-feed-proxy/datalastic-live-ais.mjs && node scripts/check-runtime-contract.mjs && node scripts/smoke-runtime.mjs && node scripts/smoke-ais-live.mjs && node scripts/smoke-live-ais-failover.mjs",
     "check": "pnpm verify:ci && pnpm lint && pnpm build && pnpm verify:runtime"
   },
   "dependencies": {

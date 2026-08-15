@@ -23,6 +23,7 @@ export type Vessel = {
   headingDeg?: number;
   courseDeg?: number;
   timestamp?: string;
+  inputSource?: string;
   trail?: VesselTrailPoint[];
 };
 

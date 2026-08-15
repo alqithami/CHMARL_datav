@@ -12,7 +12,7 @@ import type { ChmarlExperimentStep, PortEvent } from "@/types/chmarl";
 
 export type ChartDatum = { name: string; value: number };
 
-export type DashboardDataSource = "aisstream" | "aisstream-waiting" | "upstream" | "remote" | "local-json" | "fallback" | "none";
+export type DashboardDataSource = "aisstream" | "datalastic" | "ais-multi-provider" | "aisstream-waiting" | "upstream" | "remote" | "local-json" | "fallback" | "none";
 export type ChmarlDataSource = "runtime" | "local-json" | "none";
 export type PortOpsDataSource = "runtime" | "demo" | "local-json" | "none";
 export type WeatherDataSource = "open-meteo" | "runtime" | "none";
@@ -125,7 +125,10 @@ function toRewardTrend(points: (string | number)[][]): RewardTrendPoint[] {
 }
 
 function isExternalSource(source: DashboardDataSource) {
-  return source === "aisstream" || source === "aisstream-waiting";
+  return source === "aisstream"
+    || source === "datalastic"
+    || source === "ais-multi-provider"
+    || source === "aisstream-waiting";
 }
 
 function hasPosition(row: Vessel) {
@@ -228,13 +231,18 @@ function externalTimeline(source: DashboardDataSource, chmarlSource: ChmarlDataS
     return [{ time: "live", title: "AIS connected, waiting for position messages", body: "The backend socket is active, but no usable positions have entered the tracking cache yet." }];
   }
   if (!isExternalSource(source)) return [];
+  const providerLabel = source === "datalastic"
+    ? "Datalastic live AIS failover"
+    : source === "ais-multi-provider"
+      ? "AISStream + Datalastic live AIS"
+      : "AISStream live AIS";
   const continuity = vesselScope.heldRows > 0
     ? `${vesselScope.heldRows} vessels are retained through temporary API gaps.`
     : "All displayed vessels are present in the latest API snapshot.";
   return [{
     time: "live",
-    title: chmarlSource !== "none" ? "Stable global tracking + port-scoped inference active" : "Live AIS tracking feed active",
-    body: `${vesselScope.trackingRows} vessels are retained for map tracking from ${vesselScope.reportedRows} live AIS API rows; ${vesselScope.operationalRows} vessels within ${vesselScope.operationalRadiusNm} nm of monitored ports are used by EcoFair-CH-MARL. ${continuity} Port source: ${portOpsSource}.`,
+    title: chmarlSource !== "none" ? "Live AIS tracking + port-scoped inference active" : `${providerLabel} active`,
+    body: `${vesselScope.trackingRows} vessels are retained for map tracking from ${vesselScope.reportedRows} genuine live AIS rows supplied by ${providerLabel}; ${vesselScope.operationalRows} vessels within ${vesselScope.operationalRadiusNm} nm of monitored ports are used by EcoFair-CH-MARL. ${continuity} Port source: ${portOpsSource}.`,
   }];
 }
 
