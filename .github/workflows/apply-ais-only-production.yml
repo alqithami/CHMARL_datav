@@ -1,0 +1,59 @@
+name: Apply AIS-only production repair
+
+on:
+  push:
+    branches:
+      - agent/ais-only-production
+    paths:
+      - scripts/apply-ais-only-production.mjs
+      - .github/workflows/apply-ais-only-production.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/ais-only-production
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+
+      - name: Apply AIS-only production changes
+        run: node scripts/apply-ais-only-production.mjs
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate application and runtime
+        run: pnpm check
+
+      - name: Verify generated artifacts
+        run: pnpm verify:dist
+
+      - name: Check repository diff
+        run: git diff --check
+
+      - name: Commit validated repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Use live AIS exclusively for vessel tracking"
+          git push origin HEAD:agent/ais-only-production
