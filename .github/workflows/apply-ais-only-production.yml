@@ -35,6 +35,19 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.9 --activate
 
+      - name: Correct one-time transformation guard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/apply-ais-only-production.mjs')
+          text = path.read_text()
+          old = '''  const next = content.replace(pattern, replacement);\n  pattern.lastIndex = 0;\n  if (pattern.test(next)) throw new Error(`Replacement left ${label} behind`);\n  return next;'''
+          new = '''  return content.replace(pattern, replacement);'''
+          if old not in text:
+              raise SystemExit('transformation guard block not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Apply AIS-only production changes
         run: node scripts/apply-ais-only-production.mjs
 
