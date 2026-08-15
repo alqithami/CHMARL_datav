@@ -207,6 +207,19 @@ const AISSTREAM_API_KEY = String(process.env.AISSTREAM_API_KEY ?? "").trim();
 const AISSTREAM_URL = process.env.AISSTREAM_URL ?? "wss://stream.aisstream.io/v0/stream";
 const AISSTREAM_FILTER_TYPES = [];
 const AISSTREAM_OPERATIONAL_FILTER_TYPES = [];
+const AISSTREAM_POSITION_FILTER_TYPES = [
+  "PositionReport",
+  "StandardClassBPositionReport",
+  "ExtendedClassBPositionReport",
+  "LongRangeAisBroadcastMessage",
+];
+const AISSTREAM_RECOVERY_ENABLED = process.env.AISSTREAM_RECOVERY_ENABLED !== "false";
+const AISSTREAM_RECOVERY_PROFILES = [
+  { id: "world-unfiltered", description: "worldwide, all AIS message types", boxes: TRACKING_BOXES, filters: AISSTREAM_FILTER_TYPES },
+  { id: "world-position-only", description: "worldwide, position-bearing messages", boxes: TRACKING_BOXES, filters: AISSTREAM_POSITION_FILTER_TYPES },
+  { id: "red-sea-gulf-position-only", description: "Red Sea and Gulf, position-bearing messages", boxes: parseBoundingBoxes(REGIONAL_AIS_BBOX), filters: AISSTREAM_POSITION_FILTER_TYPES },
+  { id: "port-approaches-position-only", description: "monitored port approaches, position-bearing messages", boxes: OPERATIONAL_BOXES, filters: AISSTREAM_POSITION_FILTER_TYPES },
+];
 const AISSTREAM_MAX_VESSELS = Math.max(100, Number(process.env.AISSTREAM_MAX_VESSELS ?? 8000));
 const AISSTREAM_OPERATIONAL_MAX_VESSELS = Math.max(100, Number(process.env.AISSTREAM_OPERATIONAL_MAX_VESSELS ?? 2500));
 const AISSTREAM_TRAIL_POINTS = Math.max(2, Number(process.env.AISSTREAM_TRAIL_POINTS ?? 12));
@@ -214,8 +227,9 @@ const AISSTREAM_MAX_AGE_MS = Math.max(60_000, Number(process.env.AISSTREAM_MAX_A
 const AISSTREAM_CACHE_ENABLED = process.env.AISSTREAM_CACHE_ENABLED !== "false";
 const AISSTREAM_CACHE_FLUSH_MS = Math.max(5_000, Number(process.env.AISSTREAM_CACHE_FLUSH_MS ?? 30_000));
 const AISSTREAM_MAX_IMPLIED_SPEED_KN = Math.max(50, Number(process.env.AISSTREAM_MAX_IMPLIED_SPEED_KN ?? 120));
-const AISSTREAM_HEARTBEAT_MS = Math.max(15_000, Number(process.env.AISSTREAM_HEARTBEAT_MS ?? 30_000));
-const AISSTREAM_SILENCE_TIMEOUT_MS = Math.max(60_000, Number(process.env.AISSTREAM_SILENCE_TIMEOUT_MS ?? 5 * 60_000));
+const AISSTREAM_HEARTBEAT_MS = Math.max(1_000, Number(process.env.AISSTREAM_HEARTBEAT_MS ?? 10_000));
+const AISSTREAM_FIRST_FRAME_TIMEOUT_MS = Math.max(1_000, Number(process.env.AISSTREAM_FIRST_FRAME_TIMEOUT_MS ?? 30_000));
+const AISSTREAM_SILENCE_TIMEOUT_MS = Math.max(15_000, Number(process.env.AISSTREAM_SILENCE_TIMEOUT_MS ?? 90_000));
 const MAX_INGEST_BODY_BYTES = Math.max(1_024, Number(process.env.MAX_INGEST_BODY_BYTES ?? 5 * 1024 * 1024));
 const ECOFAIR_OPERATIONAL_RADIUS_NM = Math.max(1, Number(process.env.ECOFAIR_OPERATIONAL_RADIUS_NM ?? 120));
 const ECOFAIR_TICK_MS = Math.max(10_000, Number(process.env.ECOFAIR_TICK_MS ?? 60_000));
@@ -298,6 +312,19 @@ function createAisState(label, boxes, filters, cacheFile, cacheLimit) {
     lastPongAt: null,
     lastCloseAt: null,
     watchdogRestarts: 0,
+    profileIndex: 0,
+    activeProfile: AISSTREAM_RECOVERY_PROFILES[0].id,
+    activeProfileDescription: AISSTREAM_RECOVERY_PROFILES[0].description,
+    profileSwitches: 0,
+    profileCycles: 0,
+    lastProfileSwitchAt: null,
+    lastRecoveryReason: null,
+    lastSuccessfulProfile: null,
+    lastSuccessfulAt: null,
+    profileAdvancedForCurrentSocket: false,
+    connectionMessageCount: 0,
+    firstFrameDeadlineAt: null,
+    profileHistory: [],
     messageCount: 0,
     usablePositionMessages: 0,
     rejectedOutOfOrder: 0,
@@ -662,6 +689,36 @@ async function runBackgroundTick() {
   }
 }
 
+function activeAisProfile(state) {
+  return AISSTREAM_RECOVERY_PROFILES[state.profileIndex % AISSTREAM_RECOVERY_PROFILES.length];
+}
+
+function setAisProfileState(state, profile) {
+  state.activeProfile = profile.id;
+  state.activeProfileDescription = profile.description;
+  state.boundingBoxes = profile.boxes;
+  state.filterTypes = profile.filters;
+}
+
+function advanceAisProfile(state, reason) {
+  state.lastRecoveryReason = reason;
+  if (!AISSTREAM_RECOVERY_ENABLED || AISSTREAM_RECOVERY_PROFILES.length < 2) return;
+  const previousIndex = state.profileIndex;
+  state.profileIndex = (state.profileIndex + 1) % AISSTREAM_RECOVERY_PROFILES.length;
+  if (state.profileIndex <= previousIndex) state.profileCycles += 1;
+  state.profileSwitches += 1;
+  state.lastProfileSwitchAt = new Date().toISOString();
+  state.profileAdvancedForCurrentSocket = true;
+  const profile = activeAisProfile(state);
+  setAisProfileState(state, profile);
+  state.profileHistory = [...state.profileHistory, {
+    at: state.lastProfileSwitchAt,
+    event: "recovery",
+    profile: profile.id,
+    reason,
+  }].slice(-12);
+}
+
 function scheduleAisReconnect(options) {
   const { state } = options;
   if (stopping || !AISSTREAM_API_KEY || state.reconnectTimer) return;
@@ -675,8 +732,8 @@ function scheduleAisReconnect(options) {
   state.reconnectTimer.unref?.();
 }
 
-function startAisStream({ state, cache, boxes, filters, deriveOperational = false }) {
-  const options = { state, cache, boxes, filters, deriveOperational };
+function startAisStream({ state, cache, deriveOperational = false }) {
+  const options = { state, cache, deriveOperational };
   if (!AISSTREAM_API_KEY || stopping) {
     state.status = AISSTREAM_API_KEY ? "stopped" : "disabled";
     return;
@@ -685,7 +742,12 @@ function startAisStream({ state, cache, boxes, filters, deriveOperational = fals
     clearTimeout(state.reconnectTimer);
     state.reconnectTimer = null;
   }
-  const socket = new WebSocket(AISSTREAM_URL);
+  const profile = activeAisProfile(state);
+  setAisProfileState(state, profile);
+  const socket = new WebSocket(AISSTREAM_URL, {
+    perMessageDeflate: false,
+    handshakeTimeout: 15_000,
+  });
   state.socket = socket;
   state.status = "connecting";
   socket.on("open", () => {
@@ -696,6 +758,15 @@ function startAisStream({ state, cache, boxes, filters, deriveOperational = fals
     state.openedAt = openedAt;
     state.lastPongAt = openedAt;
     state.status = "connected-waiting";
+    state.connectionMessageCount = 0;
+    state.profileAdvancedForCurrentSocket = false;
+    state.firstFrameDeadlineAt = new Date(Date.now() + AISSTREAM_FIRST_FRAME_TIMEOUT_MS).toISOString();
+    state.profileHistory = [...state.profileHistory, {
+      at: openedAt,
+      event: "subscription",
+      profile: profile.id,
+      reason: state.lastRecoveryReason,
+    }].slice(-12);
     if (deriveOperational) {
       operationalAisState.enabled = true;
       operationalAisState.connected = true;
@@ -703,9 +774,15 @@ function startAisStream({ state, cache, boxes, filters, deriveOperational = fals
       operationalAisState.status = "derived-waiting";
       operationalAisState.lastError = null;
     }
-    const subscription = { APIKey: AISSTREAM_API_KEY, BoundingBoxes: boxes };
+    const subscription = { APIKey: AISSTREAM_API_KEY, BoundingBoxes: profile.boxes };
+    if (profile.filters.length > 0) subscription.FilterMessageTypes = profile.filters;
     state.subscriptionSentAt = new Date().toISOString();
-    state.subscription = { boundingBoxes: boxes, filterMessageTypes: [] };
+    state.subscription = {
+      profile: profile.id,
+      description: profile.description,
+      boundingBoxes: profile.boxes,
+      filterMessageTypes: profile.filters,
+    };
     socket.send(JSON.stringify(subscription));
   });
   socket.on("pong", () => {
@@ -714,7 +791,9 @@ function startAisStream({ state, cache, boxes, filters, deriveOperational = fals
   socket.on("message", (data) => {
     try {
       state.messageCount += 1;
+      state.connectionMessageCount += 1;
       state.lastFrameAt = new Date().toISOString();
+      state.firstFrameDeadlineAt = null;
       const raw = JSON.parse(data.toString());
       if (raw.error) {
         state.lastError = String(raw.error);
@@ -726,6 +805,9 @@ function startAisStream({ state, cache, boxes, filters, deriveOperational = fals
       const receivedAt = new Date().toISOString();
       state.usablePositionMessages += 1;
       state.lastMessageAt = receivedAt;
+      state.lastSuccessfulProfile = state.activeProfile;
+      state.lastSuccessfulAt = receivedAt;
+      state.lastRecoveryReason = null;
       state.status = "live";
       mergeAisVessel(cache, state, vessel);
       if (deriveOperational) {
@@ -748,10 +830,15 @@ function startAisStream({ state, cache, boxes, filters, deriveOperational = fals
   });
   socket.on("close", (code, reason) => {
     const closedAt = new Date().toISOString();
+    const closedBeforeFirstFrame = state.connectionMessageCount === 0;
     state.connected = false;
     state.lastCloseAt = closedAt;
+    state.firstFrameDeadlineAt = null;
     state.socket = null;
-    if (reason?.length) state.lastError = `AIS websocket closed (${code}): ${reason.toString()}`;
+    if (reason?.length) state.lastError = "AIS websocket closed (" + code + "): " + reason.toString();
+    if (!stopping && closedBeforeFirstFrame && !state.profileAdvancedForCurrentSocket) {
+      advanceAisProfile(state, "socket closed before the first AIS frame (code " + code + ")");
+    }
     if (deriveOperational) {
       operationalAisState.connected = false;
       operationalAisState.lastCloseAt = closedAt;
@@ -765,7 +852,7 @@ function startAisStream({ state, cache, boxes, filters, deriveOperational = fals
     state.status = "socket-error";
   });
   socket.on("unexpected-response", (_request, response) => {
-    state.lastError = `AIS websocket rejected the subscription with HTTP ${response.statusCode ?? "unknown"}`;
+    state.lastError = "AIS websocket rejected the subscription with HTTP " + (response.statusCode ?? "unknown");
     state.status = "provider-error";
   });
 }
@@ -776,12 +863,12 @@ function scopedReport() {
     "## Input scope",
     "",
     `- Tracking feed: ${vesselInputState.trackingRows} vessels shown on the map.`,
-    `- Monitored-port AIS cache: ${vesselInputState.priorityAisRows} vessels derived from the single global subscription.`,
+    `- Monitored-port AIS cache: ${vesselInputState.priorityAisRows} vessels derived from the active live AIS subscription.`,
     `- Operational calculation feed: ${vesselInputState.operationalRows} vessels within ${ECOFAIR_OPERATIONAL_RADIUS_NM} nm of monitored ports.`,
     "- EcoFair-CH-MARL fuel, emissions, fairness, queue, reward, and constraint calculations use only the operational calculation feed.",
     "",
   ].join("\n");
-  return base.replace("## Fleet measures", `${scopeSection}## Fleet measures`).replace("- Vessel positions: aisstream.io live AIS (Red Sea / Gulf bounding boxes).", "- Vessel tracking: one resilient global AIS subscription populates both the display cache and the monitored-port operational cache; operational calculations remain restricted to port geofences.");
+  return base.replace("## Fleet measures", `${scopeSection}## Fleet measures`).replace("- Vessel positions: aisstream.io live AIS (Red Sea / Gulf bounding boxes).", "- Vessel tracking: one self-healing AISStream connection starts with worldwide coverage and rotates among genuine live-AIS subscription profiles when a connected socket produces no frames; it populates both the display cache and the monitored-port operational cache; operational calculations remain restricted to port geofences.");
 }
 
 function staticFileForUrl(requestUrl) {
@@ -851,7 +938,17 @@ function healthPayload() {
     readiness: readinessPayload(),
     staticDashboard: existsSync(STATIC_INDEX),
     runtime: runtimeState,
-    trackingScope: { mode: GLOBAL_TRACKING_ENABLED ? "global" : "regional", bbox: TRACKING_BBOX_TEXT, rows: vesselInputState.trackingRows, maxRows: AISSTREAM_MAX_VESSELS },
+    trackingScope: {
+      mode: GLOBAL_TRACKING_ENABLED ? "global" : "regional",
+      bbox: TRACKING_BBOX_TEXT,
+      activeProfile: trackingAisState.activeProfile,
+      activeProfileDescription: trackingAisState.activeProfileDescription,
+      activeBoundingBoxes: trackingAisState.boundingBoxes,
+      profileSwitches: trackingAisState.profileSwitches,
+      profileCycles: trackingAisState.profileCycles,
+      rows: vesselInputState.trackingRows,
+      maxRows: AISSTREAM_MAX_VESSELS,
+    },
     operationalScope: { radiusNm: ECOFAIR_OPERATIONAL_RADIUS_NM, rows: vesselInputState.operationalRows, ports: PORT_REFERENCE_POINTS.map((port) => port.id) },
     vesselInputs: vesselInputState,
     aisstream: publicAisState(trackingAisState),
@@ -883,8 +980,6 @@ loadEcofairState();
 startAisStream({
   state: trackingAisState,
   cache: trackingAisCache,
-  boxes: TRACKING_BOXES,
-  filters: AISSTREAM_FILTER_TYPES,
   deriveOperational: OPERATIONAL_PRIORITY_ENABLED,
 });
 operationalAisState.enabled = Boolean(AISSTREAM_API_KEY && OPERATIONAL_PRIORITY_ENABLED);
@@ -912,25 +1007,33 @@ const aisWatchdogInterval = setInterval(() => {
     scheduleAisReconnect({
       state,
       cache: trackingAisCache,
-      boxes: TRACKING_BOXES,
-      filters: AISSTREAM_FILTER_TYPES,
       deriveOperational: OPERATIONAL_PRIORITY_ENABLED,
     });
     return;
   }
   try { socket.ping(); }
   catch (error) { state.lastError = error instanceof Error ? error.message : String(error); }
-  const lastSignal = Math.max(timestampMs(state.lastFrameAt), timestampMs(state.openedAt));
-  const lastPong = timestampMs(state.lastPongAt);
+  const openedAt = timestampMs(state.openedAt);
+  const lastFrameAt = timestampMs(state.lastFrameAt);
+  const lastPongAt = timestampMs(state.lastPongAt);
   const now = Date.now();
-  const silent = lastSignal > 0 && now - lastSignal > AISSTREAM_SILENCE_TIMEOUT_MS;
-  const heartbeatLost = lastPong > 0 && now - lastPong > AISSTREAM_HEARTBEAT_MS * 3;
-  if (silent || heartbeatLost) {
+  const firstFrameTimedOut = state.connectionMessageCount === 0
+    && openedAt > 0
+    && now - openedAt > AISSTREAM_FIRST_FRAME_TIMEOUT_MS;
+  const streamBecameSilent = state.connectionMessageCount > 0
+    && lastFrameAt > 0
+    && now - lastFrameAt > AISSTREAM_SILENCE_TIMEOUT_MS;
+  const heartbeatLost = lastPongAt > 0 && now - lastPongAt > AISSTREAM_HEARTBEAT_MS * 3;
+  if (firstFrameTimedOut || streamBecameSilent || heartbeatLost) {
     state.watchdogRestarts += 1;
-    state.lastError = silent
-      ? `AIS provider produced no frames for ${Math.round((now - lastSignal) / 1000)} seconds`
-      : "AIS websocket heartbeat timed out";
-    state.status = "watchdog-restart";
+    const reason = firstFrameTimedOut
+      ? "connected AIS socket produced no first frame within " + Math.round(AISSTREAM_FIRST_FRAME_TIMEOUT_MS / 1000) + " seconds"
+      : streamBecameSilent
+        ? "AIS provider produced no frames for " + Math.round((now - lastFrameAt) / 1000) + " seconds"
+        : "AIS websocket heartbeat timed out";
+    state.lastError = reason;
+    advanceAisProfile(state, reason);
+    state.status = "profile-recovery";
     try { socket.terminate(); } catch {}
   }
 }, AISSTREAM_HEARTBEAT_MS);

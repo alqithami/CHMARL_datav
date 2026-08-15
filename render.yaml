@@ -66,10 +66,14 @@ services:
         value: 4
       - key: AISSTREAM_MAX_IMPLIED_SPEED_KN
         value: 120
+      - key: AISSTREAM_RECOVERY_ENABLED
+        value: true
       - key: AISSTREAM_HEARTBEAT_MS
+        value: 10000
+      - key: AISSTREAM_FIRST_FRAME_TIMEOUT_MS
         value: 30000
       - key: AISSTREAM_SILENCE_TIMEOUT_MS
-        value: 300000
+        value: 90000
       - key: MAX_INGEST_BODY_BYTES
         value: 5242880
       - key: AISSTREAM_CACHE_ENABLED
