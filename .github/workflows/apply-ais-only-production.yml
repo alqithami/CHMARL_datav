@@ -54,17 +54,34 @@ jobs:
       - name: Apply AIS-only production changes
         run: node scripts/apply-ais-only-production.mjs
 
-      - name: Correct generated contract-test quoting
+      - name: Finalize generated AIS-only contracts
         run: |
           python - <<'PY'
           from pathlib import Path
-          path = Path('scripts/check-runtime-contract.mjs')
-          text = path.read_text()
+
+          contract_path = Path('scripts/check-runtime-contract.mjs')
+          contract = contract_path.read_text()
           broken = 'assertIncludes(runtime, "String(process.env.AISSTREAM_API_KEY ?? "").trim()", "AIS API key is not normalized");'
           fixed = 'assertIncludes(runtime, \'String(process.env.AISSTREAM_API_KEY ?? "").trim()\', "AIS API key is not normalized");'
-          if broken not in text:
+          if broken not in contract:
               raise SystemExit('generated AIS key assertion was not found')
-          path.write_text(text.replace(broken, fixed, 1))
+          contract = contract.replace(broken, fixed, 1)
+
+          runtime_path = Path('server/vessel-feed-proxy/runtime-v3.mjs')
+          runtime = runtime_path.read_text()
+          static_fallback = '  const staticMatch = staticFileForUrl(request.url);\n'
+          api_guard = '  if (path.startsWith("/api/")) return sendJson(response, 404, { error: "API endpoint not found" });\n\n'
+          if static_fallback not in runtime:
+              raise SystemExit('static fallback insertion point was not found')
+          runtime = runtime.replace(static_fallback, api_guard + static_fallback, 1)
+          runtime_path.write_text(runtime)
+
+          assertion_anchor = 'assertNotIncludes(runtime, "/api/vessels/ingest", "manual vessel ingest endpoint remains enabled");\n'
+          api_assertion = 'assertIncludes(runtime, \'path.startsWith("/api/")\', "unknown API routes do not return 404");\n'
+          if assertion_anchor not in contract:
+              raise SystemExit('manual ingest contract assertion was not found')
+          contract = contract.replace(assertion_anchor, assertion_anchor + api_assertion, 1)
+          contract_path.write_text(contract)
           PY
 
       - name: Install locked dependencies
