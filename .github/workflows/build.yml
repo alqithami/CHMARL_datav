@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: build-${{ github.event.pull_request.number || github.ref }}
@@ -24,7 +24,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          persist-credentials: false
+          persist-credentials: true
+          fetch-depth: 2
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -37,6 +38,13 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.9 --activate
           pnpm --version
+
+      - name: Apply one-time adaptive AIS recovery
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          if [[ -f scripts/apply-ais-adaptive-recovery.mjs ]]; then
+            node scripts/apply-ais-adaptive-recovery.mjs
+          fi
 
       - name: Verify CI and release contract
         run: node scripts/verify-ci-contract.mjs
@@ -82,3 +90,14 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:8787/version
           curl --fail --silent --show-error http://127.0.0.1:8787/ > /tmp/chmarl-index.html
           grep --quiet '<div id="root"></div>' /tmp/chmarl-index.html
+
+      - name: Commit validated adaptive AIS recovery
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "Recover silent AIS streams automatically"
+            git push origin HEAD:main
+          fi
