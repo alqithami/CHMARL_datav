@@ -47,6 +47,7 @@ jobs:
               raise SystemExit('transformation guard block not found')
           text = text.replace(old, new, 1)
           text = text.replace('${baseUrl}', r'\${baseUrl}')
+          text = text.replace('${error instanceof Error', r'\${error instanceof Error')
           path.write_text(text)
           PY
 
