@@ -54,6 +54,19 @@ jobs:
       - name: Apply AIS-only production changes
         run: node scripts/apply-ais-only-production.mjs
 
+      - name: Correct generated contract-test quoting
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/check-runtime-contract.mjs')
+          text = path.read_text()
+          broken = 'assertIncludes(runtime, "String(process.env.AISSTREAM_API_KEY ?? "").trim()", "AIS API key is not normalized");'
+          fixed = 'assertIncludes(runtime, \'String(process.env.AISSTREAM_API_KEY ?? "").trim()\', "AIS API key is not normalized");'
+          if broken not in text:
+              raise SystemExit('generated AIS key assertion was not found')
+          path.write_text(text.replace(broken, fixed, 1))
+          PY
+
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
