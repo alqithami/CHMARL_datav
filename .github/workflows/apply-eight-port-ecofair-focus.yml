@@ -6,6 +6,7 @@ on:
       - agent/eight-port-ecofair-focus
     paths:
       - scripts/apply-eight-port-ecofair-focus.mjs
+      - scripts/smoke-eight-port-ecofair-focus.mjs
       - .github/workflows/apply-eight-port-ecofair-focus.yml
 
 permissions:
@@ -43,7 +44,17 @@ jobs:
 
       - name: Validate and apply eight-port changes
         run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/apply-eight-port-ecofair-focus.mjs")
+          text = path.read_text()
+          old = "\nwriteEightPortSmoke();\n"
+          if old not in text:
+              raise SystemExit("Could not disable the embedded smoke-file generator")
+          path.write_text(text.replace(old, "\n// The validated smoke file is committed directly.\n", 1))
+          PY
           node --check scripts/apply-eight-port-ecofair-focus.mjs
+          node --check scripts/smoke-eight-port-ecofair-focus.mjs
           node scripts/apply-eight-port-ecofair-focus.mjs
 
       - name: Install locked dependencies
