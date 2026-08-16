@@ -1,0 +1,102 @@
+name: Apply live vessel visibility patch
+
+on:
+  push:
+    branches:
+      - agent/show-live-vessels-immediately
+    paths:
+      - scripts/apply-show-live-vessels.py
+      - scripts/check-live-ui-contract.mjs
+      - .github/workflows/apply-show-live-vessels.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-show-live-vessels
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out visibility branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/show-live-vessels-immediately
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+          pnpm --version
+
+      - name: Apply source labels and initial live-vessel map fit
+        run: |
+          python3 -m py_compile scripts/apply-show-live-vessels.py
+          python3 scripts/apply-show-live-vessels.py
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint, build, and verify runtime and UI contracts
+        run: pnpm check
+
+      - name: Verify generated artifacts
+        run: pnpm verify:dist
+
+      - name: Check repository diff
+        run: git diff --check
+
+      - name: Build production container
+        run: docker build --tag chmarl-datav:live-visibility .
+
+      - name: Smoke production container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --name chmarl-datav-live-visibility --publish 8787:8787 chmarl-datav:live-visibility
+          cleanup() {
+            docker logs chmarl-datav-live-visibility || true
+            docker rm --force chmarl-datav-live-visibility >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:8787/health/live > /tmp/chmarl-live.json; then
+              break
+            fi
+            if [[ "$attempt" == "30" ]]; then
+              echo "The production container did not become live in time." >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+          cat /tmp/chmarl-live.json
+          curl --fail --silent --show-error http://127.0.0.1:8787/version
+          curl --fail --silent --show-error http://127.0.0.1:8787/ > /tmp/chmarl-index.html
+          grep --quiet '<div id="root"></div>' /tmp/chmarl-index.html
+
+      - name: Commit validated visibility implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit."
+            exit 0
+          fi
+          git commit -m "Show live AIS vessels immediately"
+          git push origin HEAD:agent/show-live-vessels-immediately
