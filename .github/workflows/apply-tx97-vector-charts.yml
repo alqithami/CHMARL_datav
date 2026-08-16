@@ -1,0 +1,124 @@
+name: Apply TX-97 vector chart gateway
+
+on:
+  push:
+    branches:
+      - agent/tx97-vector-chart-gateway
+    paths:
+      - scripts/tx97-patch-parts/**
+      - .github/workflows/apply-tx97-vector-charts.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-tx97-vector-chart-gateway
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out TX-97 branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/tx97-vector-chart-gateway
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+          pnpm --version
+
+      - name: Reconstruct and apply TX-97 vector chart implementation
+        run: |
+          cat scripts/tx97-patch-parts/part*.b64 \
+            | base64 --decode \
+            | gzip --decompress \
+            > scripts/apply-tx97-vector-charts.py
+          python3 -m py_compile scripts/apply-tx97-vector-charts.py
+          python3 scripts/apply-tx97-vector-charts.py
+          rm -rf scripts/tx97-patch-parts
+          rm -f scripts/apply-tx97-vector-charts.py
+          rm -f .github/workflows/apply-tx97-vector-charts.yml
+
+      - name: Install and lock MapLibre dependency
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Lint, build, and verify all runtime contracts
+        run: pnpm check
+
+      - name: Verify generated production artifacts
+        run: pnpm verify:dist
+
+      - name: Check repository diff
+        run: git diff --check
+
+      - name: Build production container
+        run: docker build --tag chmarl-datav:tx97 .
+
+      - name: Smoke production container and TX-97 license gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach \
+            --name chmarl-datav-tx97 \
+            --publish 8787:8787 \
+            --env TX97_CHARTS_ENABLED=true \
+            --env TX97_PUBLIC_DISPLAY_AUTHORIZED=false \
+            chmarl-datav:tx97
+          cleanup() {
+            docker logs chmarl-datav-tx97 || true
+            docker rm --force chmarl-datav-tx97 >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:8787/health/live > /tmp/chmarl-live.json; then
+              break
+            fi
+            if [[ "$attempt" == "30" ]]; then
+              echo "The production container did not become live in time." >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+          cat /tmp/chmarl-live.json
+          curl --fail --silent --show-error http://127.0.0.1:8787/api/charts/tx97/status > /tmp/tx97-status.json
+          cat /tmp/tx97-status.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const status = JSON.parse(fs.readFileSync('/tmp/tx97-status.json', 'utf8'));
+          if (status.provider !== 'Wärtsilä TX-97') throw new Error('TX-97 provider identity is absent');
+          if (status.enabled !== true) throw new Error('TX-97 gateway is not enabled');
+          if (status.ready !== false) throw new Error('Unlicensed TX-97 chart unexpectedly reported ready');
+          if (status.publicDisplayAuthorized !== false) throw new Error('TX-97 public display gate is not enforced');
+          NODE
+
+          test "$(curl --silent --output /tmp/tx97-style.json --write-out '%{http_code}' http://127.0.0.1:8787/api/charts/tx97/style.json)" = "503"
+          curl --fail --silent --show-error http://127.0.0.1:8787/ > /tmp/chmarl-index.html
+          grep --quiet '<div id="root"></div>' /tmp/chmarl-index.html
+
+      - name: Commit validated TX-97 implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No TX-97 changes to commit."
+            exit 0
+          fi
+          git commit -m "Replace fixed map with licensed TX-97 vector charts"
+          git push origin HEAD:agent/tx97-vector-chart-gateway
