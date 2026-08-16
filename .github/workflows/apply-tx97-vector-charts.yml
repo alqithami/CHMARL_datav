@@ -49,6 +49,27 @@ jobs:
             > scripts/apply-tx97-vector-charts.py
           python3 -m py_compile scripts/apply-tx97-vector-charts.py
           python3 scripts/apply-tx97-vector-charts.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/components/Tx97ChartMap.tsx")
+          content = path.read_text(encoding="utf-8")
+          replacements = {
+              '''  const source = map.getSource(sourceId);\n  if (source?.type === "geojson") source.setData(data);''': '''  const source = map.getSource(sourceId) as maplibregl.GeoJSONSource | undefined;\n  source?.setData(data);''',
+              '''      preserveDrawingBuffer: true,\n''': '''''',
+              '''        layout: { visibility: showTrails ? "visible" : "none", "line-cap": "round", "line-join": "round" },''': '''        layout: { visibility: "visible", "line-cap": "round", "line-join": "round" },''',
+              '''        layout: { visibility: showPorts ? "visible" : "none" },''': '''        layout: { visibility: "visible" },''',
+              '''          visibility: showPorts ? "visible" : "none",''': '''          visibility: "visible",''',
+              '''        layout: { visibility: showEvents ? "visible" : "none" },''': '''        layout: { visibility: "visible" },''',
+              '''        const source = map.getSource(VESSEL_SOURCE);\n        if (!Number.isFinite(clusterId) || source?.type !== "geojson") return;\n        const expansionZoom = await source.getClusterExpansionZoom(clusterId);''': '''        const source = map.getSource(VESSEL_SOURCE) as maplibregl.GeoJSONSource | undefined;\n        if (!Number.isFinite(clusterId) || !source) return;\n        const expansionZoom = await source.getClusterExpansionZoom(clusterId);''',
+          }
+          for before, after in replacements.items():
+              count = content.count(before)
+              if count != 1:
+                  raise RuntimeError(f"TX-97 TypeScript repair expected one match, found {count}: {before[:80]}")
+              content = content.replace(before, after, 1)
+          path.write_text(content, encoding="utf-8")
+          PY
           rm -rf scripts/tx97-patch-parts
           rm -f scripts/apply-tx97-vector-charts.py
           rm -f .github/workflows/apply-tx97-vector-charts.yml
