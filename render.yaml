@@ -104,6 +104,20 @@ services:
         value: 5000
       - key: DATALASTIC_SCAN_POINT_IDS
         value: "Jeddah,King Abdullah Port"
+      - key: POCKETWORLD_AIS_ENABLED
+        value: true
+      - key: POCKETWORLD_API_URL
+        value: https://pocketworld.org/api/ships
+      - key: POCKETWORLD_ACTIVATION_DELAY_MS
+        value: 45000
+      - key: POCKETWORLD_POLL_INTERVAL_MS
+        value: 300000
+      - key: POCKETWORLD_TIMEOUT_MS
+        value: 30000
+      - key: POCKETWORLD_MAX_AGE_MS
+        value: 1800000
+      - key: POCKETWORLD_MAX_VESSELS
+        value: 2500
       - key: CHMARL_RUNTIME_ENABLED
         value: true
       - key: ECOFAIR_OPERATIONAL_RADIUS_NM

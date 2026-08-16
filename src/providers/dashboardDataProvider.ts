@@ -85,6 +85,7 @@ function extractRows(payload: unknown): RemoteVesselRow[] {
 function normalizeSource(value: unknown): DashboardDataSource {
   if (value === "aisstream") return "aisstream";
   if (value === "datalastic") return "datalastic";
+  if (value === "pocketworld") return "pocketworld";
   if (value === "ais-multi-provider") return "ais-multi-provider";
   if (value === "aisstream-waiting") return "aisstream-waiting";
   return "none";

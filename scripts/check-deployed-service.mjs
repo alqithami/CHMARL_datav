@@ -116,7 +116,9 @@ function providerSnapshot(vessels) {
   const primaryHealth = vessels?.health ?? providers.aisstream ?? {};
   const health = source === "datalastic"
     ? (providers.datalastic ?? primaryHealth)
-    : primaryHealth;
+    : source === "pocketworld"
+      ? (providers.pocketworld ?? primaryHealth)
+      : primaryHealth;
   return {
     source,
     scope: vessels?.scope ?? null,
@@ -131,9 +133,11 @@ function providerSnapshot(vessels) {
     lastMessageAt: health?.lastMessageAt ?? null,
     lastCloseAt: health?.lastCloseAt ?? null,
     watchdogRestarts: numeric(primaryHealth?.watchdogRestarts),
-    activeProvider: source === "datalastic" ? "datalastic" : source === "ais-multi-provider" ? "multi-provider" : "aisstream",
+    activeProvider: source === "datalastic" ? "datalastic" : source === "pocketworld" ? "pocketworld" : source === "ais-multi-provider" ? "multi-provider" : "aisstream",
     datalasticStatus: providers.datalastic?.status ?? null,
     datalasticRows: numeric(vessels?.inputs?.datalasticRows),
+    pocketworldStatus: providers.pocketworld?.status ?? null,
+    pocketworldRows: numeric(vessels?.inputs?.pocketworldRows),
   };
 }
 

@@ -70,11 +70,19 @@ function trackingStatus(data: DashboardData): QualityItem {
       tone: trackingRows > 0 && stale < trackingRows ? "good" : "warn",
     };
   }
+  if (data.source === "pocketworld") {
+    return {
+      label: "Vessel tracking",
+      value: `${trackingRows} public live AIS rows`,
+      detail: `PocketWorld public AIS mirror is active with regional BarentsWatch, Fintraffic, and Singapore MPA coverage · ${operationalRows} within ${radius} nm port scope · ${coverage}% positioned · ${stale} stale`,
+      tone: trackingRows > 0 && stale < trackingRows ? "good" : "warn",
+    };
+  }
   if (data.source === "ais-multi-provider") {
     return {
       label: "Vessel tracking",
       value: `${trackingRows} multi-provider AIS rows`,
-      detail: `AISStream and Datalastic genuine AIS observations are merged by MMSI · ${operationalRows} within ${radius} nm port scope · ${coverage}% positioned · ${stale} stale`,
+      detail: `Multiple genuine AIS providers are merged by MMSI · ${operationalRows} within ${radius} nm port scope · ${coverage}% positioned · ${stale} stale`,
       tone: trackingRows > 0 && stale < trackingRows ? "good" : "warn",
     };
   }
@@ -84,7 +92,7 @@ function trackingStatus(data: DashboardData): QualityItem {
       value: trackingRows > 0 ? `${trackingRows} retained rows` : "AIS provider silent",
       detail: trackingRows > 0
         ? `The latest AIS snapshot is empty, so ${trackingRows} recent vessel rows remain visible during the retention window.`
-        : "AISStream is connected but delivering no frames. The portal will use Datalastic genuine live AIS automatically when DATALASTIC_API_KEY is configured in Render.",
+        : "AISStream is connected but delivering no frames, and neither the configured port failover nor the public regional AIS fallback has produced a usable row yet.",
       tone: "warn",
     };
   }
@@ -175,6 +183,7 @@ function readinessHeadline(data: DashboardData) {
   const continuity = held > 0 ? ` · ${held} retained between updates` : "";
   if (data.source === "aisstream-waiting") return tracking > 0 ? `${tracking} recent vessels retained while AIS is silent` : "AISStream silent · secondary live AIS not active";
   if (data.source === "datalastic") return `Datalastic live AIS failover · ${tracking} vessels · ${operational} port calculations`;
+  if (data.source === "pocketworld") return `Public regional live AIS · ${tracking} vessels · ${operational} port calculations`;
   if (data.source === "ais-multi-provider") return `Multi-provider live AIS · ${tracking} vessels · ${operational} port calculations`;
   if (data.source === "aisstream" && operational > 0) return `${tracking} stable display · ${reported} current API · ${operational} port calculations${continuity}`;
   if (data.source === "aisstream") return `${tracking} stable display · ${reported} current API · waiting for monitored-port vessels${continuity}`;

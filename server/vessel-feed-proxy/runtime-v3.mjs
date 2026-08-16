@@ -4,6 +4,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import WebSocket from "ws";
 import { createEcoFairRuntime } from "./ecofair.mjs";
 import { createDatalasticLiveAisProvider } from "./datalastic-live-ais.mjs";
+import { createPocketWorldLiveAisProvider } from "./pocketworld-live-ais.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "dist");
@@ -247,6 +248,13 @@ const DATALASTIC_SCAN_POINT_SELECTION = String(process.env.DATALASTIC_SCAN_POINT
 const DATALASTIC_SCAN_POINTS = DATALASTIC_SCAN_POINT_SELECTION.some((item) => item.toLowerCase() === "all")
   ? PORT_REFERENCE_POINTS
   : PORT_REFERENCE_POINTS.filter((port) => DATALASTIC_SCAN_POINT_SELECTION.includes(port.id));
+const POCKETWORLD_AIS_ENABLED = process.env.POCKETWORLD_AIS_ENABLED !== "false";
+const POCKETWORLD_API_URL = process.env.POCKETWORLD_API_URL ?? "https://pocketworld.org/api/ships";
+const POCKETWORLD_ACTIVATION_DELAY_MS = Math.max(250, Number(process.env.POCKETWORLD_ACTIVATION_DELAY_MS ?? 45_000));
+const POCKETWORLD_POLL_INTERVAL_MS = Math.max(5_000, Number(process.env.POCKETWORLD_POLL_INTERVAL_MS ?? 5 * 60_000));
+const POCKETWORLD_TIMEOUT_MS = Math.max(1_000, Number(process.env.POCKETWORLD_TIMEOUT_MS ?? 30_000));
+const POCKETWORLD_MAX_AGE_MS = Math.max(60_000, Number(process.env.POCKETWORLD_MAX_AGE_MS ?? 30 * 60_000));
+const POCKETWORLD_MAX_VESSELS = Math.max(1, Number(process.env.POCKETWORLD_MAX_VESSELS ?? 2500));
 const MAX_INGEST_BODY_BYTES = Math.max(1_024, Number(process.env.MAX_INGEST_BODY_BYTES ?? 5 * 1024 * 1024));
 const ECOFAIR_OPERATIONAL_RADIUS_NM = Math.max(1, Number(process.env.ECOFAIR_OPERATIONAL_RADIUS_NM ?? 120));
 const ECOFAIR_TICK_MS = Math.max(10_000, Number(process.env.ECOFAIR_TICK_MS ?? 60_000));
@@ -370,11 +378,20 @@ const datalasticProvider = createDatalasticLiveAisProvider({
   maxAgeMs: DATALASTIC_MAX_AGE_MS,
   maxVessels: DATALASTIC_MAX_VESSELS,
 });
+const pocketWorldProvider = createPocketWorldLiveAisProvider({
+  enabled: POCKETWORLD_AIS_ENABLED,
+  url: POCKETWORLD_API_URL,
+  pollIntervalMs: POCKETWORLD_POLL_INTERVAL_MS,
+  timeoutMs: POCKETWORLD_TIMEOUT_MS,
+  maxAgeMs: POCKETWORLD_MAX_AGE_MS,
+  maxVessels: POCKETWORLD_MAX_VESSELS,
+});
 
 const vesselInputState = {
   aisRows: 0,
   aisstreamRows: 0,
   datalasticRows: 0,
+  pocketworldRows: 0,
   activeProviders: [],
   priorityAisRows: 0,
   trackingRows: 0,
@@ -525,13 +542,24 @@ function datalasticFailoverDue() {
   return serviceStartedAt === 0 || Date.now() - serviceStartedAt >= DATALASTIC_ACTIVATION_DELAY_MS;
 }
 
+function pocketWorldFailoverDue(datalasticRows) {
+  if (!POCKETWORLD_AIS_ENABLED || datalasticRows > 0) return false;
+  const lastPrimaryFrame = timestampMs(trackingAisState.lastFrameAt);
+  if (lastPrimaryFrame > 0 && Date.now() - lastPrimaryFrame < AISSTREAM_SILENCE_TIMEOUT_MS) return false;
+  const serviceStartedAt = timestampMs(SERVICE_STARTED_AT);
+  return serviceStartedAt === 0 || Date.now() - serviceStartedAt >= POCKETWORLD_ACTIVATION_DELAY_MS;
+}
+
 async function loadCombinedVessels() {
   try {
     if (datalasticFailoverDue()) await datalasticProvider.refresh();
     const trackingAis = cacheRows(trackingAisCache, trackingAisState);
     const datalasticAis = datalasticProvider.rows().map((row) => normalizeVessel(row)).filter(Boolean);
+    if (pocketWorldFailoverDue(datalasticAis.length)) await pocketWorldProvider.refresh();
+    const pocketWorldAis = pocketWorldProvider.rows().map((row) => normalizeVessel(row)).filter(Boolean);
     const priorityAis = OPERATIONAL_PRIORITY_ENABLED ? cacheRows(operationalAisCache, operationalAisState) : [];
     const merged = new Map();
+    for (const row of pocketWorldAis) merged.set(row.id, row);
     for (const row of datalasticAis) merged.set(row.id, row);
     for (const row of trackingAis) merged.set(row.id, row);
     const tracking = [...merged.values()].filter((row) => validCoordinates(row.latitude, row.longitude));
@@ -539,11 +567,13 @@ async function loadCombinedVessels() {
     const activeProviders = [
       ...(trackingAis.length > 0 ? ["aisstream"] : []),
       ...(datalasticAis.length > 0 ? ["datalastic"] : []),
+      ...(pocketWorldAis.length > 0 ? ["pocketworld"] : []),
     ];
     Object.assign(vesselInputState, {
       aisRows: tracking.length,
       aisstreamRows: trackingAis.length,
       datalasticRows: datalasticAis.length,
+      pocketworldRows: pocketWorldAis.length,
       activeProviders,
       priorityAisRows: priorityAis.length,
       trackingRows: tracking.length,
@@ -562,12 +592,14 @@ async function loadCombinedVessels() {
 }
 
 function sourceForTracking() {
-  const aisstreamRows = Number(vesselInputState.aisstreamRows ?? 0);
-  const datalasticRows = Number(vesselInputState.datalasticRows ?? 0);
-  if (aisstreamRows > 0 && datalasticRows > 0) return "ais-multi-provider";
-  if (aisstreamRows > 0) return "aisstream";
-  if (datalasticRows > 0) return "datalastic";
-  return AISSTREAM_API_KEY || DATALASTIC_API_KEY ? "aisstream-waiting" : "none";
+  const activeProviders = [
+    ...(Number(vesselInputState.aisstreamRows ?? 0) > 0 ? ["aisstream"] : []),
+    ...(Number(vesselInputState.datalasticRows ?? 0) > 0 ? ["datalastic"] : []),
+    ...(Number(vesselInputState.pocketworldRows ?? 0) > 0 ? ["pocketworld"] : []),
+  ];
+  if (activeProviders.length > 1) return "ais-multi-provider";
+  if (activeProviders.length === 1) return activeProviders[0];
+  return AISSTREAM_API_KEY || DATALASTIC_API_KEY || POCKETWORLD_AIS_ENABLED ? "aisstream-waiting" : "none";
 }
 
 function authorized(request, token) {
@@ -922,7 +954,7 @@ function scopedReport() {
     "- EcoFair-CH-MARL fuel, emissions, fairness, queue, reward, and constraint calculations use only the operational calculation feed.",
     "",
   ].join("\n");
-  return base.replace("## Fleet measures", `${scopeSection}## Fleet measures`).replace("- Vessel positions: aisstream.io live AIS (Red Sea / Gulf bounding boxes).", "- Vessel tracking: AISStream remains the primary worldwide live AIS source. When it produces no frames, the runtime can activate a separately authenticated Datalastic live AIS scan around monitored ports. Both sources contain genuine AIS observations; no manual or synthetic vessel rows are accepted.");
+  return base.replace("## Fleet measures", `${scopeSection}## Fleet measures`).replace("- Vessel positions: aisstream.io live AIS (Red Sea / Gulf bounding boxes).", "- Vessel tracking: AISStream remains the primary worldwide source. When it produces no frames, the runtime first uses a configured Datalastic port scan and then a public PocketWorld mirror of current BarentsWatch, Fintraffic, and Singapore MPA AIS observations. Every row retains its source timestamp and provenance; no manual or synthetic vessel rows are accepted.");
 }
 
 function staticFileForUrl(requestUrl) {
@@ -959,18 +991,22 @@ function publicAisState(state) {
 }
 
 function vesselProviderConfigured() {
-  return Boolean(AISSTREAM_API_KEY || DATALASTIC_API_KEY);
+  return Boolean(AISSTREAM_API_KEY || DATALASTIC_API_KEY || POCKETWORLD_AIS_ENABLED);
 }
 
 function providerState() {
   if (!vesselProviderConfigured()) return "unconfigured";
   if (vesselInputState.trackingRows > 0) return sourceForTracking() === "ais-multi-provider" ? "live-multi-provider" : "live";
   const datalasticState = datalasticProvider.publicState();
+  const pocketWorldState = pocketWorldProvider.publicState();
   if (["unauthorized", "credits-exhausted", "rate-limited", "provider-error", "request-error", "timeout"].includes(datalasticState.status)) {
-    return "datalastic-" + datalasticState.status;
+    if (!POCKETWORLD_AIS_ENABLED) return "datalastic-" + datalasticState.status;
   }
-  if (trackingAisState.connected) return DATALASTIC_API_KEY ? "aisstream-silent-failover-waiting" : "connected-waiting";
-  if (AISSTREAM_API_KEY || DATALASTIC_API_KEY) return "reconnecting";
+  if (["rate-limited", "provider-error", "request-error", "timeout"].includes(pocketWorldState.status)) {
+    return "pocketworld-" + pocketWorldState.status;
+  }
+  if (trackingAisState.connected) return "aisstream-silent-public-fallback-waiting";
+  if (AISSTREAM_API_KEY || DATALASTIC_API_KEY || POCKETWORLD_AIS_ENABLED) return "reconnecting";
   return "unavailable";
 }
 
@@ -997,7 +1033,7 @@ function healthPayload() {
     staticDashboard: existsSync(STATIC_INDEX),
     runtime: runtimeState,
     trackingScope: {
-      mode: sourceForTracking() === "datalastic" ? "monitored-port-failover" : (GLOBAL_TRACKING_ENABLED ? "global" : "regional"),
+      mode: sourceForTracking() === "datalastic" ? "monitored-port-failover" : sourceForTracking() === "pocketworld" ? "regional-public-fallback" : (GLOBAL_TRACKING_ENABLED ? "global" : "regional"),
       source: sourceForTracking(),
       bbox: TRACKING_BBOX_TEXT,
       activeProfile: trackingAisState.activeProfile,
@@ -1013,6 +1049,7 @@ function healthPayload() {
     aisstream: publicAisState(trackingAisState),
     operationalAisstream: publicAisState(operationalAisState),
     datalastic: datalasticProvider.publicState(),
+    pocketworld: pocketWorldProvider.publicState(),
     chmarl: { ...chmarlState, active: chmarlState.steps > 0 },
     ecofair: ecofair.summary(),
     portOps: { ...portOpsState, active: portOpsState.events > 0 || portOpsState.utilizationRows > 0 || portOpsState.queueRows > 0 },
@@ -1024,6 +1061,7 @@ function healthPayload() {
 function shutdown() {
   stopping = true;
   datalasticProvider.shutdown();
+  pocketWorldProvider.shutdown();
   for (const state of [trackingAisState, operationalAisState]) {
     if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
     try { state.socket?.close(); } catch {}
@@ -1152,6 +1190,7 @@ createServer(async (request, response) => {
       providers: {
         aisstream: publicAisState(trackingAisState),
         datalastic: datalasticProvider.publicState(),
+        pocketworld: pocketWorldProvider.publicState(),
       },
     });
   }
@@ -1206,4 +1245,5 @@ createServer(async (request, response) => {
   if (AISSTREAM_API_KEY) console.log("AISStream live mode enabled.");
   if (DATALASTIC_API_KEY) console.log(`Datalastic live AIS failover enabled for ${DATALASTIC_SCAN_POINTS.map((point) => point.id).join(", ") || "no scan points"}.`);
   else console.log("Datalastic live AIS failover is not configured.");
+  console.log(`PocketWorld public AIS fallback: ${POCKETWORLD_AIS_ENABLED ? "enabled" : "disabled"}; max rows: ${POCKETWORLD_MAX_VESSELS}.`);
 });
