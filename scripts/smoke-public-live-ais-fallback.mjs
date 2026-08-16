@@ -25,7 +25,7 @@ function availablePort() {
 
 async function fetchJsonUntil(url, predicate) {
   let last;
-  for (let attempt = 0; attempt < 160; attempt += 1) {
+  for (let attempt = 0; attempt < 180; attempt += 1) {
     try {
       const response = await fetch(url);
       const json = await response.json();
@@ -39,64 +39,88 @@ async function fetchJsonUntil(url, predicate) {
   throw new Error(`Timed out waiting for ${url}: ${last instanceof Error ? last.message : JSON.stringify(last?.json)}`);
 }
 
-const runtimeDir = mkdtempSync(join(tmpdir(), "chmarl-live-ais-failover-"));
+const runtimeDir = mkdtempSync(join(tmpdir(), "chmarl-public-live-ais-"));
 const weatherFile = join(runtimeDir, "weather.json");
 writeFileSync(weatherFile, JSON.stringify({ points: [] }));
 
 const backendPort = await availablePort();
 const websocketPort = await availablePort();
-const datalasticPort = await availablePort();
+const pocketWorldPort = await availablePort();
 const output = [];
 let websocketSubscriptions = 0;
-let datalasticRequests = 0;
+let pocketWorldRequests = 0;
 
 const websocketServer = new WebSocketServer({ host: "127.0.0.1", port: websocketPort });
 websocketServer.on("connection", (socket) => {
   socket.on("message", () => {
     websocketSubscriptions += 1;
-    // Intentionally remain silent: this simulates an accepted AISStream socket
-    // whose upstream pipeline delivers no AIS frames.
+    // The primary AISStream-shaped connection deliberately remains silent.
   });
 });
 
-const datalasticServer = createHttpServer((request, response) => {
-  const url = new URL(request.url ?? "/", `http://127.0.0.1:${datalasticPort}`);
-  if (url.pathname !== "/api/v0/vessel_inradius") {
+const pocketWorldServer = createHttpServer((request, response) => {
+  if (request.url !== "/api/ships") {
     response.writeHead(404, { "content-type": "application/json" });
     response.end(JSON.stringify({ error: "not found" }));
     return;
   }
-  datalasticRequests += 1;
-  assert(request.headers["x-api-key"] === "test-datalastic-key", "Datalastic key was not sent in the header");
-  assert(url.searchParams.get("radius") === "50", "Datalastic scan did not use the configured radius");
-  response.writeHead(200, { "content-type": "application/json" });
+  pocketWorldRequests += 1;
+  const observedAt = new Date().toISOString();
+  response.writeHead(200, {
+    "content-type": "application/json",
+    "x-pocketworld-stale": "1",
+  });
   response.end(JSON.stringify({
-    data: {
-      total: 1,
-      vessels: [
-        {
-          uuid: "datalastic-test-vessel",
-          name: "REAL AIS FAILOVER TEST",
-          mmsi: "123456789",
-          imo: "9876543",
-          type: "Cargo",
-          type_specific: "Container Ship",
-          lat: 21.4858,
-          lon: 39.1925,
-          speed: 11.4,
-          course: 182,
-          heading: 181,
-          nav_status: "Under way using engine",
-          destination: "JEDDAH",
-          eta_UTC: "2026-08-15T18:00:00Z",
-          last_position_UTC: new Date().toISOString(),
-        },
-      ],
+    count: 2,
+    total_tracked: 2,
+    connected: true,
+    sources: ["barentswatch", "fintraffic"],
+    working_sources: ["barentswatch", "fintraffic"],
+    source_health: {
+      barentswatch: { status: "working", count: 1 },
+      fintraffic: { status: "working", count: 1 },
+      aisstream: { status: "degraded", count: 0 },
     },
-    meta: { success: true },
+    coverage: {
+      scope: "regional",
+      worldwide_ready: false,
+      regions: ["Norwegian coastal coverage", "Finland and nearby Baltic waters"],
+    },
+    total_available: 2,
+    truncated: false,
+    ships: [
+      {
+        mmsi: 123456789,
+        name: "PUBLIC AIS JEDDAH TEST",
+        lat: 21.4858,
+        lng: 39.1925,
+        sog: 9.7,
+        cog: 181,
+        heading: 180,
+        nav_status: 0,
+        type_name: "Cargo",
+        source: "barentswatch",
+        source_url: "https://example.test/barentswatch",
+        observed_at: observedAt,
+      },
+      {
+        mmsi: 987654321,
+        name: "PUBLIC AIS BALTIC TEST",
+        lat: 60.1,
+        lng: 24.9,
+        sog: 6.2,
+        cog: 220,
+        heading: 219,
+        nav_status: 1,
+        type_name: "Tug",
+        source: "fintraffic",
+        source_url: "https://example.test/fintraffic",
+        observed_at: observedAt,
+      },
+    ],
   }));
 });
-await new Promise((resolve) => datalasticServer.listen(datalasticPort, "127.0.0.1", resolve));
+await new Promise((resolve) => pocketWorldServer.listen(pocketWorldPort, "127.0.0.1", resolve));
 
 const env = {
   ...process.env,
@@ -111,15 +135,14 @@ const env = {
   AISSTREAM_FIRST_FRAME_TIMEOUT_MS: "700",
   AISSTREAM_SILENCE_TIMEOUT_MS: "5000",
   AISSTREAM_CACHE_ENABLED: "false",
-  DATALASTIC_AIS_ENABLED: "true",
-  POCKETWORLD_AIS_ENABLED: "false",
-  DATALASTIC_API_KEY: "test-datalastic-key",
-  DATALASTIC_API_BASE_URL: `http://127.0.0.1:${datalasticPort}/api/v0`,
-  DATALASTIC_ACTIVATION_DELAY_MS: "500",
-  DATALASTIC_SCAN_INTERVAL_MS: "1000",
-  DATALASTIC_TIMEOUT_MS: "1000",
-  DATALASTIC_SCAN_RADIUS_NM: "50",
-  DATALASTIC_MAX_AGE_MS: "3600000",
+  DATALASTIC_AIS_ENABLED: "false",
+  POCKETWORLD_AIS_ENABLED: "true",
+  POCKETWORLD_API_URL: `http://127.0.0.1:${pocketWorldPort}/api/ships`,
+  POCKETWORLD_ACTIVATION_DELAY_MS: "500",
+  POCKETWORLD_POLL_INTERVAL_MS: "5000",
+  POCKETWORLD_TIMEOUT_MS: "1000",
+  POCKETWORLD_MAX_AGE_MS: "3600000",
+  POCKETWORLD_MAX_VESSELS: "100",
   CHMARL_RUNTIME_ENABLED: "false",
   WEATHER_FILE_ENABLED: "true",
   WEATHER_FILE: weatherFile,
@@ -135,23 +158,24 @@ child.stderr.on("data", (chunk) => output.push(chunk.toString()));
 try {
   const baseUrl = `http://127.0.0.1:${backendPort}`;
   const { json: vessels } = await fetchJsonUntil(`${baseUrl}/api/vessels`, (_response, json) => (
-    json?.source === "datalastic"
-    && json?.counts?.tracking === 1
-    && json?.vessels?.[0]?.id === "MMSI-123456789"
+    json?.source === "pocketworld"
+    && json?.counts?.tracking === 2
+    && json?.vessels?.some((row) => row.id === "MMSI-123456789")
   ));
 
   assert(websocketSubscriptions >= 1, "Primary AISStream subscription was not attempted");
-  assert(datalasticRequests >= 1, "Secondary live AIS provider was not queried");
-  assert(vessels.counts.operational === 1, "Live fallback vessel was not admitted to monitored-port scope");
+  assert(pocketWorldRequests >= 1, "Public live AIS fallback was not queried");
+  assert(vessels.counts.operational === 1, "Public live AIS row near Jeddah did not enter monitored-port scope");
   assert(vessels.inputs.aisstreamRows === 0, "Silent AISStream unexpectedly produced rows");
-  assert(vessels.inputs.datalasticRows === 1, "Datalastic row count was not exposed");
-  assert(vessels.providers?.datalastic?.status === "live", "Datalastic provider was not marked live");
-  assert(vessels.providers?.datalastic?.cachedVessels === 1, "Datalastic provider cache did not retain the real AIS row");
+  assert(vessels.inputs.pocketworldRows === 2, "Public live AIS row count was not exposed");
+  assert(vessels.providers?.pocketworld?.status === "live-regional-stale-global", "Public AIS provider state did not preserve truthful regional/global health");
+  assert(vessels.providers?.pocketworld?.cachedVessels === 2, "Public AIS cache did not retain the genuine observations");
+  assert(vessels.providers?.pocketworld?.observedSources?.includes("barentswatch"), "Upstream AIS provenance was not exposed");
   assert(vessels.providers?.aisstream?.messageCount === 0, "Silent AISStream unexpectedly received frames");
-  assert(vessels.vessels[0].inputSource === "datalastic-live-ais", "Fallback vessel provenance was not preserved");
+  assert(vessels.vessels.every((row) => row.inputSource?.startsWith("pocketworld-")), "Public AIS provenance was not preserved on vessel rows");
 
   const readiness = await fetch(`${baseUrl}/health/ready`);
-  assert(readiness.status === 200, `Live AIS fallback readiness returned ${readiness.status}`);
+  assert(readiness.status === 200, `Public live AIS readiness returned ${readiness.status}`);
 
   const ingest = await fetch(`${baseUrl}/api/vessels/ingest`, {
     method: "POST",
@@ -160,7 +184,7 @@ try {
   });
   assert(ingest.status === 404, `Manual vessel ingest endpoint exists: ${ingest.status}`);
 
-  console.log("Live AIS provider failover smoke test passed.");
+  console.log("Public live AIS fallback smoke test passed.");
 } catch (error) {
   throw new Error(`${error instanceof Error ? error.message : String(error)}\n\nRuntime output:\n${output.join("").slice(-12000)}`);
 } finally {
@@ -173,6 +197,6 @@ try {
     });
   });
   await new Promise((resolve) => websocketServer.close(resolve));
-  await new Promise((resolve) => datalasticServer.close(resolve));
+  await new Promise((resolve) => pocketWorldServer.close(resolve));
   rmSync(runtimeDir, { recursive: true, force: true });
 }

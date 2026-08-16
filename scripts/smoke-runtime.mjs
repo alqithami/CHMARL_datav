@@ -52,6 +52,7 @@ Object.assign(env, {
   PORT: String(port),
   STATIC_DIR: "dist",
   RUNTIME_DATA_DIR: runtimeDir,
+  POCKETWORLD_AIS_ENABLED: "false",
   FIXED_VESSEL_DATA_FILE_ENABLED: "false",
   CHMARL_RUNTIME_ENABLED: "false",
   WEATHER_FILE_ENABLED: "true",

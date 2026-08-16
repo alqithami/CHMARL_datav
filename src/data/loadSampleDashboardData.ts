@@ -12,7 +12,7 @@ import type { ChmarlExperimentStep, PortEvent } from "@/types/chmarl";
 
 export type ChartDatum = { name: string; value: number };
 
-export type DashboardDataSource = "aisstream" | "datalastic" | "ais-multi-provider" | "aisstream-waiting" | "upstream" | "remote" | "local-json" | "fallback" | "none";
+export type DashboardDataSource = "aisstream" | "datalastic" | "pocketworld" | "ais-multi-provider" | "aisstream-waiting" | "upstream" | "remote" | "local-json" | "fallback" | "none";
 export type ChmarlDataSource = "runtime" | "local-json" | "none";
 export type PortOpsDataSource = "runtime" | "demo" | "local-json" | "none";
 export type WeatherDataSource = "open-meteo" | "runtime" | "none";
@@ -127,6 +127,7 @@ function toRewardTrend(points: (string | number)[][]): RewardTrendPoint[] {
 function isExternalSource(source: DashboardDataSource) {
   return source === "aisstream"
     || source === "datalastic"
+    || source === "pocketworld"
     || source === "ais-multi-provider"
     || source === "aisstream-waiting";
 }
@@ -233,9 +234,11 @@ function externalTimeline(source: DashboardDataSource, chmarlSource: ChmarlDataS
   if (!isExternalSource(source)) return [];
   const providerLabel = source === "datalastic"
     ? "Datalastic live AIS failover"
-    : source === "ais-multi-provider"
-      ? "AISStream + Datalastic live AIS"
-      : "AISStream live AIS";
+    : source === "pocketworld"
+      ? "PocketWorld public regional live AIS"
+      : source === "ais-multi-provider"
+        ? "multi-provider live AIS"
+        : "AISStream live AIS";
   const continuity = vesselScope.heldRows > 0
     ? `${vesselScope.heldRows} vessels are retained through temporary API gaps.`
     : "All displayed vessels are present in the latest API snapshot.";
