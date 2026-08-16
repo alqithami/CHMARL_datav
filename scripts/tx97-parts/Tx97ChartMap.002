@@ -1,0 +1,240 @@
+
+function statusFromGateway(payload: GatewayStatus): Tx97ChartStatus {
+  if (payload.configured && !payload.publicDisplayAuthorized) {
+    return {
+      state: "restricted",
+      label: "TX-97 display authorization required",
+      detail: payload.reason || "Licensed chart content is blocked from public display.",
+    };
+  }
+  return {
+    state: "unconfigured",
+    label: "TX-97 chart service not configured",
+    detail: payload.reason || "Configure the authorized TX-97 chart gateway.",
+  };
+}
+
+function popupContent(properties: JsonProperties) {
+  const content = document.createElement("div");
+  content.className = "tx97-popup-content";
+  const title = document.createElement("strong");
+  title.textContent = String(properties.name ?? "AIS vessel");
+  content.append(title);
+  for (const value of [
+    properties.route,
+    `${properties.speed ?? "Speed unavailable"} · ${properties.status ?? "Nominal"}`,
+    properties.timestamp ? `Updated ${properties.timestamp}` : null,
+  ]) {
+    if (!value) continue;
+    const line = document.createElement("span");
+    line.textContent = String(value);
+    content.append(line);
+  }
+  return content;
+}
+
+const Tx97ChartMap = forwardRef<Tx97ChartMapHandle, Props>(function Tx97ChartMap(
+  {
+    vessels,
+    portEvents,
+    showPorts,
+    showEvents,
+    showTrails,
+    selectedVesselId,
+    expanded = false,
+    onSelectVessel,
+    onStatusChange,
+    onViewportChange,
+  },
+  forwardedRef,
+) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const vesselsRef = useRef(vessels);
+  const onSelectRef = useRef(onSelectVessel);
+  const onViewportRef = useRef(onViewportChange);
+  const autoFitCompleted = useRef(false);
+  const selectedRef = useRef("");
+  const showPortsRef = useRef(showPorts);
+  const showEventsRef = useRef(showEvents);
+  const showTrailsRef = useRef(showTrails);
+  const [mapReady, setMapReady] = useState(false);
+  const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus | null>(null);
+  const [chartStatus, setChartStatus] = useState<Tx97ChartStatus>({
+    state: "checking",
+    label: "Checking TX-97 chart service",
+    detail: "Validating licensed chart access and display authorization.",
+  });
+
+  const vesselData = useMemo(() => vesselCollection(vessels), [vessels]);
+  const trailData = useMemo(() => trailCollection(vessels), [vessels]);
+  const eventData = useMemo(() => eventCollection(portEvents), [portEvents]);
+
+  useEffect(() => { vesselsRef.current = vessels; }, [vessels]);
+  useEffect(() => { onSelectRef.current = onSelectVessel; }, [onSelectVessel]);
+  useEffect(() => { onViewportRef.current = onViewportChange; }, [onViewportChange]);
+  useEffect(() => { showPortsRef.current = showPorts; }, [showPorts]);
+  useEffect(() => { showEventsRef.current = showEvents; }, [showEvents]);
+  useEffect(() => { showTrailsRef.current = showTrails; }, [showTrails]);
+  useEffect(() => { onStatusChange?.(chartStatus); }, [chartStatus, onStatusChange]);
+
+  useEffect(() => {
+    let active = true;
+    fetch(STATUS_URL, { cache: "no-store", headers: { accept: "application/json" } })
+      .then(async (response) => {
+        const payload = await response.json() as GatewayStatus;
+        if (!response.ok) throw new Error(payload.reason || `TX-97 status returned HTTP ${response.status}`);
+        if (!active) return;
+        setGatewayStatus(payload);
+        setChartStatus(payload.ready
+          ? {
+              state: "checking",
+              label: payload.chartCollection || "Licensed TX-97 vector charts",
+              detail: "Loading authorized vector chart layers.",
+            }
+          : statusFromGateway(payload));
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setGatewayStatus(null);
+        setChartStatus({
+          state: "error",
+          label: "TX-97 chart service unavailable",
+          detail: error instanceof Error ? error.message : String(error),
+        });
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!gatewayStatus?.ready || !containerRef.current || mapRef.current) return undefined;
+
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: STYLE_URL,
+      center: [PORTS_CENTER.lon, PORTS_CENTER.lat],
+      zoom: 5,
+      minZoom: 1,
+      maxZoom: 18,
+      pitch: 0,
+      bearing: 0,
+      attributionControl: false,
+      renderWorldCopies: false,
+    });
+    mapRef.current = map;
+    const popup = new maplibregl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+      offset: 14,
+      className: "tx97-vessel-popup",
+    });
+    let baseStyleLoaded = false;
+
+    const updateViewport = () => {
+      const bounds = map.getBounds();
+      const inView = vesselsRef.current.filter((vessel) => (
+        hasCoordinates(vessel) && bounds.contains([vessel.longitude, vessel.latitude])
+      )).length;
+      onViewportRef.current?.({ inView, zoom: map.getZoom() });
+    };
+
+    map.on("load", () => {
+      map.addSource(SOURCE_VESSELS, {
+        type: "geojson",
+        data: geoJsonData(emptyCollection()),
+        cluster: true,
+        clusterRadius: 46,
+        clusterMaxZoom: 8,
+      });
+      map.addLayer({
+        id: LAYER_CLUSTERS,
+        type: "circle",
+        source: SOURCE_VESSELS,
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": ["step", ["get", "point_count"], "#65e4cb", 20, "#8ddcff", 75, "#ffd780"],
+          "circle-radius": ["step", ["get", "point_count"], 16, 20, 21, 75, 27],
+          "circle-opacity": 0.9,
+          "circle-stroke-color": "rgba(255,255,255,0.82)",
+          "circle-stroke-width": 1.5,
+        },
+      } as maplibregl.LayerSpecification);
+      map.addLayer({
+        id: LAYER_CLUSTER_COUNT,
+        type: "symbol",
+        source: SOURCE_VESSELS,
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": ["get", "point_count_abbreviated"],
+          "text-size": 11,
+          "text-allow-overlap": true,
+        },
+        paint: { "text-color": "#04111f" },
+      } as maplibregl.LayerSpecification);
+      map.addLayer({
+        id: LAYER_SELECTED,
+        type: "circle",
+        source: SOURCE_VESSELS,
+        filter: ["==", ["get", "id"], "__none__"],
+        paint: {
+          "circle-radius": 12,
+          "circle-color": "rgba(255,255,255,0)",
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 2.5,
+        },
+      } as maplibregl.LayerSpecification);
+      map.addLayer({
+        id: LAYER_VESSELS,
+        type: "circle",
+        source: SOURCE_VESSELS,
+        filter: ["!", ["has", "point_count"]],
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 2, 3, 8, 6, 14, 9],
+          "circle-color": [
+            "match",
+            ["get", "status"],
+            "Constrained", "#ff7474",
+            "Watch", "#ffd780",
+            "#65e4cb",
+          ],
+          "circle-stroke-color": "rgba(255,255,255,0.90)",
+          "circle-stroke-width": 1.4,
+          "circle-opacity": 0.94,
+        },
+      } as maplibregl.LayerSpecification);
+
+      map.addSource(SOURCE_TRAILS, { type: "geojson", data: geoJsonData(emptyCollection()) });
+      map.addLayer({
+        id: LAYER_TRAILS,
+        type: "line",
+        source: SOURCE_TRAILS,
+        layout: {
+          "line-cap": "round",
+          "line-join": "round",
+          visibility: showTrailsRef.current ? "visible" : "none",
+        },
+        paint: {
+          "line-color": [
+            "match",
+            ["get", "status"],
+            "Constrained", "#ff7474",
+            "Watch", "#ffd780",
+            "#65e4cb",
+          ],
+          "line-width": 2,
+          "line-opacity": 0.76,
+          "line-dasharray": [1.4, 1.1],
+        },
+      } as maplibregl.LayerSpecification);
+
+      map.addSource(SOURCE_PORTS, { type: "geojson", data: geoJsonData(portCollection()) });
+      map.addLayer({
+        id: LAYER_PORTS,
+        type: "circle",
+        source: SOURCE_PORTS,
+        layout: { visibility: showPortsRef.current ? "visible" : "none" },
+        paint: {
+          "circle-radius": 5,
+          "circle-color": "#ffffff",
+          "circle-stroke-color": "#65e4cb",
+          "circle-stroke-width": 2,
