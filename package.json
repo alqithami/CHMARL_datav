@@ -88,7 +88,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "verify:runtime": "node --check server/vessel-feed-proxy/runtime-v3.mjs && node --check server/vessel-feed-proxy/datalastic-live-ais.mjs && node --check server/vessel-feed-proxy/pocketworld-live-ais.mjs && node scripts/check-runtime-contract.mjs && node scripts/smoke-runtime.mjs && node scripts/smoke-ais-live.mjs && node scripts/smoke-live-ais-failover.mjs && node scripts/smoke-public-live-ais-fallback.mjs",
-    "check": "pnpm verify:ci && pnpm lint && pnpm build && pnpm verify:runtime"
+    "check": "pnpm verify:ci && pnpm lint && pnpm build && pnpm verify:runtime && pnpm verify:ui",
+    "verify:ui": "node scripts/check-live-ui-contract.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.6",

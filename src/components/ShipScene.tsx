@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { vessels as fallbackVessels, type Vessel } from "@/data/chmarlData";
 import type { PortEvent } from "@/types/chmarl";
 
@@ -277,8 +277,20 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
   const [showPorts, setShowPorts] = useState(true);
   const [showEvents, setShowEvents] = useState(true);
   const [showTrails, setShowTrails] = useState(false);
+  const hasAutoFittedVessels = useRef(false);
   const sceneVessels = vessels ?? fallbackVessels;
   const query = searchQuery.trim().toLowerCase();
+
+  useEffect(() => {
+    if (hasAutoFittedVessels.current || !vessels || vessels.length === 0) return;
+    const center = centerOfVessels(vessels);
+    if (!center) return;
+    setManualCenter(center);
+    setMapZoom(zoomForVessels(vessels));
+    setSelectedShipId("");
+    setHoveredShipId("");
+    hasAutoFittedVessels.current = true;
+  }, [vessels]);
   const visibleVessels = useMemo(() => {
     const statusFiltered = filter === "All" ? sceneVessels : sceneVessels.filter((vessel) => vessel.status === filter);
     return sortVessels(

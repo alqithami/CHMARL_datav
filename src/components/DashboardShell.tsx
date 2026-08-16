@@ -53,11 +53,20 @@ function countStatus(vessels: Vessel[], status: Vessel["status"]) {
 }
 
 function isExternalSource(source: DashboardDataSource) {
-  return source === "aisstream" || source === "aisstream-waiting" || source === "upstream" || source === "remote";
+  return source === "aisstream"
+    || source === "datalastic"
+    || source === "pocketworld"
+    || source === "ais-multi-provider"
+    || source === "aisstream-waiting"
+    || source === "upstream"
+    || source === "remote";
 }
 
 function sourceLabel(source: DashboardDataSource) {
-  if (source === "aisstream") return "Live AIS";
+  if (source === "aisstream") return "AISStream live AIS";
+  if (source === "datalastic") return "Datalastic live AIS";
+  if (source === "pocketworld") return "Public regional live AIS";
+  if (source === "ais-multi-provider") return "Multi-provider live AIS";
   if (source === "aisstream-waiting") return "AIS waiting";
   if (source === "upstream") return "Upstream API";
   if (source === "remote") return "Remote proxy";
@@ -92,7 +101,11 @@ function statusLabel(status: LoadStatus) {
 }
 
 function sourceRefreshMs(source: DashboardDataSource) {
-  if (source === "aisstream" || source === "aisstream-waiting") return 5_000;
+  if (source === "aisstream"
+    || source === "datalastic"
+    || source === "pocketworld"
+    || source === "ais-multi-provider"
+    || source === "aisstream-waiting") return 5_000;
   if (source === "upstream" || source === "remote") return 15_000;
   return 30_000;
 }
