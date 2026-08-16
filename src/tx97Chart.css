@@ -1,0 +1,250 @@
+.tx97-map {
+  overflow: hidden;
+  background: #04111f;
+}
+
+.tx97-chart-host,
+.tx97-chart-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.tx97-chart-host {
+  z-index: 0;
+  overflow: hidden;
+}
+
+.tx97-chart-canvas {
+  background: #061725;
+}
+
+.tx97-chart-host .maplibregl-map,
+.tx97-chart-host .maplibregl-canvas-container,
+.tx97-chart-host .maplibregl-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.tx97-chart-host .maplibregl-canvas {
+  outline: none;
+}
+
+.tx97-chart-host .maplibregl-control-container {
+  position: relative;
+  z-index: 4;
+}
+
+.tx97-chart-host .maplibregl-ctrl-scale {
+  margin-right: 14px;
+  margin-bottom: 42px;
+  padding: 3px 7px;
+  color: rgba(235, 252, 255, 0.82);
+  background: rgba(3, 13, 24, 0.78);
+  border-color: rgba(141, 220, 255, 0.48);
+  font-size: 10px;
+}
+
+.tx97-chart-state {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 9px;
+  padding: 28px;
+  text-align: center;
+  color: rgba(230, 247, 255, 0.76);
+  background:
+    radial-gradient(circle at 50% 42%, rgba(141, 220, 255, 0.14), transparent 40%),
+    linear-gradient(180deg, rgba(4, 17, 31, 0.94), rgba(2, 11, 21, 0.98));
+}
+
+.tx97-chart-state::before {
+  content: "";
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  border: 2px solid rgba(141, 220, 255, 0.22);
+  border-top-color: #65e4cb;
+  box-shadow: 0 0 28px rgba(101, 228, 203, 0.22);
+}
+
+.tx97-state-checking .tx97-chart-state::before,
+.tx97-state-loading .tx97-chart-state::before {
+  animation: tx97-chart-spin 1.1s linear infinite;
+}
+
+.tx97-state-restricted .tx97-chart-state::before,
+.tx97-state-unconfigured .tx97-chart-state::before,
+.tx97-state-error .tx97-chart-state::before {
+  animation: none;
+  border-color: rgba(255, 215, 128, 0.46);
+  background: radial-gradient(circle, rgba(255, 215, 128, 0.20), transparent 62%);
+}
+
+.tx97-state-error .tx97-chart-state::before {
+  border-color: rgba(255, 116, 116, 0.58);
+  background: radial-gradient(circle, rgba(255, 116, 116, 0.20), transparent 62%);
+}
+
+@keyframes tx97-chart-spin {
+  to { transform: rotate(360deg); }
+}
+
+.tx97-chart-state-kicker {
+  color: #8ddcff;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.tx97-chart-state strong {
+  max-width: 560px;
+  color: #ffffff;
+  font-size: clamp(17px, 2.2vw, 24px);
+  line-height: 1.2;
+}
+
+.tx97-chart-state p {
+  max-width: 620px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.tx97-chart-state small {
+  color: rgba(230, 247, 255, 0.48);
+  font-size: 10px;
+}
+
+.tx97-chart-badge,
+.tx97-chart-warning {
+  position: absolute;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: rgba(230, 247, 255, 0.78);
+  background: rgba(3, 13, 24, 0.82);
+  border: 1px solid rgba(141, 220, 255, 0.20);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.tx97-chart-badge {
+  right: 12px;
+  bottom: 42px;
+  font-weight: 850;
+}
+
+.tx97-chart-badge span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #65e4cb;
+  box-shadow: 0 0 10px rgba(101, 228, 203, 0.84);
+}
+
+.tx97-chart-badge.checking span,
+.tx97-chart-badge.loading span {
+  background: #8ddcff;
+}
+
+.tx97-chart-badge.restricted span,
+.tx97-chart-badge.unconfigured span {
+  background: #ffd780;
+  box-shadow: 0 0 10px rgba(255, 215, 128, 0.74);
+}
+
+.tx97-chart-badge.error span {
+  background: #ff7474;
+  box-shadow: 0 0 10px rgba(255, 116, 116, 0.74);
+}
+
+.tx97-chart-warning {
+  right: 12px;
+  bottom: 12px;
+  color: rgba(255, 215, 128, 0.76);
+  border-color: rgba(255, 215, 128, 0.20);
+}
+
+.tx97-vessel-popup .maplibregl-popup-content,
+.tx97-chart-host .maplibregl-popup-content {
+  min-width: 190px;
+  padding: 10px 12px;
+  border-radius: 13px;
+  color: rgba(230, 247, 255, 0.76);
+  background: rgba(3, 13, 24, 0.94);
+  border: 1px solid rgba(141, 220, 255, 0.26);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.38);
+}
+
+.tx97-chart-host .maplibregl-popup-tip {
+  border-top-color: rgba(3, 13, 24, 0.94);
+  border-bottom-color: rgba(3, 13, 24, 0.94);
+}
+
+.tx97-popup-content {
+  display: grid;
+  gap: 3px;
+}
+
+.tx97-popup-content strong {
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.tx97-popup-content span {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.tx97-popup-content small {
+  margin-top: 3px;
+  color: #65e4cb;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.tile-map-controls button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.tile-map-controls button:disabled:hover {
+  color: #dffcff;
+  background: rgba(141, 220, 255, 0.10);
+}
+
+[data-theme="light"] .tx97-chart-state {
+  color: #244052;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(0, 104, 132, 0.12), transparent 42%),
+    linear-gradient(180deg, rgba(239, 249, 252, 0.97), rgba(224, 241, 246, 0.98));
+}
+
+[data-theme="light"] .tx97-chart-state strong {
+  color: #092535;
+}
+
+[data-theme="light"] .tx97-chart-state small {
+  color: rgba(9, 37, 53, 0.54);
+}
+
+@media (max-width: 900px) {
+  .tx97-chart-badge {
+    right: 10px;
+    bottom: 46px;
+  }
+
+  .tx97-chart-warning {
+    right: 10px;
+    bottom: 14px;
+  }
+}

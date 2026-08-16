@@ -40,6 +40,26 @@ services:
         value: false
       - key: VITE_REQUIRE_OPERATIONAL_REGION
         value: false
+      - key: TX97_CHARTS_ENABLED
+        value: true
+      - key: TX97_STYLE_URL
+        sync: false
+      - key: TX97_PUBLIC_DISPLAY_AUTHORIZED
+        value: false
+      - key: TX97_ALLOWED_ORIGINS
+        sync: false
+      - key: TX97_BEARER_TOKEN
+        sync: false
+      - key: TX97_API_KEY
+        sync: false
+      - key: TX97_API_KEY_HEADER
+        value: x-api-key
+      - key: TX97_CHART_COLLECTION
+        value: Licensed TX-97 chart collection
+      - key: TX97_REQUEST_TIMEOUT_MS
+        value: 20000
+      - key: TX97_CACHE_SECONDS
+        value: 300
       - key: AISSTREAM_API_KEY
         sync: false
       - key: AISSTREAM_URL

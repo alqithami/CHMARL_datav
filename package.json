@@ -87,14 +87,15 @@
     "start:prod": "node scripts/start-prod.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
-    "verify:runtime": "node --check server/vessel-feed-proxy/runtime-v3.mjs && node --check server/vessel-feed-proxy/datalastic-live-ais.mjs && node --check server/vessel-feed-proxy/pocketworld-live-ais.mjs && node scripts/check-runtime-contract.mjs && node scripts/smoke-runtime.mjs && node scripts/smoke-ais-live.mjs && node scripts/smoke-live-ais-failover.mjs && node scripts/smoke-public-live-ais-fallback.mjs",
+    "verify:runtime": "node --check server/vessel-feed-proxy/runtime-v3.mjs && node --check server/vessel-feed-proxy/tx97-chart-gateway.mjs && node --check server/vessel-feed-proxy/datalastic-live-ais.mjs && node --check server/vessel-feed-proxy/pocketworld-live-ais.mjs && node scripts/check-runtime-contract.mjs && node scripts/smoke-runtime.mjs && node scripts/smoke-ais-live.mjs && node scripts/smoke-live-ais-failover.mjs && node scripts/smoke-public-live-ais-fallback.mjs && node scripts/smoke-tx97-chart-gateway.mjs",
     "check": "pnpm verify:ci && pnpm lint && pnpm build && pnpm verify:runtime && pnpm verify:ui",
-    "verify:ui": "node scripts/check-live-ui-contract.mjs"
+    "verify:ui": "node scripts/check-live-ui-contract.mjs && node scripts/check-tx97-chart-contract.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.6",
     "@react-three/fiber": "^9.4.2",
     "echarts": "^6.0.0",
+    "maplibre-gl": "^6.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "three": "^0.183.2",

@@ -1,7 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import "maplibre-gl/dist/maplibre-gl.css";
 import "./index.css";
+import "./tx97Chart.css";
 import "./tileMap.css";
 import "./statusPanel.css";
 import "./operationalWatchlist.css";

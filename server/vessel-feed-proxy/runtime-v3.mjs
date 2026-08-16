@@ -5,12 +5,14 @@ import WebSocket from "ws";
 import { createEcoFairRuntime } from "./ecofair.mjs";
 import { createDatalasticLiveAisProvider } from "./datalastic-live-ais.mjs";
 import { createPocketWorldLiveAisProvider } from "./pocketworld-live-ais.mjs";
+import { createTx97ChartGateway } from "./tx97-chart-gateway.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "dist");
 const STATIC_INDEX = resolve(STATIC_DIR, "index.html");
 const SERVICE_VERSION = process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? "development";
 const SERVICE_STARTED_AT = new Date().toISOString();
+const tx97ChartGateway = createTx97ChartGateway();
 
 const WORLD_AIS_BBOX = "-90,-180;90,180";
 const REGIONAL_AIS_BBOX = "11,32;31,56";
@@ -1031,6 +1033,7 @@ function healthPayload() {
     providerState: providerState(),
     readiness: readinessPayload(),
     staticDashboard: existsSync(STATIC_INDEX),
+    charts: { tx97: tx97ChartGateway.status() },
     runtime: runtimeState,
     trackingScope: {
       mode: sourceForTracking() === "datalastic" ? "monitored-port-failover" : sourceForTracking() === "pocketworld" ? "regional-public-fallback" : (GLOBAL_TRACKING_ENABLED ? "global" : "regional"),
@@ -1175,6 +1178,11 @@ createServer(async (request, response) => {
     return sendJson(response, 200, { version: SERVICE_VERSION, startedAt: SERVICE_STARTED_AT });
   }
 
+  if (path.startsWith("/api/charts/tx97")) {
+    const handled = await tx97ChartGateway.handle(request, response, url);
+    if (handled) return;
+  }
+
   if (path === "/api/vessels" || path === "/api/vessels/operations") {
     const { tracking, operational } = await loadCombinedVessels();
     const scope = path === "/api/vessels/operations" || url.searchParams.get("scope") === "operational" ? "operational" : "tracking";
@@ -1235,7 +1243,7 @@ createServer(async (request, response) => {
   const staticMatch = staticFileForUrl(request.url);
   if (staticMatch?.path) return sendFile(response, staticMatch.path);
   if (staticMatch?.statusCode === 403) return sendJson(response, 403, { error: "Forbidden" });
-  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/health", "/health/live", "/health/ready", "/version", "/api/vessels", "/api/vessels/operations", "/api/vessels?scope=operational", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report"] });
+  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/health", "/health/live", "/health/ready", "/version", "/api/vessels", "/api/vessels/operations", "/api/vessels?scope=operational", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report", "/api/charts/tx97/status", "/api/charts/tx97/style.json"] });
 }).listen(PORT, "0.0.0.0", () => {
   console.log(`CH-MARL backend listening at http://0.0.0.0:${PORT}`);
   console.log(`Global AIS boxes: ${TRACKING_BOXES.length}; cache limit: ${AISSTREAM_MAX_VESSELS}`);
@@ -1246,4 +1254,6 @@ createServer(async (request, response) => {
   if (DATALASTIC_API_KEY) console.log(`Datalastic live AIS failover enabled for ${DATALASTIC_SCAN_POINTS.map((point) => point.id).join(", ") || "no scan points"}.`);
   else console.log("Datalastic live AIS failover is not configured.");
   console.log(`PocketWorld public AIS fallback: ${POCKETWORLD_AIS_ENABLED ? "enabled" : "disabled"}; max rows: ${POCKETWORLD_MAX_VESSELS}.`);
+  const tx97Status = tx97ChartGateway.status();
+  console.log(`TX-97 vector charts: ${tx97Status.ready ? "ready" : tx97Status.reason ?? "not ready"}.`);
 });

@@ -59,10 +59,7 @@ const upstream = createServer((request, response) => {
   }
   if (url.pathname === "/notices.geojson") {
     response.writeHead(200, { "content-type": "application/geo+json" });
-    response.end(JSON.stringify({
-      type: "FeatureCollection",
-      features: [],
-    }));
+    response.end(JSON.stringify({ type: "FeatureCollection", features: [] }));
     return;
   }
   if (url.pathname === "/tiles/4/9/7.pbf") {
@@ -156,7 +153,7 @@ try {
   });
   assert(blocked.status().ready === false, "unapproved public chart display was not blocked");
   assert(
-    blocked.status().reason.includes("TX-97_PUBLIC_DISPLAY_AUTHORIZED"),
+    blocked.status().reason.includes("TX97_PUBLIC_DISPLAY_AUTHORIZED"),
     "blocked TX-97 status did not explain the authorization requirement",
   );
 

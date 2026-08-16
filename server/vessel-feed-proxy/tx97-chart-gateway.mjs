@@ -138,9 +138,9 @@ function replaceGlyphTemplate(template, fontstack, range) {
 function statusReason({ enabled, styleUrl, publicDisplayAuthorized, configurationError }) {
   if (!enabled) return "TX-97 chart integration is disabled.";
   if (configurationError) return configurationError;
-  if (!styleUrl) return "TX-97_STYLE_URL is not configured.";
+  if (!styleUrl) return "TX97_STYLE_URL is not configured.";
   if (!publicDisplayAuthorized) {
-    return "TX-97_PUBLIC_DISPLAY_AUTHORIZED is false; licensed chart content is blocked from this public portal.";
+    return "TX97_PUBLIC_DISPLAY_AUTHORIZED is false; licensed chart content is blocked from this public portal.";
   }
   return null;
 }

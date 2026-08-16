@@ -16,6 +16,7 @@ function assertNotIncludes(content, text, label) {
 const runtime = read("server/vessel-feed-proxy/runtime-v3.mjs");
 const datalasticProvider = read("server/vessel-feed-proxy/datalastic-live-ais.mjs");
 const pocketWorldProvider = read("server/vessel-feed-proxy/pocketworld-live-ais.mjs");
+const tx97Gateway = read("server/vessel-feed-proxy/tx97-chart-gateway.mjs");
 const startProd = read("scripts/start-prod.mjs");
 const render = read("render.yaml");
 const dockerfile = read("Dockerfile");
@@ -25,6 +26,10 @@ const envExample = read(".env.example");
 assertIncludes(runtime, 'path === "/health/live"', "liveness endpoint is absent");
 assertIncludes(runtime, 'path === "/health/ready"', "readiness endpoint is absent");
 assertIncludes(runtime, 'path === "/version"', "version endpoint is absent");
+assertIncludes(runtime, "createTx97ChartGateway", "TX-97 vector chart gateway is not integrated");
+assertIncludes(runtime, 'path.startsWith("/api/charts/tx97")', "TX-97 chart routes are absent");
+assertIncludes(tx97Gateway, "TX97_PUBLIC_DISPLAY_AUTHORIZED", "TX-97 license gate is absent");
+assertIncludes(tx97Gateway, "TX97_ALLOWED_ORIGINS", "TX-97 chart origin allowlist is absent");
 assertIncludes(runtime, "const TRACKING_BBOX_TEXT = WORLD_AIS_BBOX", "global AIS subscription is not enforced");
 assertIncludes(runtime, "const AISSTREAM_FILTER_TYPES = []", "AIS provider frames remain filtered");
 assertIncludes(runtime, 'String(process.env.AISSTREAM_API_KEY ?? "").trim()', "AIS API key is not normalized");
@@ -71,6 +76,9 @@ assertIncludes(render, "DATALASTIC_SCAN_POINT_IDS", "Render does not configure l
 assertIncludes(render, "POCKETWORLD_AIS_ENABLED\n        value: true", "Render does not enable public live AIS fallback");
 assertIncludes(render, "POCKETWORLD_API_URL", "Render does not configure the public AIS endpoint");
 assertIncludes(render, "POCKETWORLD_MAX_VESSELS\n        value: 2500", "Render public AIS row bound is missing");
+assertIncludes(render, "TX97_STYLE_URL\n        sync: false", "Render does not declare the TX-97 style endpoint");
+assertIncludes(render, "TX97_PUBLIC_DISPLAY_AUTHORIZED\n        value: false", "Render does not default TX-97 public display to blocked");
+assertIncludes(envExample, "TX97_ALLOWED_ORIGINS", "environment template omits TX-97 origin restrictions");
 assertNotIncludes(render, "FIXED_VESSEL", "Render still configures manual/fixed vessels");
 assertNotIncludes(render, "UPSTREAM_VESSEL", "Render still configures a non-AIS vessel provider");
 assertNotIncludes(envExample, "FIXED_VESSEL", "environment template still advertises manual vessels");
@@ -80,6 +88,7 @@ assertIncludes(dockerfile, "pnpm install --frozen-lockfile", "Docker build is no
 assertIncludes(packageJson, "scripts/smoke-ais-live.mjs", "live AIS integration smoke test is not part of verification");
 assertIncludes(packageJson, "scripts/smoke-live-ais-failover.mjs", "live AIS failover smoke test is not part of verification");
 assertIncludes(packageJson, "scripts/smoke-public-live-ais-fallback.mjs", "public live AIS fallback smoke test is not part of verification");
+assertIncludes(packageJson, "scripts/smoke-tx97-chart-gateway.mjs", "TX-97 chart gateway smoke test is not part of verification");
 assertNotIncludes(packageJson, "ingest:fixed-vessels", "manual vessel command remains available");
 
 for (const path of [
