@@ -26,9 +26,12 @@ type MarkerCluster = ProjectedPoint & {
   marker?: ShipMarker;
 };
 
+const PRIMARY_PORTS_CENTER: GeoPoint = { lat: 21.94, lon: 39.14 };
 const PORTS_CENTER: GeoPoint = { lat: 23.2, lon: 43.5 };
 const WORLD_CENTER: GeoPoint = { lat: 18, lon: 5 };
 const DEFAULT_ZOOM = 5;
+const PRIMARY_PORTS_ZOOM = 7;
+const PRIMARY_PORT_FOCUS_RADIUS_NM = 120;
 const MIN_ZOOM = 3;
 const MAX_ZOOM = 9;
 const VIEWPORT_TILES_X = 8;
@@ -43,6 +46,7 @@ const portGeo: Record<string, GeoPoint> = {
   Yanbu: { lat: 24.0866, lon: 38.0637 },
   Suez: { lat: 29.9668, lon: 32.5498 },
   Dammam: { lat: 26.4318, lon: 50.1015 },
+  "Jubail Commercial Port": { lat: 27.0333, lon: 49.6667 },
   "Jebel Ali": { lat: 25.0114, lon: 55.0611 },
   Jizan: { lat: 16.8917, lon: 42.5511 },
 };
@@ -59,6 +63,17 @@ function normalizeLongitude(longitude: number) {
 
 function wrappedLongitudeDelta(longitude: number, centerLongitude: number) {
   return normalizeLongitude(longitude - centerLongitude);
+}
+
+function distanceNm(a: GeoPoint, b: GeoPoint) {
+  const radiusNm = 3440.065;
+  const radians = (value: number) => (value * Math.PI) / 180;
+  const dLat = radians(b.lat - a.lat);
+  const dLon = radians(b.lon - a.lon);
+  const lat1 = radians(a.lat);
+  const lat2 = radians(b.lat);
+  const haversine = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * radiusNm * Math.asin(Math.min(1, Math.sqrt(haversine)));
 }
 
 function lonToTileX(lon: number, zoom: number) {
@@ -158,6 +173,13 @@ function centerOfVessels(vessels: Vessel[]): GeoPoint | undefined {
   if (points.length === 0) return undefined;
   const latitude = points.reduce((sum, vessel) => sum + vessel.latitude, 0) / points.length;
   return { lat: latitude, lon: circularMeanLongitude(points) };
+}
+
+function primaryFocusVessels(vessels: Vessel[]) {
+  const primaryPorts = [portGeo.Jeddah, portGeo["King Abdullah Port"]];
+  return vessels.filter(hasCoordinates).filter((vessel) => (
+    primaryPorts.some((port) => distanceNm({ lat: vessel.latitude, lon: vessel.longitude }, port) <= PRIMARY_PORT_FOCUS_RADIUS_NM)
+  ));
 }
 
 function zoomForVessels(vessels: Vessel[]) {
@@ -265,8 +287,8 @@ function clusterMarkers(markers: ShipMarker[], zoom: number): MarkerCluster[] {
 }
 
 export default function ShipScene({ vessels, portEvents = [], expanded = false }: ShipSceneProps) {
-  const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);
-  const [manualCenter, setManualCenter] = useState<GeoPoint>(PORTS_CENTER);
+  const [mapZoom, setMapZoom] = useState(PRIMARY_PORTS_ZOOM);
+  const [manualCenter, setManualCenter] = useState<GeoPoint>(PRIMARY_PORTS_CENTER);
   const [selectedShipId, setSelectedShipId] = useState("");
   const [hoveredShipId, setHoveredShipId] = useState("");
   const [filter, setFilter] = useState<VesselFilter>("All");
@@ -283,10 +305,12 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
 
   useEffect(() => {
     if (hasAutoFittedVessels.current || !vessels || vessels.length === 0) return;
-    const center = centerOfVessels(vessels);
+    const primary = primaryFocusVessels(vessels);
+    if (primary.length === 0) return;
+    const center = centerOfVessels(primary);
     if (!center) return;
     setManualCenter(center);
-    setMapZoom(zoomForVessels(vessels));
+    setMapZoom(zoomForVessels(primary));
     setSelectedShipId("");
     setHoveredShipId("");
     hasAutoFittedVessels.current = true;
@@ -326,6 +350,13 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
     if (center) setManualCenter(center);
     setSelectedShipId("");
     setMapZoom(zoomForVessels(visibleVessels));
+  };
+
+  const showPrimaryPorts = () => {
+    setSelectedShipId("");
+    setHoveredShipId("");
+    setManualCenter(PRIMARY_PORTS_CENTER);
+    setMapZoom(PRIMARY_PORTS_ZOOM);
   };
 
   const showPortsOverview = () => {
@@ -429,8 +460,9 @@ export default function ShipScene({ vessels, portEvents = [], expanded = false }
       <div className="tile-map-controls">
         <button type="button" onClick={() => setMapZoom((zoom) => Math.min(MAX_ZOOM, zoom + 1))}>+</button>
         <button type="button" onClick={() => setMapZoom((zoom) => Math.max(MIN_ZOOM, zoom - 1))}>−</button>
-        <button type="button" onClick={showWorldOverview}>World view</button>
-        <button type="button" onClick={showPortsOverview}>Ports overview</button>
+        <button type="button" onClick={showPrimaryPorts}>Jeddah + KAP</button>
+        <button type="button" onClick={showPortsOverview}>8 ports</button>
+        <button type="button" onClick={showWorldOverview}>World AIS</button>
         <button type="button" onClick={fitVisibleVessels}>Fit vessels</button>
         <button type="button" className={showPorts ? "active layer-toggle" : "layer-toggle"} onClick={() => setShowPorts((value) => !value)}>Ports</button>
         <button type="button" className={showEvents ? "active layer-toggle" : "layer-toggle"} onClick={() => setShowEvents((value) => !value)}>Events</button>

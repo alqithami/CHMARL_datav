@@ -119,18 +119,22 @@ try {
   assert(first?.APIKey === "test-key", "AIS API key was not trimmed before subscription");
   assert(JSON.stringify(first?.BoundingBoxes) === JSON.stringify([[[-90, -180], [90, 180]]]), "Primary AIS subscription was not global");
   assert(!("FilterMessageTypes" in first), "Primary AIS subscription unexpectedly filtered provider frames");
-  assert(JSON.stringify(recovered?.BoundingBoxes) === JSON.stringify([[[-90, -180], [90, 180]]]), "Recovery profile unexpectedly blocked global coverage");
+  assert(JSON.stringify(recovered?.BoundingBoxes) === JSON.stringify([[[20.70, 38.35], [22.95, 39.85]]]), "First recovery profile did not prioritize Jeddah and King Abdullah Port");
   assert(Array.isArray(recovered?.FilterMessageTypes) && recovered.FilterMessageTypes.includes("PositionReport"), "Recovery profile did not reduce the stream to position messages");
   assert(vessels.source === "aisstream", "Expected aisstream source, received " + vessels.source);
   assert(vessels.counts?.tracking === 1, "Expected one live AIS row, received " + vessels.counts?.tracking);
   assert(vessels.counts?.operational === 1, "Recovered AIS row was not derived into monitored-port scope");
+  assert(vessels.counts?.primaryOperational === 1, "Recovered AIS row was not counted in the primary-port scope");
   assert(vessels.vessels[0].inputSource === "global-tracking", "Vessel did not preserve its AIS source");
   assert(vessels.inputs?.fixedRows === undefined && vessels.inputs?.upstreamRows === undefined, "Non-AIS input counters remain in the API contract");
   assert(vessels.health?.messageCount >= 1 && vessels.health?.usablePositionMessages >= 1, "AIS frame counters were not updated");
   assert(vessels.health?.profileSwitches >= 1, "Silent socket did not record a profile switch");
-  assert(vessels.health?.activeProfile === "world-position-only", "Unexpected recovery profile: " + vessels.health?.activeProfile);
-  assert(vessels.health?.lastSuccessfulProfile === "world-position-only", "Successful recovery profile was not recorded");
+  assert(vessels.health?.activeProfile === "primary-ports-position-only", "Unexpected recovery profile: " + vessels.health?.activeProfile);
+  assert(vessels.health?.lastSuccessfulProfile === "primary-ports-position-only", "Successful primary-port recovery profile was not recorded");
   assert(vessels.health?.lastFrameAt && vessels.health?.lastMessageAt, "AIS frame timestamps were not recorded");
+
+  const primaryScope = await fetch(baseUrl + "/api/vessels?scope=primary").then((response) => response.json());
+  assert(primaryScope.scope === "primary" && primaryScope.vessels.length === 1, "Primary-port API scope did not return the recovered vessel");
 
   const readiness = await fetch(baseUrl + "/health/ready");
   assert(readiness.status === 200, "AIS-backed readiness returned " + readiness.status);

@@ -36,9 +36,12 @@ export const monitoredPorts: MonitoredPort[] = [
   { id: "Yanbu", shortId: "YAN", area: "Saudi", latitude: 24.0866, longitude: 38.0637 },
   { id: "Jizan", shortId: "JIZ", area: "Saudi", latitude: 16.8917, longitude: 42.5511 },
   { id: "Dammam", shortId: "DAM", area: "Saudi", latitude: 26.4318, longitude: 50.1015 },
+  { id: "Jubail Commercial Port", shortId: "JUB", area: "Saudi", latitude: 27.0333, longitude: 49.6667 },
   { id: "Jebel Ali", shortId: "JEA", area: "Regional", latitude: 25.0114, longitude: 55.0611 },
   { id: "Suez", shortId: "SUE", area: "Regional", latitude: 29.9668, longitude: 32.5498 },
 ];
+
+export const primaryMonitoredPortIds = new Set(["Jeddah", "King Abdullah Port"]);
 
 function hasPosition(vessel: Vessel) {
   return Number.isFinite(vessel.latitude) && Number.isFinite(vessel.longitude);

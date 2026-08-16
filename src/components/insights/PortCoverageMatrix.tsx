@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Vessel } from "@/data/chmarlData";
-import { summarizePortCoverage } from "@/utils/portCoverage";
+import { primaryMonitoredPortIds, summarizePortCoverage } from "@/utils/portCoverage";
 
 export type PortCoverageMatrixProps = {
   vessels: Vessel[];
@@ -16,6 +16,9 @@ export default function PortCoverageMatrix({ vessels, compact = false }: PortCov
   const summary = useMemo(() => summarizePortCoverage(vessels), [vessels]);
   const sortedRows = useMemo(
     () => [...summary.rows].sort((a, b) => {
+      const aPrimary = primaryMonitoredPortIds.has(a.port.id);
+      const bPrimary = primaryMonitoredPortIds.has(b.port.id);
+      if (aPrimary !== bPrimary) return aPrimary ? -1 : 1;
       if (a.port.area !== b.port.area) return a.port.area === "Saudi" ? -1 : 1;
       return b.count - a.count || a.port.id.localeCompare(b.port.id);
     }),
@@ -23,13 +26,16 @@ export default function PortCoverageMatrix({ vessels, compact = false }: PortCov
   );
   const activeSaudiPorts = summary.rows.filter((row) => row.port.area === "Saudi" && row.count > 0).length;
   const saudiPorts = summary.rows.filter((row) => row.port.area === "Saudi").length;
+  const primaryRows = summary.rows
+    .filter((row) => primaryMonitoredPortIds.has(row.port.id))
+    .reduce((sum, row) => sum + row.count, 0);
 
   return (
     <div className="port-coverage-matrix insight-panel-content">
       <div className="insight-panel-summary">
-        <span>Saudi AIS coverage</span>
-        <strong>{summary.saudiNearPort}/{summary.totalRows}</strong>
-        <small>{activeSaudiPorts}/{saudiPorts} Saudi ports active · {summary.offshore} offshore · {summary.missingPosition} missing position</small>
+        <span>Eight-port AIS coverage</span>
+        <strong>{summary.saudiNearPort + summary.regionalNearPort}/{summary.totalRows}</strong>
+        <small>Jeddah + KAP: {primaryRows} · {activeSaudiPorts}/{saudiPorts} Saudi ports active · {summary.offshore} outside scope</small>
       </div>
       <div className={compact ? "port-coverage-list compact" : "port-coverage-list"}>
         {sortedRows.map((row) => (

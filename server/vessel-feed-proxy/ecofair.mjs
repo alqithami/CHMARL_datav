@@ -92,6 +92,7 @@ const DEFAULT_PORT_CAPACITY = {
   Yanbu: 8,
   Jizan: 6,
   Dammam: 20,
+  "Jubail Commercial Port": 12,
   "Jebel Ali": 28,
   Suez: 10,
 };
