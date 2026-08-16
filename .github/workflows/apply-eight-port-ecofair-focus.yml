@@ -56,6 +56,16 @@ jobs:
           node --check scripts/apply-eight-port-ecofair-focus.mjs
           node --check scripts/smoke-eight-port-ecofair-focus.mjs
           node scripts/apply-eight-port-ecofair-focus.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/check-live-ui-contract.mjs")
+          text = path.read_text()
+          old = 'assertIncludes(scene, "centerOfVessels(vessels)", "the initial map view is not centered on live vessels");'
+          new = 'assertIncludes(scene, "centerOfVessels(primary)", "the initial map view is not centered on primary-port vessels");'
+          if old not in text:
+              raise SystemExit("Could not update the stale map-center assertion")
+          path.write_text(text.replace(old, new, 1))
+          PY
 
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
