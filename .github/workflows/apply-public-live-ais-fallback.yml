@@ -6,6 +6,7 @@ on:
       - agent/public-live-ais-fallback
     paths:
       - scripts/apply-public-live-ais-fallback.py
+      - scripts/fix-public-live-ais-generated-contract.py
       - server/vessel-feed-proxy/pocketworld-live-ais.mjs
       - scripts/smoke-public-live-ais-fallback.mjs
       - .github/workflows/apply-public-live-ais-fallback.yml
@@ -47,6 +48,7 @@ jobs:
         run: |
           python3 -m py_compile scripts/apply-public-live-ais-fallback.py
           python3 scripts/apply-public-live-ais-fallback.py
+          python3 scripts/fix-public-live-ais-generated-contract.py
 
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
