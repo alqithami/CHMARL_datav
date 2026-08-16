@@ -18,9 +18,9 @@ export type VesselDisplayStats = {
 
 const standardRetentionMs = 60 * 60 * 1000;
 const middleEastRetentionMs = 6 * 60 * 60 * 1000;
-const gridDegrees = 5;
-const maxPerGridCell = 8;
-const maxDisplayRows = 6_500;
+const gridDegrees = 180;
+const maxPerGridCell = 20_000;
+const maxDisplayRows = 20_000;
 const maxImpliedSpeedKn = 120;
 const minimumJumpDistanceNm = 5;
 

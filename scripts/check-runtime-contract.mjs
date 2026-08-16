@@ -48,6 +48,11 @@ assertIncludes(pocketWorldProvider, 'inputSource: `pocketworld-${source}`', "pub
 assertIncludes(pocketWorldProvider, 'payload?.coverage', "public AIS coverage metadata is not preserved");
 assertNotIncludes(pocketWorldProvider, "placeholder", "public AIS provider contains placeholder rows");
 assertIncludes(runtime, "deriveOperational: OPERATIONAL_PRIORITY_ENABLED", "single-stream operational derivation is absent");
+assertIncludes(runtime, 'id: "Jubail Commercial Port"', "Jubail is missing from the eight-port portfolio");
+assertIncludes(runtime, "PRIMARY_PORT_REFERENCE_POINTS", "Jeddah and King Abdullah focus is absent");
+assertIncludes(runtime, 'id: "primary-ports-position-only"', "AIS recovery does not prioritize the primary ports");
+assertIncludes(runtime, "primaryOperationalVessels", "primary operational scope is absent");
+assertIncludes(runtime, 'requestedScope === "primary"', "primary vessel API scope is absent");
 assertIncludes(runtime, "operationalAisCache.delete(vessel.id)", "out-of-scope vessels are not removed from the operational cache");
 assertNotIncludes(runtime, "FIXED_VESSEL", "manual/fixed vessel support remains in production runtime");
 assertNotIncludes(runtime, "UPSTREAM_VESSEL", "non-AIS vessel provider remains in production runtime");
@@ -80,6 +85,7 @@ assertIncludes(dockerfile, "pnpm install --frozen-lockfile", "Docker build is no
 assertIncludes(packageJson, "scripts/smoke-ais-live.mjs", "live AIS integration smoke test is not part of verification");
 assertIncludes(packageJson, "scripts/smoke-live-ais-failover.mjs", "live AIS failover smoke test is not part of verification");
 assertIncludes(packageJson, "scripts/smoke-public-live-ais-fallback.mjs", "public live AIS fallback smoke test is not part of verification");
+assertIncludes(packageJson, "scripts/smoke-eight-port-ecofair-focus.mjs", "eight-port EcoFair smoke test is not part of verification");
 assertNotIncludes(packageJson, "ingest:fixed-vessels", "manual vessel command remains available");
 
 for (const path of [

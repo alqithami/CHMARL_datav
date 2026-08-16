@@ -29,9 +29,14 @@ const PORT_REFERENCE_POINTS = [
   { id: "Yanbu", latitude: 24.0866, longitude: 38.0637 },
   { id: "Jizan", latitude: 16.8917, longitude: 42.5511 },
   { id: "Dammam", latitude: 26.4318, longitude: 50.1015 },
+  { id: "Jubail Commercial Port", latitude: 27.0333, longitude: 49.6667 },
   { id: "Jebel Ali", latitude: 25.0114, longitude: 55.0611 },
   { id: "Suez", latitude: 29.9668, longitude: 32.5498 },
 ];
+
+const PRIMARY_PORT_IDS = new Set(["Jeddah", "King Abdullah Port"]);
+const PRIMARY_PORT_REFERENCE_POINTS = PORT_REFERENCE_POINTS.filter((port) => PRIMARY_PORT_IDS.has(port.id));
+const PRIMARY_PORT_BBOX = "20.70,38.35;22.95,39.85";
 
 const WEATHER_POINTS = [
   { locationId: "suez", name: "Suez", latitude: 29.9668, longitude: 32.5498 },
@@ -40,6 +45,7 @@ const WEATHER_POINTS = [
   { locationId: "yanbu", name: "Yanbu", latitude: 24.0866, longitude: 38.0637 },
   { locationId: "jizan", name: "Jizan", latitude: 16.8917, longitude: 42.5511 },
   { locationId: "dammam", name: "Dammam", latitude: 26.4318, longitude: 50.1015 },
+  { locationId: "jubail", name: "Jubail Commercial Port", latitude: 27.0333, longitude: 49.6667 },
   { locationId: "jebel-ali", name: "Jebel Ali", latitude: 25.0114, longitude: 55.0611 },
 ];
 
@@ -218,9 +224,10 @@ const AISSTREAM_POSITION_FILTER_TYPES = [
 const AISSTREAM_RECOVERY_ENABLED = process.env.AISSTREAM_RECOVERY_ENABLED !== "false";
 const AISSTREAM_RECOVERY_PROFILES = [
   { id: "world-unfiltered", description: "worldwide, all AIS message types", boxes: TRACKING_BOXES, filters: AISSTREAM_FILTER_TYPES },
-  { id: "world-position-only", description: "worldwide, position-bearing messages", boxes: TRACKING_BOXES, filters: AISSTREAM_POSITION_FILTER_TYPES },
+  { id: "primary-ports-position-only", description: "Jeddah Islamic Port and King Abdullah Port approaches", boxes: parseBoundingBoxes(PRIMARY_PORT_BBOX), filters: AISSTREAM_POSITION_FILTER_TYPES },
+  { id: "portfolio-position-only", description: "eight monitored port approaches, position-bearing messages", boxes: OPERATIONAL_BOXES, filters: AISSTREAM_POSITION_FILTER_TYPES },
   { id: "red-sea-gulf-position-only", description: "Red Sea and Gulf, position-bearing messages", boxes: parseBoundingBoxes(REGIONAL_AIS_BBOX), filters: AISSTREAM_POSITION_FILTER_TYPES },
-  { id: "port-approaches-position-only", description: "monitored port approaches, position-bearing messages", boxes: OPERATIONAL_BOXES, filters: AISSTREAM_POSITION_FILTER_TYPES },
+  { id: "world-position-only", description: "worldwide, position-bearing messages", boxes: TRACKING_BOXES, filters: AISSTREAM_POSITION_FILTER_TYPES },
 ];
 const AISSTREAM_MAX_VESSELS = Math.max(100, Number(process.env.AISSTREAM_MAX_VESSELS ?? 8000));
 const AISSTREAM_OPERATIONAL_MAX_VESSELS = Math.max(100, Number(process.env.AISSTREAM_OPERATIONAL_MAX_VESSELS ?? 2500));
@@ -316,6 +323,7 @@ let chmarlOnlineHistory = [];
 let lastChmarlSignature = "";
 let lastCombinedVessels = [];
 let lastOperationalVessels = [];
+let lastPrimaryOperationalVessels = [];
 let lastWeatherPayload = null;
 let lastWeatherLoadedMs = 0;
 
@@ -395,6 +403,8 @@ const vesselInputState = {
   activeProviders: [],
   priorityAisRows: 0,
   trackingRows: 0,
+  primaryOperationalRows: 0,
+  portfolioOperationalRows: 0,
   operationalRows: 0,
   operationalRadiusNm: ECOFAIR_OPERATIONAL_RADIUS_NM,
   lastLoadedAt: null,
@@ -527,11 +537,19 @@ async function fetchProviderJson(url, token, timeoutMs = 10_000) {
   }
 }
 
-function operationalVessels(vessels) {
+function vesselsNearPorts(vessels, ports) {
   return vessels.filter((vessel) => {
-    const nearest = nearestOperationalPort(vessel);
-    return nearest && nearest.distanceNm <= ECOFAIR_OPERATIONAL_RADIUS_NM;
+    if (!validCoordinates(vessel?.latitude, vessel?.longitude)) return false;
+    return ports.some((port) => haversineNm(vessel, port) <= ECOFAIR_OPERATIONAL_RADIUS_NM);
   });
+}
+
+function operationalVessels(vessels) {
+  return vesselsNearPorts(vessels, PORT_REFERENCE_POINTS);
+}
+
+function primaryOperationalVessels(vessels) {
+  return vesselsNearPorts(vessels, PRIMARY_PORT_REFERENCE_POINTS);
 }
 
 function datalasticFailoverDue() {
@@ -564,6 +582,7 @@ async function loadCombinedVessels() {
     for (const row of trackingAis) merged.set(row.id, row);
     const tracking = [...merged.values()].filter((row) => validCoordinates(row.latitude, row.longitude));
     const operational = operationalVessels(tracking);
+    const primaryOperational = primaryOperationalVessels(tracking);
     const activeProviders = [
       ...(trackingAis.length > 0 ? ["aisstream"] : []),
       ...(datalasticAis.length > 0 ? ["datalastic"] : []),
@@ -577,17 +596,24 @@ async function loadCombinedVessels() {
       activeProviders,
       priorityAisRows: priorityAis.length,
       trackingRows: tracking.length,
+      primaryOperationalRows: primaryOperational.length,
+      portfolioOperationalRows: operational.length,
       operationalRows: operational.length,
       lastLoadedAt: new Date().toISOString(),
       lastError: null,
     });
     lastCombinedVessels = tracking;
     lastOperationalVessels = operational;
-    return { tracking, operational };
+    lastPrimaryOperationalVessels = primaryOperational;
+    return { tracking, operational, primaryOperational };
   } catch (error) {
     vesselInputState.lastLoadedAt = new Date().toISOString();
     vesselInputState.lastError = error instanceof Error ? error.message : String(error);
-    return { tracking: lastCombinedVessels, operational: lastOperationalVessels };
+    return {
+      tracking: lastCombinedVessels,
+      operational: lastOperationalVessels,
+      primaryOperational: lastPrimaryOperationalVessels,
+    };
   }
 }
 
@@ -652,14 +678,18 @@ function ingestChmarl(payload) {
   return updateChmarlState(next, "ingest");
 }
 
-function recordOnlineStep(trackingCount, operationalCount) {
+function recordOnlineStep(trackingCount, operationalCount, primaryOperationalCount) {
   const step = ecofair.buildStep(chmarlOnlineHistory.length + 1);
   Object.assign(step.state, {
     trackingVessels: trackingCount,
     operationalVessels: operationalCount,
+    portfolioOperationalVessels: operationalCount,
+    primaryOperationalVessels: primaryOperationalCount,
     outOfScopeVessels: Math.max(0, trackingCount - operationalCount),
     operationalRadiusNm: ECOFAIR_OPERATIONAL_RADIUS_NM,
-    measurementScope: "monitored-port approaches only",
+    monitoredPorts: PORT_REFERENCE_POINTS.map((port) => port.id),
+    primaryPorts: PRIMARY_PORT_REFERENCE_POINTS.map((port) => port.id),
+    measurementScope: "eight monitored port approaches; Jeddah and King Abdullah highlighted",
   });
   const signature = JSON.stringify({ reward: step.rewards?.[0]?.value, co2: step.state?.totalCo2Tonnes, gini: step.state?.giniFuel, vessels: step.state?.trackedVessels });
   const previous = chmarlOnlineHistory.at(-1);
@@ -759,9 +789,11 @@ async function runBackgroundTick() {
   tickRunning = true;
   const started = Date.now();
   try {
-    const { tracking, operational } = await loadCombinedVessels();
+    const { tracking, operational, primaryOperational } = await loadCombinedVessels();
     ecofair.update(operational);
-    if (CHMARL_RUNTIME_ENABLED && (operational.length > 0 || ecofair.summary().trackedVessels > 0)) recordOnlineStep(tracking.length, operational.length);
+    if (CHMARL_RUNTIME_ENABLED && (operational.length > 0 || ecofair.summary().trackedVessels > 0)) {
+      recordOnlineStep(tracking.length, operational.length, primaryOperational.length);
+    }
     saveEcofairState();
     runtimeState.lastTickAt = new Date().toISOString();
     runtimeState.lastTickDurationMs = Date.now() - started;
@@ -1044,7 +1076,14 @@ function healthPayload() {
       rows: vesselInputState.trackingRows,
       maxRows: AISSTREAM_MAX_VESSELS,
     },
-    operationalScope: { radiusNm: ECOFAIR_OPERATIONAL_RADIUS_NM, rows: vesselInputState.operationalRows, ports: PORT_REFERENCE_POINTS.map((port) => port.id) },
+    operationalScope: {
+      radiusNm: ECOFAIR_OPERATIONAL_RADIUS_NM,
+      rows: vesselInputState.operationalRows,
+      portfolioRows: vesselInputState.portfolioOperationalRows,
+      primaryRows: vesselInputState.primaryOperationalRows,
+      ports: PORT_REFERENCE_POINTS.map((port) => port.id),
+      primaryPorts: PRIMARY_PORT_REFERENCE_POINTS.map((port) => port.id),
+    },
     vesselInputs: vesselInputState,
     aisstream: publicAisState(trackingAisState),
     operationalAisstream: publicAisState(operationalAisState),
@@ -1176,14 +1215,24 @@ createServer(async (request, response) => {
   }
 
   if (path === "/api/vessels" || path === "/api/vessels/operations") {
-    const { tracking, operational } = await loadCombinedVessels();
-    const scope = path === "/api/vessels/operations" || url.searchParams.get("scope") === "operational" ? "operational" : "tracking";
-    const vessels = scope === "operational" ? operational : tracking;
+    const { tracking, operational, primaryOperational } = await loadCombinedVessels();
+    const requestedScope = url.searchParams.get("scope");
+    const scope = path === "/api/vessels/operations" || requestedScope === "operational"
+      ? "operational"
+      : requestedScope === "primary"
+        ? "primary"
+        : "tracking";
+    const vessels = scope === "operational" ? operational : scope === "primary" ? primaryOperational : tracking;
     return sendJson(response, 200, {
       vessels,
       source: sourceForTracking(),
       scope,
-      counts: { tracking: tracking.length, operational: operational.length },
+      counts: {
+        tracking: tracking.length,
+        operational: operational.length,
+        portfolioOperational: operational.length,
+        primaryOperational: primaryOperational.length,
+      },
       inputs: vesselInputState,
       health: publicAisState(trackingAisState),
       operationalHealth: publicAisState(operationalAisState),
@@ -1235,7 +1284,7 @@ createServer(async (request, response) => {
   const staticMatch = staticFileForUrl(request.url);
   if (staticMatch?.path) return sendFile(response, staticMatch.path);
   if (staticMatch?.statusCode === 403) return sendJson(response, 403, { error: "Forbidden" });
-  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/health", "/health/live", "/health/ready", "/version", "/api/vessels", "/api/vessels/operations", "/api/vessels?scope=operational", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report"] });
+  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/health", "/health/live", "/health/ready", "/version", "/api/vessels", "/api/vessels/operations", "/api/vessels?scope=operational", "/api/vessels?scope=primary", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report"] });
 }).listen(PORT, "0.0.0.0", () => {
   console.log(`CH-MARL backend listening at http://0.0.0.0:${PORT}`);
   console.log(`Global AIS boxes: ${TRACKING_BOXES.length}; cache limit: ${AISSTREAM_MAX_VESSELS}`);
