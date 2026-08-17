@@ -1,0 +1,1074 @@
+/*
+ * CH-MARL visual refresh
+ *
+ * Final override layer for a restrained MAWANI-inspired operational dashboard:
+ * map-first hierarchy, IBM Plex typography, deep teal/aqua brand accents,
+ * fixed semantic status colours, compact controls, and polished dark/light modes.
+ * No data, AIS, EcoFair, or map behaviour is changed here.
+ */
+
+:root {
+  color-scheme: dark;
+  --mawani-bg: #071417;
+  --mawani-surface: #0b2025;
+  --mawani-surface-raised: #102a30;
+  --mawani-surface-hover: #17363d;
+  --mawani-border-subtle: #1c3d45;
+  --mawani-border-strong: #315b64;
+  --mawani-text-primary: #f2fafb;
+  --mawani-text-secondary: #b8ccd0;
+  --mawani-text-helper: #789399;
+  --mawani-teal-70: #007e86;
+  --mawani-teal-80: #005d65;
+  --mawani-teal-90: #003e45;
+  --mawani-aqua-50: #00dbe7;
+  --mawani-aqua-60: #00b8c8;
+  --mawani-ai-accent: #00dbe7;
+  --mawani-success: #24a148;
+  --mawani-warning: #ff6800;
+  --mawani-error: #da1e28;
+  --mawani-info: #284291;
+  --mawani-radius: 8px;
+  --ui-surface-soft: rgba(16, 42, 48, 0.72);
+  --ui-border-soft: rgba(104, 174, 184, 0.22);
+  --ui-aqua-soft: rgba(0, 219, 231, 0.10);
+  --ui-success-soft: rgba(36, 161, 72, 0.12);
+  --ui-warning-soft: rgba(255, 104, 0, 0.12);
+  --ui-error-soft: rgba(218, 30, 40, 0.10);
+  --ui-info-soft: rgba(40, 66, 145, 0.18);
+  --ui-panel-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --mawani-bg: #edf4f5;
+  --mawani-surface: #ffffff;
+  --mawani-surface-raised: #f4f8f8;
+  --mawani-surface-hover: #e7f0f1;
+  --mawani-border-subtle: #c7dadd;
+  --mawani-border-strong: #8aa8ae;
+  --mawani-text-primary: #10272c;
+  --mawani-text-secondary: #405d63;
+  --mawani-text-helper: #647f85;
+  --mawani-teal-70: #007d86;
+  --mawani-teal-80: #00606a;
+  --mawani-teal-90: #00444c;
+  --mawani-aqua-50: #007f8b;
+  --mawani-aqua-60: #006f79;
+  --mawani-ai-accent: #007f8b;
+  --ui-surface-soft: rgba(244, 248, 248, 0.92);
+  --ui-border-soft: rgba(61, 109, 118, 0.22);
+  --ui-aqua-soft: rgba(0, 127, 139, 0.09);
+  --ui-success-soft: rgba(36, 161, 72, 0.10);
+  --ui-warning-soft: rgba(255, 104, 0, 0.10);
+  --ui-error-soft: rgba(218, 30, 40, 0.08);
+  --ui-info-soft: rgba(40, 66, 145, 0.10);
+  --ui-panel-shadow: 0 10px 24px rgba(17, 52, 59, 0.09);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  background: var(--mawani-bg) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+body {
+  margin: 0;
+  background: var(--mawani-bg) !important;
+  scrollbar-color: var(--mawani-border-strong) var(--mawani-bg);
+}
+
+::selection {
+  background: var(--mawani-teal-70);
+  color: #ffffff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--mawani-aqua-50) !important;
+  outline-offset: 2px;
+}
+
+.app-shell.executive-shell {
+  width: min(100%, 1920px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 12px 14px 18px !important;
+  overflow: visible !important;
+  background: var(--mawani-bg) !important;
+}
+
+/* Top bar */
+.topbar {
+  display: grid !important;
+  grid-template-columns: minmax(24rem, 1fr) minmax(36rem, auto) !important;
+  align-items: end !important;
+  gap: 1.25rem !important;
+  margin: 0 0 0.65rem !important;
+  padding: 0.25rem 0 0.85rem !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--mawani-border-subtle) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.topbar > div:first-child {
+  position: relative;
+  min-width: 0;
+  padding-left: 0.85rem;
+}
+
+.topbar > div:first-child::before {
+  position: absolute;
+  top: 0.05rem;
+  bottom: 0.05rem;
+  left: 0;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--mawani-aqua-50);
+  content: "";
+}
+
+.brand-kicker {
+  color: var(--mawani-aqua-50) !important;
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.15em !important;
+}
+
+.brand-title {
+  margin: 0.18rem 0 0 !important;
+  color: var(--mawani-text-primary) !important;
+  font-size: clamp(1.7rem, 2.15vw, 2.45rem) !important;
+  font-weight: 300 !important;
+  letter-spacing: -0.025em !important;
+  line-height: 1.02 !important;
+}
+
+.brand-subtitle {
+  max-width: 52rem !important;
+  margin: 0.42rem 0 0 !important;
+  color: var(--mawani-text-secondary) !important;
+  font-size: 0.82rem !important;
+  line-height: 1.35 !important;
+}
+
+.scenario-bar {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: end !important;
+  justify-items: end !important;
+  gap: 0.38rem 0.55rem !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: 58rem !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.status-control-group {
+  grid-column: 1 / -1;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap !important;
+  gap: 0.32rem !important;
+}
+
+.status-control-group .data-pill,
+.status-control-group > button.pill,
+.actions-menu summary {
+  min-height: 1.9rem !important;
+  height: 1.9rem !important;
+  padding: 0.28rem 0.58rem !important;
+  border: 1px solid var(--mawani-border-subtle) !important;
+  border-radius: 5px !important;
+  background: var(--mawani-surface) !important;
+  color: var(--mawani-text-secondary) !important;
+  box-shadow: none !important;
+  font-size: 0.69rem !important;
+  font-weight: 650 !important;
+  line-height: 1.1 !important;
+  white-space: nowrap;
+}
+
+.status-control-group .data-pill {
+  max-width: 15rem !important;
+  cursor: default !important;
+}
+
+.status-control-group .data-pill::before {
+  display: inline-block !important;
+  width: 0.42rem;
+  height: 0.42rem;
+  margin-right: 0.42rem;
+  border-radius: 999px;
+  background: var(--mawani-aqua-50);
+  content: "" !important;
+  flex: 0 0 auto;
+}
+
+.status-control-group .data-pill:nth-child(2)::before {
+  background: var(--mawani-ai-accent);
+}
+
+.status-control-group .data-pill:nth-child(3)::before {
+  background: var(--mawani-warning);
+}
+
+.status-control-group .data-pill:nth-child(4)::before {
+  background: var(--mawani-info);
+}
+
+.status-control-group .data-pill:nth-child(n+5)::before {
+  background: var(--mawani-text-helper);
+}
+
+.status-control-group .data-pill::after,
+.status-control-group > button.pill::before,
+.status-control-group > button.pill::after,
+.actions-menu summary::before,
+.actions-menu summary::after {
+  display: none !important;
+  content: none !important;
+}
+
+.status-control-group > button.pill,
+.actions-menu summary {
+  color: var(--mawani-text-primary) !important;
+  font-weight: 750 !important;
+  cursor: pointer !important;
+}
+
+.status-control-group > button.pill:hover,
+.actions-menu summary:hover {
+  border-color: var(--mawani-aqua-50) !important;
+  background: var(--mawani-surface-hover) !important;
+}
+
+.scenario-buttons {
+  display: none !important;
+}
+
+.scenario-bar::before {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: end;
+  min-height: 1.9rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0.2rem 0.25rem !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--mawani-text-helper) !important;
+  content: "Live production · real AIS and operational inputs" !important;
+  font-size: 0.68rem !important;
+  font-weight: 650 !important;
+  white-space: nowrap;
+}
+
+.actions-menu {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.actions-menu-panel {
+  min-width: 13rem !important;
+  padding: 0.35rem !important;
+  border: 1px solid var(--mawani-border-strong) !important;
+  border-radius: 7px !important;
+  background: var(--mawani-surface) !important;
+  box-shadow: var(--ui-panel-shadow) !important;
+}
+
+.actions-menu-panel button {
+  width: 100%;
+  justify-content: flex-start;
+  border: 0 !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  text-align: left;
+}
+
+.actions-menu-panel button:hover {
+  background: var(--mawani-surface-hover) !important;
+}
+
+/* Theme control remains available without competing with operational controls. */
+.theme-toggle {
+  right: 0.85rem !important;
+  bottom: 0.85rem !important;
+  min-height: 2rem !important;
+  padding: 0.42rem 0.58rem !important;
+  border: 1px solid var(--mawani-border-strong) !important;
+  border-radius: 6px !important;
+  background: var(--mawani-surface) !important;
+  box-shadow: var(--ui-panel-shadow) !important;
+  opacity: 0.9;
+}
+
+.theme-toggle:hover {
+  border-color: var(--mawani-aqua-50) !important;
+  opacity: 1;
+}
+
+/* Live input readiness */
+.provider-quality-matrix {
+  display: grid !important;
+  grid-template-columns: minmax(17rem, 1.15fr) minmax(0, 3.85fr) !important;
+  align-items: stretch !important;
+  gap: 0.5rem !important;
+  margin: 0 0 0.55rem !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.provider-quality-matrix .data-quality-summary,
+.provider-quality-matrix .data-quality-item {
+  min-height: 4.15rem !important;
+  padding: 0.62rem 0.72rem !important;
+  border: 1px solid var(--mawani-border-subtle) !important;
+  border-radius: 7px !important;
+  background: var(--mawani-surface) !important;
+  box-shadow: none !important;
+}
+
+.provider-quality-matrix .data-quality-summary {
+  position: relative;
+  display: grid !important;
+  align-content: center;
+  gap: 0.14rem !important;
+  padding-left: 0.88rem !important;
+  border-left: 3px solid var(--mawani-aqua-50) !important;
+}
+
+.provider-quality-matrix .data-quality-summary span,
+.provider-quality-matrix .data-quality-item span {
+  color: var(--mawani-aqua-50) !important;
+  font-size: 0.62rem !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.12em !important;
+}
+
+.provider-quality-matrix .data-quality-summary strong {
+  margin-top: 0.08rem !important;
+  color: var(--mawani-text-primary) !important;
+  font-size: 0.98rem !important;
+  font-weight: 450 !important;
+  line-height: 1.15 !important;
+}
+
+.provider-quality-matrix .data-quality-summary small,
+.provider-quality-matrix .data-quality-item small {
+  margin-top: 0.12rem !important;
+  overflow: hidden;
+  color: var(--mawani-text-helper) !important;
+  font-size: 0.67rem !important;
+  line-height: 1.25 !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-quality-matrix .data-quality-items {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0.5rem !important;
+}
+
+.provider-quality-matrix .data-quality-item:last-child {
+  display: none !important;
+}
+
+.provider-quality-matrix .data-quality-item {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: 0.1rem;
+  overflow: hidden;
+}
+
+.provider-quality-matrix .data-quality-item::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: var(--mawani-info);
+  content: "";
+}
+
+.provider-quality-matrix .data-quality-item.good::before {
+  background: var(--mawani-success);
+}
+
+.provider-quality-matrix .data-quality-item.warn::before {
+  background: var(--mawani-warning);
+}
+
+.provider-quality-matrix .data-quality-item.missing::before {
+  background: var(--mawani-text-helper);
+}
+
+.provider-quality-matrix .data-quality-item.info::before {
+  background: var(--mawani-info);
+}
+
+.provider-quality-matrix .data-quality-item strong {
+  margin-top: 0.12rem !important;
+  color: var(--mawani-text-primary) !important;
+  font-size: 0.9rem !important;
+  font-weight: 450 !important;
+  line-height: 1.12 !important;
+}
+
+.provider-quality-matrix .data-quality-item.good strong {
+  color: var(--mawani-success) !important;
+}
+
+.provider-quality-matrix .data-quality-item.warn strong {
+  color: var(--mawani-warning) !important;
+}
+
+.provider-quality-matrix .data-quality-item.missing strong {
+  color: var(--mawani-text-secondary) !important;
+}
+
+/* KPI row */
+.metrics-grid.executive-kpis {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0.5rem !important;
+  margin: 0 0 0.55rem !important;
+}
+
+.metrics-grid.executive-kpis .metric-card {
+  min-height: 4.65rem !important;
+  padding: 0.68rem 0.78rem !important;
+  border: 1px solid var(--mawani-border-subtle) !important;
+  border-radius: 7px !important;
+  background: var(--mawani-surface) !important;
+  box-shadow: none !important;
+}
+
+.metrics-grid.executive-kpis .metric-card::before {
+  display: none !important;
+}
+
+.metrics-grid.executive-kpis .metric-card-good {
+  box-shadow: inset 0 2px 0 var(--mawani-success) !important;
+}
+
+.metrics-grid.executive-kpis .metric-card-warn {
+  box-shadow: inset 0 2px 0 var(--mawani-warning) !important;
+}
+
+.metrics-grid.executive-kpis .metric-card-info {
+  box-shadow: inset 0 2px 0 var(--mawani-aqua-50) !important;
+}
+
+.metrics-grid.executive-kpis .metric-card-missing {
+  box-shadow: inset 0 2px 0 var(--mawani-text-helper) !important;
+}
+
+.metrics-grid.executive-kpis .metric-label {
+  color: var(--mawani-text-secondary) !important;
+  font-size: 0.64rem !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.11em !important;
+}
+
+.metrics-grid.executive-kpis .metric-value {
+  margin-top: 0.34rem !important;
+  color: var(--mawani-text-primary) !important;
+  font-size: clamp(1.35rem, 1.7vw, 1.8rem) !important;
+  font-weight: 300 !important;
+  letter-spacing: -0.025em;
+}
+
+.metrics-grid.executive-kpis .metric-trend {
+  margin-top: 0.16rem !important;
+  color: var(--mawani-text-helper) !important;
+  font-size: 0.67rem !important;
+  line-height: 1.2 !important;
+}
+
+.metrics-grid.executive-kpis .metric-card-good .metric-trend {
+  color: var(--mawani-success) !important;
+}
+
+.metrics-grid.executive-kpis .metric-card-warn .metric-trend {
+  color: var(--mawani-warning) !important;
+}
+
+.metrics-grid.executive-kpis .metric-card-missing .metric-value,
+.metrics-grid.executive-kpis .metric-card-missing .metric-trend {
+  color: var(--mawani-text-secondary) !important;
+}
+
+/* Command summary */
+.command-summary-strip {
+  gap: 0.42rem !important;
+  margin: 0 0 0.62rem !important;
+}
+
+.command-summary-header {
+  min-height: 2.25rem !important;
+  padding: 0.12rem 0.05rem 0.4rem !important;
+  border-bottom: 1px solid var(--mawani-border-subtle) !important;
+  background: transparent !important;
+}
+
+.command-summary-header span,
+.command-summary-card span {
+  color: var(--mawani-aqua-50) !important;
+  font-size: 0.62rem !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.12em !important;
+}
+
+.command-summary-header strong {
+  color: var(--mawani-text-primary) !important;
+  font-size: 0.98rem !important;
+  font-weight: 450 !important;
+}
+
+.command-summary-tabs {
+  gap: 0.2rem !important;
+}
+
+.command-summary-tabs button {
+  min-height: 1.65rem !important;
+  padding: 0.24rem 0.52rem !important;
+  border: 1px solid transparent !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  color: var(--mawani-text-helper) !important;
+  font-size: 0.67rem !important;
+  font-weight: 700 !important;
+}
+
+.command-summary-tabs button:hover {
+  background: var(--mawani-surface-raised) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+.command-summary-tabs button.active {
+  border-color: var(--mawani-border-strong) !important;
+  background: var(--mawani-teal-80) !important;
+  color: #ffffff !important;
+}
+
+.command-summary-cards {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0.5rem !important;
+}
+
+.command-summary-card {
+  min-height: 4.25rem !important;
+  padding: 0.62rem 0.72rem !important;
+  border: 1px solid var(--mawani-border-subtle) !important;
+  border-radius: 7px !important;
+  background: var(--mawani-surface) !important;
+  box-shadow: none !important;
+}
+
+.command-summary-card:hover {
+  border-color: var(--mawani-border-strong) !important;
+  background: var(--mawani-surface-hover) !important;
+}
+
+.command-summary-card strong {
+  color: var(--mawani-text-primary) !important;
+  font-size: 1.16rem !important;
+  font-weight: 300 !important;
+}
+
+.command-summary-card small {
+  color: var(--mawani-text-helper) !important;
+  font-size: 0.67rem !important;
+}
+
+.command-summary-card::after {
+  width: 0.42rem !important;
+  height: 0.42rem !important;
+  border-radius: 999px;
+  background: var(--mawani-info) !important;
+}
+
+.command-summary-card.good::after {
+  background: var(--mawani-success) !important;
+}
+
+.command-summary-card.warning::after {
+  background: var(--mawani-warning) !important;
+}
+
+.command-summary-card.critical::after {
+  background: var(--mawani-error) !important;
+}
+
+.command-summary-card.missing::after {
+  background: var(--mawani-text-helper) !important;
+}
+
+/* Map-first command layout */
+.dashboard-grid {
+  display: grid !important;
+  grid-template-columns: 230px minmax(680px, 1fr) 300px !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  grid-template-areas: "left map right" !important;
+  gap: 0.62rem !important;
+  height: max(620px, calc(100vh - 302px)) !important;
+  min-height: 620px !important;
+  overflow: visible !important;
+}
+
+.left-stack,
+.right-stack {
+  gap: 0.62rem !important;
+  min-width: 0;
+  min-height: 0;
+}
+
+.left-stack {
+  grid-area: left !important;
+  grid-template-rows: minmax(0, 0.95fr) minmax(0, 1.05fr) !important;
+}
+
+.right-stack {
+  grid-area: right !important;
+  grid-template-rows: minmax(0, 0.82fr) minmax(0, 1.18fr) !important;
+}
+
+.panel-card {
+  min-width: 0;
+  min-height: 0;
+  padding: 0.68rem !important;
+  overflow: hidden;
+  border: 1px solid var(--mawani-border-subtle) !important;
+  border-radius: 8px !important;
+  background: var(--mawani-surface) !important;
+  box-shadow: none !important;
+}
+
+.panel-card::before {
+  display: none !important;
+}
+
+.panel-header {
+  min-height: 2rem;
+  margin: 0 0 0.45rem !important;
+  padding: 0 0 0.42rem !important;
+  border-bottom: 1px solid var(--mawani-border-subtle);
+}
+
+.panel-title {
+  color: var(--mawani-text-primary) !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.025em !important;
+}
+
+.panel-actions {
+  gap: 0.35rem !important;
+}
+
+.panel-tag {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--mawani-aqua-50) !important;
+  font-size: 0.58rem !important;
+  letter-spacing: 0.10em !important;
+}
+
+.panel-focus-button {
+  min-height: 1.55rem !important;
+  padding: 0.18rem 0.4rem !important;
+  border: 1px solid transparent !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  color: var(--mawani-text-helper) !important;
+  font-size: 0.62rem !important;
+}
+
+.panel-focus-button:hover {
+  border-color: var(--mawani-border-subtle) !important;
+  background: var(--mawani-surface-raised) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+.scene-panel.executive-map-panel {
+  grid-area: map !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  padding: 0 !important;
+  border-color: rgba(0, 219, 231, 0.42) !important;
+  background: #061519 !important;
+  box-shadow: var(--ui-panel-shadow) !important;
+}
+
+.scene-panel.executive-map-panel > .panel-header {
+  z-index: 3;
+  margin: 0 !important;
+  padding: 0.62rem 0.75rem !important;
+  border-bottom: 1px solid var(--mawani-border-subtle) !important;
+  background: var(--mawani-surface) !important;
+}
+
+.scene-panel.executive-map-panel > .scene-container {
+  width: 100%;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.chart-box,
+.insight-chart {
+  min-height: 0 !important;
+  background: transparent !important;
+}
+
+.watchlist-panel,
+.watchlist-items {
+  gap: 0.45rem !important;
+}
+
+.watchlist-recommendation,
+.watchlist-item,
+.port-ops-setup,
+.timeline-empty-state {
+  border: 1px solid var(--mawani-border-subtle) !important;
+  border-radius: 6px !important;
+  background: var(--mawani-surface-raised) !important;
+  box-shadow: none !important;
+}
+
+.watchlist-recommendation {
+  border-left: 2px solid var(--mawani-ai-accent) !important;
+  background: var(--ui-aqua-soft) !important;
+}
+
+.watchlist-item.normal {
+  border-left: 2px solid var(--mawani-success) !important;
+}
+
+.watchlist-item.warning {
+  border-left: 2px solid var(--mawani-warning) !important;
+}
+
+.watchlist-item.critical {
+  border-left: 2px solid var(--mawani-error) !important;
+}
+
+/* Leaflet treatment */
+.leaflet-map-shell,
+.leaflet-map-root,
+.leaflet-map-loading {
+  background: #061519 !important;
+}
+
+.leaflet-map-root .leaflet-tile-pane {
+  filter: saturate(0.78) brightness(0.80) contrast(1.04) hue-rotate(4deg) !important;
+}
+
+.leaflet-map-controls {
+  inset: 0.65rem auto auto 0.65rem !important;
+  max-width: min(43rem, calc(100% - 1.3rem));
+  padding: 0.36rem !important;
+  gap: 0.28rem !important;
+  border: 1px solid var(--mawani-border-subtle) !important;
+  border-radius: 7px !important;
+  background: rgba(7, 20, 23, 0.88) !important;
+  box-shadow: var(--ui-panel-shadow) !important;
+  backdrop-filter: blur(12px);
+}
+
+.leaflet-map-controls button {
+  min-height: 1.75rem !important;
+  padding: 0.28rem 0.52rem !important;
+  border: 1px solid transparent !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  color: #c7dadd !important;
+  font-size: 0.64rem !important;
+  font-weight: 700 !important;
+}
+
+.leaflet-map-controls button:hover {
+  border-color: rgba(0, 219, 231, 0.28) !important;
+  background: rgba(0, 219, 231, 0.08) !important;
+  color: #ffffff !important;
+}
+
+.leaflet-map-controls button.active {
+  border-color: var(--mawani-aqua-50) !important;
+  background: var(--mawani-teal-80) !important;
+  color: #ffffff !important;
+}
+
+.leaflet-map-controls > span {
+  align-self: center;
+  padding: 0 0.28rem;
+  color: #91aeb4 !important;
+  font-size: 0.62rem !important;
+  white-space: nowrap;
+}
+
+.leaflet-map-root .leaflet-control-zoom,
+.leaflet-map-root .leaflet-control-scale-line,
+.leaflet-map-root .leaflet-control-attribution {
+  border-color: rgba(0, 219, 231, 0.22) !important;
+  border-radius: 5px !important;
+  background: rgba(7, 20, 23, 0.90) !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22) !important;
+}
+
+.leaflet-map-root .leaflet-control-zoom a {
+  background: transparent !important;
+  color: #d9e9eb !important;
+}
+
+.leaflet-map-root .leaflet-control-zoom a:hover {
+  background: var(--mawani-teal-80) !important;
+  color: #ffffff !important;
+}
+
+.leaflet-port-label {
+  padding: 0.25rem 0.42rem !important;
+  border: 1px solid rgba(0, 219, 231, 0.24) !important;
+  border-radius: 4px !important;
+  background: rgba(7, 20, 23, 0.88) !important;
+  color: #dbeaec !important;
+  box-shadow: 0 7px 18px rgba(0, 0, 0, 0.22) !important;
+  font-size: 0.61rem !important;
+}
+
+.leaflet-port-label.is-primary {
+  border-color: rgba(0, 219, 231, 0.58) !important;
+  background: rgba(0, 62, 69, 0.92) !important;
+  color: #ffffff !important;
+}
+
+.leaflet-vessel-tooltip,
+.leaflet-event-tooltip,
+.ship-inspector-card,
+.expanded-map-rail,
+.expanded-rail-section {
+  border-color: var(--mawani-border-strong) !important;
+  border-radius: 7px !important;
+  background: rgba(7, 20, 23, 0.95) !important;
+  box-shadow: var(--ui-panel-shadow) !important;
+}
+
+.ship-inspector-card {
+  width: min(330px, calc(100% - 2rem)) !important;
+  right: 1rem !important;
+  bottom: 1rem !important;
+  padding: 0.72rem !important;
+}
+
+/* Tables and modal */
+.vessel-table-toolbar input,
+.vessel-table-toolbar select,
+.rail-search-tools input,
+.rail-search-tools select {
+  border: 1px solid var(--mawani-border-subtle) !important;
+  border-radius: 5px !important;
+  background: var(--mawani-surface-raised) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+.vessel-table th {
+  color: var(--mawani-text-helper) !important;
+}
+
+.vessel-table th,
+.vessel-table td {
+  border-bottom-color: var(--mawani-border-subtle) !important;
+}
+
+.focus-backdrop {
+  background: rgba(2, 10, 12, 0.82) !important;
+  backdrop-filter: blur(10px);
+}
+
+.focus-panel {
+  border: 1px solid var(--mawani-border-strong) !important;
+  border-radius: 10px !important;
+  background: var(--mawani-surface) !important;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.36) !important;
+}
+
+.focus-header {
+  border-bottom-color: var(--mawani-border-subtle) !important;
+}
+
+/* Light mode keeps the same hierarchy without washed-out panels. */
+:root[data-theme="light"] .leaflet-map-root .leaflet-tile-pane {
+  filter: saturate(0.86) brightness(1.02) contrast(0.98) !important;
+}
+
+:root[data-theme="light"] .leaflet-map-controls,
+:root[data-theme="light"] .leaflet-map-root .leaflet-control-zoom,
+:root[data-theme="light"] .leaflet-map-root .leaflet-control-scale-line,
+:root[data-theme="light"] .leaflet-map-root .leaflet-control-attribution,
+:root[data-theme="light"] .leaflet-port-label,
+:root[data-theme="light"] .leaflet-vessel-tooltip,
+:root[data-theme="light"] .leaflet-event-tooltip,
+:root[data-theme="light"] .ship-inspector-card,
+:root[data-theme="light"] .expanded-map-rail,
+:root[data-theme="light"] .expanded-rail-section {
+  border-color: rgba(43, 91, 101, 0.24) !important;
+  background: rgba(250, 253, 253, 0.94) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .leaflet-map-controls button {
+  color: #36575e !important;
+}
+
+:root[data-theme="light"] .leaflet-map-controls button:hover {
+  color: #10272c !important;
+}
+
+:root[data-theme="light"] .leaflet-map-controls > span {
+  color: #58757b !important;
+}
+
+:root[data-theme="light"] .leaflet-port-label.is-primary {
+  border-color: var(--mawani-aqua-50) !important;
+  background: #e2f4f5 !important;
+  color: #12363d !important;
+}
+
+/* Responsive hierarchy */
+@media (max-width: 1500px) {
+  .topbar {
+    grid-template-columns: minmax(22rem, 1fr) minmax(31rem, auto) !important;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 210px minmax(610px, 1fr) 280px !important;
+  }
+
+  .status-control-group .data-pill:nth-child(5),
+  .status-control-group .data-pill:nth-child(6) {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1220px) {
+  .app-shell.executive-shell {
+    padding: 10px !important;
+  }
+
+  .topbar {
+    grid-template-columns: 1fr !important;
+    align-items: start !important;
+  }
+
+  .scenario-bar {
+    justify-items: start !important;
+    max-width: 100% !important;
+  }
+
+  .status-control-group {
+    justify-content: flex-start !important;
+  }
+
+  .scenario-bar::before {
+    justify-self: start;
+  }
+
+  .provider-quality-matrix {
+    grid-template-columns: 1fr !important;
+  }
+
+  .provider-quality-matrix .data-quality-items,
+  .command-summary-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-rows: 620px auto !important;
+    grid-template-areas:
+      "map map"
+      "left right" !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .left-stack,
+  .right-stack {
+    min-height: 440px;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell.executive-shell {
+    padding: 8px !important;
+  }
+
+  .brand-title {
+    font-size: 1.62rem !important;
+  }
+
+  .brand-subtitle {
+    font-size: 0.76rem !important;
+  }
+
+  .status-control-group .data-pill:nth-child(n+4),
+  .scenario-bar::before {
+    display: none !important;
+  }
+
+  .provider-quality-matrix .data-quality-items,
+  .metrics-grid.executive-kpis,
+  .command-summary-cards,
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .provider-quality-matrix .data-quality-item:last-child {
+    display: grid !important;
+  }
+
+  .dashboard-grid {
+    grid-template-rows: 540px auto auto !important;
+    grid-template-areas:
+      "map"
+      "right"
+      "left" !important;
+  }
+
+  .left-stack,
+  .right-stack {
+    min-height: 520px;
+  }
+
+  .leaflet-map-controls {
+    max-width: calc(100% - 1rem) !important;
+  }
+
+  .leaflet-map-controls > span:nth-of-type(n+2) {
+    display: none;
+  }
+
+  .theme-toggle strong {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
