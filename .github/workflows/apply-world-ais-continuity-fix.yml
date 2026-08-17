@@ -50,6 +50,16 @@ jobs:
           python3 scripts/fix-world-ais-continuity-patch.py
           python3 -m py_compile scripts/apply-world-ais-continuity-fix.py
           python3 scripts/apply-world-ais-continuity-fix.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/check-runtime-contract.mjs")
+          text = path.read_text()
+          old = "assertIncludes(pocketWorldProvider, 'inputSource: `pocketworld-${source}`', \"public AIS provenance is absent\");"
+          new = "assertIncludes(pocketWorldProvider, 'row.inputSource ?? `pocketworld-${source}`', \"public AIS provenance is absent\");"
+          if text.count(old) != 1:
+              raise SystemExit("Could not align the PocketWorld provenance contract")
+          path.write_text(text.replace(old, new, 1))
+          PY
           rm scripts/apply-world-ais-continuity-fix.py
           rm scripts/fix-world-ais-continuity-patch.py
           rm .github/workflows/apply-world-ais-continuity-fix.yml
