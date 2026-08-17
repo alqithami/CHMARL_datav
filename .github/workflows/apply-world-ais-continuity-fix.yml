@@ -1,0 +1,110 @@
+name: Apply world AIS continuity fix
+
+on:
+  push:
+    branches:
+      - agent/restore-world-ais-continuity
+    paths:
+      - scripts/apply-world-ais-continuity-fix.py
+      - scripts/smoke-public-live-ais-continuity.mjs
+      - scripts/smoke-ais-rate-limit-backoff.mjs
+      - server/vessel-feed-proxy/pocketworld-live-ais.mjs
+      - .github/workflows/apply-world-ais-continuity-fix.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-world-ais-continuity-fix
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out continuity branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/restore-world-ais-continuity
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+          pnpm --version
+
+      - name: Apply continuity and rate-limit changes
+        run: |
+          python3 -m py_compile scripts/apply-world-ais-continuity-fix.py
+          python3 scripts/apply-world-ais-continuity-fix.py
+          rm scripts/apply-world-ais-continuity-fix.py
+          rm .github/workflows/apply-world-ais-continuity-fix.yml
+          node --check server/vessel-feed-proxy/runtime-v3.mjs
+          node --check server/vessel-feed-proxy/pocketworld-live-ais.mjs
+          node --check scripts/smoke-public-live-ais-continuity.mjs
+          node --check scripts/smoke-ais-rate-limit-backoff.mjs
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint, build, and verify runtime
+        run: pnpm check
+
+      - name: Verify production artifacts
+        run: pnpm verify:dist
+
+      - name: Check generated diff
+        run: git diff --check
+
+      - name: Build production container
+        run: docker build --tag chmarl-datav:world-continuity .
+
+      - name: Smoke production container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --name chmarl-datav-world-continuity --publish 8787:8787 chmarl-datav:world-continuity
+          cleanup() {
+            docker logs chmarl-datav-world-continuity || true
+            docker rm --force chmarl-datav-world-continuity >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:8787/health/live > /tmp/chmarl-live.json; then
+              break
+            fi
+            if [[ "$attempt" == "30" ]]; then
+              echo "The production container did not become live in time." >&2
+              exit 1
+            fi
+            sleep 2
+          done
+
+          cat /tmp/chmarl-live.json
+          curl --fail --silent --show-error http://127.0.0.1:8787/version
+          curl --fail --silent --show-error http://127.0.0.1:8787/ > /tmp/chmarl-index.html
+          grep --quiet '<div id="root"></div>' /tmp/chmarl-index.html
+
+      - name: Commit validated continuity fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit."
+            exit 0
+          fi
+          git commit -m "Restore world AIS continuity and provider backoff"
+          git push origin HEAD:agent/restore-world-ais-continuity
