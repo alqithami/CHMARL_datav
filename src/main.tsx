@@ -26,6 +26,7 @@ import "./portCoverageMatrix.css";
 import "./mawaniThemeModes.css";
 import "./topbarStatusClarity.css";
 import "./mapMotionStability.css";
+import "./mawaniVisualRefresh.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
