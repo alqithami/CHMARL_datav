@@ -18,9 +18,6 @@ on:
         type: boolean
   schedule:
     - cron: "17 */6 * * *"
-  workflow_run:
-    workflows: ["Build"]
-    types: [completed]
 
 permissions:
   contents: read
@@ -31,17 +28,14 @@ concurrency:
 
 jobs:
   monitor:
-    if: >-
-      github.event_name != 'workflow_run' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     name: Verify deployed revision and data state
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
       CHMARL_DEPLOYMENT_URL: ${{ inputs.portal_url || vars.CHMARL_DEPLOYMENT_URL || 'https://chmarl-datav.onrender.com' }}
-      EXPECTED_REVISION: ${{ inputs.expected_revision || github.event.workflow_run.head_sha || '' }}
+      EXPECTED_REVISION: ${{ inputs.expected_revision || '' }}
       REQUIRE_DATA_READY: ${{ inputs.require_data_ready || 'false' }}
-      DEPLOYMENT_CHECK_ATTEMPTS: ${{ github.event_name == 'workflow_run' && '18' || '3' }}
+      DEPLOYMENT_CHECK_ATTEMPTS: ${{ inputs.expected_revision && '18' || '3' }}
       DEPLOYMENT_CHECK_RETRY_MS: "20000"
       DEPLOYMENT_REQUEST_TIMEOUT_MS: "15000"
 

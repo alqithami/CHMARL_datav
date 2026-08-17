@@ -41,6 +41,7 @@ function forbidText(relativePath, text) {
   "Dockerfile",
   "package.json",
   "pnpm-lock.yaml",
+  "render.yaml",
   "scripts/verify-ci-contract.mjs",
   "scripts/check-deployed-service.mjs",
   "docs/CI_RUNTIME_GOVERNANCE.md",
@@ -72,9 +73,11 @@ requireText(
   ".devcontainer/devcontainer.json",
   "pnpm install --frozen-lockfile"
 );
+requireText("render.yaml", "autoDeployTrigger: checksPass");
 requireText("docs/CI_RUNTIME_GOVERNANCE.md", "Node.js 24");
 requireText("docs/CI_RUNTIME_GOVERNANCE.md", "Apply portal resilience patch");
 requireText("docs/PRODUCTION_MONITORING.md", "AIS data is considered ready only when");
+requireText("docs/PRODUCTION_MONITORING.md", "must not run as a check on the same commit");
 forbidText("Dockerfile", "FROM node:20");
 forbidText(".devcontainer/devcontainer.json", "javascript-node:20");
 
@@ -172,9 +175,10 @@ requireText(
   "http://127.0.0.1:8787/version"
 );
 
-requireText(".github/workflows/production-monitor.yml", "workflow_run:");
-requireText(".github/workflows/production-monitor.yml", "workflows: [\"Build\"]");
+requireText(".github/workflows/production-monitor.yml", "workflow_dispatch:");
 requireText(".github/workflows/production-monitor.yml", "schedule:");
+forbidText(".github/workflows/production-monitor.yml", "workflow_run:");
+forbidText(".github/workflows/production-monitor.yml", "github.event.workflow_run");
 requireText(
   ".github/workflows/production-monitor.yml",
   "https://chmarl-datav.onrender.com"
@@ -231,5 +235,5 @@ if (failures.length) {
 }
 
 console.log(
-  `CI and runtime contract verification passed (${workflowFiles.length} approved workflows, one automatic build path, one deployment monitor, Node ${read(".node-version").trim()}).`
+  `CI and runtime contract verification passed (${workflowFiles.length} approved workflows, one automatic build path, one non-blocking deployment monitor, Node ${read(".node-version").trim()}).`
 );
