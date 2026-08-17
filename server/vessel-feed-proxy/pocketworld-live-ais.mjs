@@ -5,6 +5,7 @@ const DEFAULT_URL = "https://pocketworld.org/api/ships";
 const DEFAULT_PAGE_SIZE = 5_000;
 const DEFAULT_MAX_PAGES = 10;
 const PROVIDER_MAX_PAGE_SIZE = 5_000;
+const PROVIDER_MAX_VESSELS = 50_000;
 
 function numeric(value) {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
@@ -172,7 +173,7 @@ export function createPocketWorldLiveAisProvider({
   const requestTimeout = Math.max(1_000, Number(timeoutMs) || 30_000);
   const vesselDisplayMaxAge = Math.max(60_000, Number(maxAgeMs) || 6 * 60 * 60_000);
   const vesselFreshAge = Math.min(vesselDisplayMaxAge, Math.max(60_000, Number(freshAgeMs) || 30 * 60_000));
-  const vesselLimit = Math.min(PROVIDER_MAX_PAGE_SIZE, Math.max(1, Number(maxVessels) || 50_000));
+  const vesselLimit = Math.min(PROVIDER_MAX_VESSELS, Math.max(1, Number(maxVessels) || PROVIDER_MAX_VESSELS));
   const paginationPageSize = Math.min(PROVIDER_MAX_PAGE_SIZE, Math.max(1, Number(pageSize) || DEFAULT_PAGE_SIZE));
   const paginationMaxPages = Math.min(100, Math.max(1, Number(maxPages) || DEFAULT_MAX_PAGES));
   const cachePath = String(cacheFile ?? "").trim();
