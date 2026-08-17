@@ -44,14 +44,22 @@ assertNotIncludes(datalasticProvider, "manual", "Datalastic provider contains ma
 assertIncludes(runtime, "createPocketWorldLiveAisProvider", "public live AIS fallback is not integrated");
 assertIncludes(runtime, "pocketWorldFailoverDue", "silent primary AIS does not activate the public fallback");
 assertIncludes(runtime, '...(Number(vesselInputState.pocketworldRows ?? 0) > 0 ? ["pocketworld"] : [])', "public AIS source is not represented in provider selection");
-assertIncludes(pocketWorldProvider, 'inputSource: `pocketworld-${source}`', "public AIS provenance is absent");
+assertIncludes(pocketWorldProvider, 'row.inputSource ?? `pocketworld-${source}`', "public AIS provenance is absent");
 assertIncludes(pocketWorldProvider, 'payload?.coverage', "public AIS coverage metadata is not preserved");
+assertIncludes(pocketWorldProvider, "loadCache();", "public AIS continuity cache is not restored at startup");
+assertIncludes(pocketWorldProvider, "last-known-regional", "public AIS last-known state is absent");
+assertIncludes(pocketWorldProvider, "freshVessels", "public AIS freshness diagnostics are absent");
 assertNotIncludes(pocketWorldProvider, "placeholder", "public AIS provider contains placeholder rows");
 assertIncludes(runtime, "deriveOperational: OPERATIONAL_PRIORITY_ENABLED", "single-stream operational derivation is absent");
 assertIncludes(runtime, 'id: "Jubail Commercial Port"', "Jubail is missing from the eight-port portfolio");
 assertIncludes(runtime, "PRIMARY_PORT_REFERENCE_POINTS", "Jeddah and King Abdullah focus is absent");
 assertIncludes(runtime, 'id: "primary-ports-position-only"', "AIS recovery does not prioritize the primary ports");
 assertIncludes(runtime, "primaryOperationalVessels", "primary operational scope is absent");
+assertIncludes(runtime, "ECOFAIR_MAX_VESSEL_AGE_MS", "last-known rows are not excluded from EcoFair");
+assertIncludes(runtime, '"pocketworld-last-known"', "last-known public AIS source is not exposed");
+assertIncludes(runtime, "AISSTREAM_RATE_LIMIT_BACKOFF_MS", "AIS 429 backoff is absent");
+assertIncludes(runtime, "rateLimitedUntil", "AIS rate-limit deadline is not exposed");
+assertIncludes(runtime, "retryAfterDelayMs", "AIS Retry-After handling is absent");
 assertIncludes(runtime, 'requestedScope === "primary"', "primary vessel API scope is absent");
 assertIncludes(runtime, "operationalAisCache.delete(vessel.id)", "out-of-scope vessels are not removed from the operational cache");
 assertNotIncludes(runtime, "FIXED_VESSEL", "manual/fixed vessel support remains in production runtime");
@@ -75,7 +83,11 @@ assertIncludes(render, "DATALASTIC_API_KEY\n        sync: false", "Render does n
 assertIncludes(render, "DATALASTIC_SCAN_POINT_IDS", "Render does not configure live AIS fallback coverage");
 assertIncludes(render, "POCKETWORLD_AIS_ENABLED\n        value: true", "Render does not enable public live AIS fallback");
 assertIncludes(render, "POCKETWORLD_API_URL", "Render does not configure the public AIS endpoint");
-assertIncludes(render, "POCKETWORLD_MAX_VESSELS\n        value: 2500", "Render public AIS row bound is missing");
+assertIncludes(render, "POCKETWORLD_MAX_VESSELS\n        value: 5000", "Render public AIS row bound is missing");
+assertIncludes(render, "POCKETWORLD_DISPLAY_MAX_AGE_MS\n        value: 21600000", "Render last-known AIS retention is absent");
+assertIncludes(render, "POCKETWORLD_CACHE_FILE\n        value: /var/data/pocketworld-ais-cache.json", "Render public AIS persistence is absent");
+assertIncludes(render, "ECOFAIR_MAX_VESSEL_AGE_MS\n        value: 1800000", "Render EcoFair freshness guard is absent");
+assertIncludes(render, "AISSTREAM_RATE_LIMIT_BACKOFF_MS\n        value: 1800000", "Render AIS rate-limit backoff is absent");
 assertNotIncludes(render, "FIXED_VESSEL", "Render still configures manual/fixed vessels");
 assertNotIncludes(render, "UPSTREAM_VESSEL", "Render still configures a non-AIS vessel provider");
 assertNotIncludes(envExample, "FIXED_VESSEL", "environment template still advertises manual vessels");
@@ -86,6 +98,8 @@ assertIncludes(packageJson, "scripts/smoke-ais-live.mjs", "live AIS integration 
 assertIncludes(packageJson, "scripts/smoke-live-ais-failover.mjs", "live AIS failover smoke test is not part of verification");
 assertIncludes(packageJson, "scripts/smoke-public-live-ais-fallback.mjs", "public live AIS fallback smoke test is not part of verification");
 assertIncludes(packageJson, "scripts/smoke-eight-port-ecofair-focus.mjs", "eight-port EcoFair smoke test is not part of verification");
+assertIncludes(packageJson, "scripts/smoke-public-live-ais-continuity.mjs", "public AIS continuity smoke test is not part of verification");
+assertIncludes(packageJson, "scripts/smoke-ais-rate-limit-backoff.mjs", "AIS rate-limit smoke test is not part of verification");
 assertNotIncludes(packageJson, "ingest:fixed-vessels", "manual vessel command remains available");
 
 for (const path of [

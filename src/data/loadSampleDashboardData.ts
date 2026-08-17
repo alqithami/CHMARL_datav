@@ -12,7 +12,7 @@ import type { ChmarlExperimentStep, PortEvent } from "@/types/chmarl";
 
 export type ChartDatum = { name: string; value: number };
 
-export type DashboardDataSource = "aisstream" | "datalastic" | "pocketworld" | "ais-multi-provider" | "aisstream-waiting" | "upstream" | "remote" | "local-json" | "fallback" | "none";
+export type DashboardDataSource = "aisstream" | "datalastic" | "pocketworld" | "pocketworld-last-known" | "ais-multi-provider" | "aisstream-waiting" | "upstream" | "remote" | "local-json" | "fallback" | "none";
 export type ChmarlDataSource = "runtime" | "local-json" | "none";
 export type PortOpsDataSource = "runtime" | "demo" | "local-json" | "none";
 export type WeatherDataSource = "open-meteo" | "runtime" | "none";
@@ -72,6 +72,7 @@ const saudiPortReferencePoints = [
   { id: "Yanbu", latitude: 24.0866, longitude: 38.0637 },
   { id: "Jizan", latitude: 16.8917, longitude: 42.5511 },
   { id: "Dammam", latitude: 26.4318, longitude: 50.1015 },
+  { id: "Jubail Commercial Port", latitude: 27.0333, longitude: 49.6667 },
   { id: "Jebel Ali", latitude: 25.0114, longitude: 55.0611 },
   { id: "Suez", latitude: 29.9668, longitude: 32.5498 },
 ];
@@ -128,6 +129,7 @@ function isExternalSource(source: DashboardDataSource) {
   return source === "aisstream"
     || source === "datalastic"
     || source === "pocketworld"
+    || source === "pocketworld-last-known"
     || source === "ais-multi-provider"
     || source === "aisstream-waiting";
 }
@@ -184,6 +186,7 @@ function nearestPort(row: Vessel) {
 
 function operationalVesselRows(rows: Vessel[], radiusNm: number) {
   return rows.filter((row) => {
+    if (stalePosition(row)) return false;
     const nearest = nearestPort(row);
     return nearest !== undefined && nearest.distance <= radiusNm;
   });
@@ -236,7 +239,9 @@ function externalTimeline(source: DashboardDataSource, chmarlSource: ChmarlDataS
     ? "Datalastic live AIS failover"
     : source === "pocketworld"
       ? "PocketWorld public regional live AIS"
-      : source === "ais-multi-provider"
+      : source === "pocketworld-last-known"
+        ? "PocketWorld public regional AIS (last known)"
+        : source === "ais-multi-provider"
         ? "multi-provider live AIS"
         : "AISStream live AIS";
   const continuity = vesselScope.heldRows > 0

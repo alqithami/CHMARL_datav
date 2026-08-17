@@ -56,6 +56,7 @@ function isExternalSource(source: DashboardDataSource) {
   return source === "aisstream"
     || source === "datalastic"
     || source === "pocketworld"
+    || source === "pocketworld-last-known"
     || source === "ais-multi-provider"
     || source === "aisstream-waiting"
     || source === "upstream"
@@ -66,6 +67,7 @@ function sourceLabel(source: DashboardDataSource) {
   if (source === "aisstream") return "AISStream live AIS";
   if (source === "datalastic") return "Datalastic live AIS";
   if (source === "pocketworld") return "Public regional live AIS";
+  if (source === "pocketworld-last-known") return "Public regional AIS · last known";
   if (source === "ais-multi-provider") return "Multi-provider live AIS";
   if (source === "aisstream-waiting") return "AIS waiting";
   if (source === "upstream") return "Upstream API";
@@ -104,6 +106,7 @@ function sourceRefreshMs(source: DashboardDataSource) {
   if (source === "aisstream"
     || source === "datalastic"
     || source === "pocketworld"
+    || source === "pocketworld-last-known"
     || source === "ais-multi-provider"
     || source === "aisstream-waiting") return 5_000;
   if (source === "upstream" || source === "remote") return 15_000;
