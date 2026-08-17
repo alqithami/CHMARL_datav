@@ -52,9 +52,10 @@ jobs:
           python3 scripts/apply-world-ais-continuity-fix.py
           python3 - <<'PY'
           from pathlib import Path
-          path = Path("scripts/check-runtime-contract.mjs")
-          text = path.read_text()
-          replacements = [
+
+          contract_path = Path("scripts/check-runtime-contract.mjs")
+          contract = contract_path.read_text()
+          contract_replacements = [
               (
                   "assertIncludes(pocketWorldProvider, 'inputSource: `pocketworld-${source}`', \"public AIS provenance is absent\");",
                   "assertIncludes(pocketWorldProvider, 'row.inputSource ?? `pocketworld-${source}`', \"public AIS provenance is absent\");",
@@ -64,11 +65,31 @@ jobs:
                   "assertIncludes(runtime, '\"pocketworld-last-known\"', \"last-known public AIS source is not exposed\");",
               ),
           ]
-          for old, new in replacements:
-              if text.count(old) != 1:
+          for old, new in contract_replacements:
+              if contract.count(old) != 1:
                   raise SystemExit(f"Could not align contract: {old}")
-              text = text.replace(old, new, 1)
-          path.write_text(text)
+              contract = contract.replace(old, new, 1)
+          contract_path.write_text(contract)
+
+          runtime_path = Path("server/vessel-feed-proxy/runtime-v3.mjs")
+          runtime = runtime_path.read_text()
+          old_error_handler = '''  socket.on("error", (error) => {
+            state.connected = false;
+            state.lastError = error.message;
+            state.status = "socket-error";
+          });'''
+          new_error_handler = '''  socket.on("error", (error) => {
+            state.connected = false;
+            state.lastError = error.message;
+            if (timestampMs(state.rateLimitedUntil) > Date.now()) {
+              state.status = "rate-limited";
+              return;
+            }
+            state.status = "socket-error";
+          });'''
+          if runtime.count(old_error_handler) != 1:
+              raise SystemExit("Could not preserve the AIS rate-limit state in the socket error handler")
+          runtime_path.write_text(runtime.replace(old_error_handler, new_error_handler, 1))
           PY
           rm scripts/apply-world-ais-continuity-fix.py
           rm scripts/fix-world-ais-continuity-patch.py
