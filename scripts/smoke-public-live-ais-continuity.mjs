@@ -59,7 +59,8 @@ let mirrorAvailable = true;
 let mirrorRequests = 0;
 const observedAt = new Date(Date.now() - 90 * 60_000).toISOString();
 const mirrorServer = createHttpServer((request, response) => {
-  if (request.url !== "/api/ships") {
+  const requestUrl = new URL(request.url ?? "/", `http://127.0.0.1:${mirrorPort}`);
+  if (requestUrl.pathname !== "/api/ships") {
     response.writeHead(404).end();
     return;
   }

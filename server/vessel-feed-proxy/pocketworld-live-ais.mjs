@@ -2,6 +2,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 const DEFAULT_URL = "https://pocketworld.org/api/ships";
+const DEFAULT_PAGE_SIZE = 5_000;
+const DEFAULT_MAX_PAGES = 10;
+const PROVIDER_MAX_PAGE_SIZE = 5_000;
+const PROVIDER_MAX_VESSELS = 50_000;
 
 function numeric(value) {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
@@ -46,6 +50,58 @@ function responseRows(payload) {
   if (Array.isArray(payload.data)) return payload.data;
   if (Array.isArray(payload.items)) return payload.items;
   return [];
+}
+
+function pageMetadata(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {
+      snapshotId: null,
+      nextCursor: null,
+      totalAvailable: 0,
+      truncated: false,
+    };
+  }
+  const nextCursor = payload.next_cursor ?? payload.nextCursor ?? null;
+  return {
+    snapshotId: payload.snapshot_id ?? payload.snapshotId ?? null,
+    nextCursor: nextCursor === "" ? null : nextCursor,
+    totalAvailable: Number(payload.total_available ?? payload.total_tracked ?? payload.count ?? 0) || 0,
+    truncated: Boolean(payload.truncated),
+  };
+}
+
+function cursorForNextPage(metadata, accumulatedRows, snapshotId) {
+  if (metadata.nextCursor !== null && metadata.nextCursor !== undefined && String(metadata.nextCursor).trim()) {
+    return metadata.nextCursor;
+  }
+  if (
+    snapshotId !== null
+    && snapshotId !== undefined
+    && String(snapshotId).trim()
+    && metadata.truncated
+    && metadata.totalAvailable > accumulatedRows
+  ) {
+    return accumulatedRows;
+  }
+  return null;
+}
+
+function buildPageUrl(baseUrl, snapshotId, cursor, limit) {
+  const url = new URL(baseUrl);
+  if (snapshotId !== null && snapshotId !== undefined && String(snapshotId).trim()) {
+    url.searchParams.set("snapshot_id", String(snapshotId));
+  }
+  if (cursor !== null && cursor !== undefined && String(cursor).trim()) {
+    url.searchParams.set("cursor", String(cursor));
+  }
+  url.searchParams.set("limit", String(limit));
+  return url.toString();
+}
+
+function unionStrings(payloads, key) {
+  return [...new Set(payloads.flatMap((payload) => (
+    Array.isArray(payload?.[key]) ? payload[key].map((value) => String(value)) : []
+  )))];
 }
 
 export function normalizePocketWorldVessel(row, now = Date.now) {
@@ -104,7 +160,9 @@ export function createPocketWorldLiveAisProvider({
   timeoutMs = 30_000,
   maxAgeMs = 6 * 60 * 60_000,
   freshAgeMs = 30 * 60_000,
-  maxVessels = 5000,
+  maxVessels = 50_000,
+  pageSize = DEFAULT_PAGE_SIZE,
+  maxPages = DEFAULT_MAX_PAGES,
   cacheFile,
   cacheFlushMs = 60_000,
   fetchImpl = globalThis.fetch,
@@ -115,7 +173,9 @@ export function createPocketWorldLiveAisProvider({
   const requestTimeout = Math.max(1_000, Number(timeoutMs) || 30_000);
   const vesselDisplayMaxAge = Math.max(60_000, Number(maxAgeMs) || 6 * 60 * 60_000);
   const vesselFreshAge = Math.min(vesselDisplayMaxAge, Math.max(60_000, Number(freshAgeMs) || 30 * 60_000));
-  const vesselLimit = Math.max(1, Number(maxVessels) || 5000);
+  const vesselLimit = Math.min(PROVIDER_MAX_VESSELS, Math.max(1, Number(maxVessels) || PROVIDER_MAX_VESSELS));
+  const paginationPageSize = Math.min(PROVIDER_MAX_PAGE_SIZE, Math.max(1, Number(pageSize) || DEFAULT_PAGE_SIZE));
+  const paginationMaxPages = Math.min(100, Math.max(1, Number(maxPages) || DEFAULT_MAX_PAGES));
   const cachePath = String(cacheFile ?? "").trim();
   const cacheWriteInterval = Math.max(5_000, Number(cacheFlushMs) || 60_000);
   const cache = new Map();
@@ -134,6 +194,14 @@ export function createPocketWorldLiveAisProvider({
     displayMaxAgeMs: vesselDisplayMaxAge,
     freshAgeMs: vesselFreshAge,
     maxVessels: vesselLimit,
+    pageSize: paginationPageSize,
+    maxPages: paginationMaxPages,
+    pagesFetched: 0,
+    snapshotId: null,
+    nextCursor: null,
+    fetchComplete: false,
+    paginationError: null,
+    responseRowCount: 0,
     cacheFile: cachePath || null,
     cacheLoadedAt: null,
     cacheSavedAt: null,
@@ -220,9 +288,11 @@ export function createPocketWorldLiveAisProvider({
     try {
       mkdirSync(dirname(cachePath), { recursive: true });
       const payload = {
-        version: 1,
+        version: 2,
         provider: "pocketworld",
         savedAt: new Date(now()).toISOString(),
+        totalAvailable: state.totalAvailable,
+        fetchComplete: state.fetchComplete,
         vessels: [...cache.values()],
       };
       writeFileSync(cachePath, JSON.stringify(payload));
@@ -245,6 +315,8 @@ export function createPocketWorldLiveAisProvider({
       }
       prune();
       state.restoredVessels = cache.size;
+      state.totalAvailable = Number(payload?.totalAvailable ?? cache.size) || cache.size;
+      state.fetchComplete = Boolean(payload?.fetchComplete);
       state.cacheLoadedAt = new Date(now()).toISOString();
       if (cache.size > 0) state.status = state.freshVessels > 0 ? "restored-fresh" : "restored-last-known";
     } catch (error) {
@@ -268,6 +340,35 @@ export function createPocketWorldLiveAisProvider({
     return now() - Date.parse(state.lastAttemptAt) >= interval;
   }
 
+  async function fetchPage(requestUrl) {
+    const controller = new AbortController();
+    abortController = controller;
+    const timer = setTimeout(() => controller.abort(), requestTimeout);
+    state.requests += 1;
+    try {
+      const response = await fetchImpl(requestUrl, {
+        headers: {
+          accept: "application/json",
+          "user-agent": "CHMARL-DataV/1.0 public-live-AIS-fallback",
+        },
+        redirect: "follow",
+        signal: controller.signal,
+      });
+      state.lastHttpStatus = response.status;
+      state.staleHeader = state.staleHeader || response.headers?.get?.("x-pocketworld-stale") === "1";
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => "")).slice(0, 500);
+        const error = new Error(`${response.status} ${response.statusText}${detail ? `: ${detail}` : ""}`);
+        error.statusCode = response.status;
+        throw error;
+      }
+      return await response.json();
+    } finally {
+      clearTimeout(timer);
+      if (abortController === controller) abortController = null;
+    }
+  }
+
   async function refresh({ force = false } = {}) {
     if (!active || !due(force)) return rows();
     if (inFlight) return inFlight;
@@ -276,74 +377,127 @@ export function createPocketWorldLiveAisProvider({
       state.status = "fetching";
       state.lastAttemptAt = new Date(now()).toISOString();
       state.nextPollAt = new Date(now() + interval).toISOString();
-      state.requests += 1;
-      abortController = new AbortController();
-      const timer = setTimeout(() => abortController.abort(), requestTimeout);
+      state.staleHeader = false;
+      state.pagesFetched = 0;
+      state.snapshotId = null;
+      state.nextCursor = null;
+      state.fetchComplete = false;
+      state.paginationError = null;
+      state.responseRowCount = 0;
 
       try {
-        const response = await fetchImpl(state.url, {
-          headers: {
-            accept: "application/json",
-            "user-agent": "CHMARL-DataV/1.0 public-live-AIS-fallback",
-          },
-          redirect: "follow",
-          signal: abortController.signal,
-        });
-        state.lastHttpStatus = response.status;
-        state.staleHeader = response.headers?.get?.("x-pocketworld-stale") === "1";
-        if (!response.ok) {
-          const detail = (await response.text().catch(() => "")).slice(0, 500);
-          state.status = statusForHttp(response.status);
-          state.lastError = `${response.status} ${response.statusText}${detail ? `: ${detail}` : ""}`;
-          return rows();
+        const payloads = [];
+        const firstRequestLimit = Math.min(paginationPageSize, vesselLimit);
+        const firstPayload = await fetchPage(buildPageUrl(state.url, null, null, firstRequestLimit));
+        payloads.push(firstPayload);
+        let metadata = pageMetadata(firstPayload);
+        const snapshotId = metadata.snapshotId;
+        let totalAvailable = metadata.totalAvailable;
+        const rawRows = [...responseRows(firstPayload)];
+        let nextCursor = cursorForNextPage(metadata, rawRows.length, snapshotId);
+        const seenCursors = new Set();
+        let paginationError = null;
+
+        while (
+          nextCursor !== null
+          && nextCursor !== undefined
+          && String(nextCursor).trim()
+          && rawRows.length < vesselLimit
+          && payloads.length < paginationMaxPages
+        ) {
+          const cursorKey = String(nextCursor);
+          if (seenCursors.has(cursorKey)) {
+            paginationError = `PocketWorld repeated cursor ${cursorKey}`;
+            break;
+          }
+          seenCursors.add(cursorKey);
+          const remaining = vesselLimit - rawRows.length;
+          const requestLimit = Math.min(paginationPageSize, remaining);
+          const requestUrl = buildPageUrl(state.url, snapshotId, nextCursor, requestLimit);
+          try {
+            const pagePayload = await fetchPage(requestUrl);
+            payloads.push(pagePayload);
+            rawRows.push(...responseRows(pagePayload));
+            metadata = pageMetadata(pagePayload);
+            totalAvailable = Math.max(totalAvailable, metadata.totalAvailable);
+            nextCursor = cursorForNextPage(
+              { ...metadata, totalAvailable },
+              rawRows.length,
+              snapshotId,
+            );
+          } catch (error) {
+            paginationError = error instanceof Error ? error.message : String(error);
+            break;
+          }
         }
 
-        const payload = await response.json();
-        const rawRows = responseRows(payload);
+        const expectedRows = totalAvailable > 0 ? Math.min(totalAvailable, vesselLimit) : null;
+        const cursorExhausted = nextCursor === null || nextCursor === undefined || !String(nextCursor).trim();
+        const reachedExpectedRows = expectedRows !== null && rawRows.length >= expectedRows;
+        const localLimitTruncates = totalAvailable > vesselLimit;
+        const providerOmittedCursor = expectedRows !== null && rawRows.length < expectedRows && cursorExhausted;
+        if (!paginationError && providerOmittedCursor) {
+          paginationError = `PocketWorld reported ${expectedRows} available rows but returned ${rawRows.length} without next_cursor`;
+        }
+        const fetchComplete = !paginationError
+          && !localLimitTruncates
+          && (reachedExpectedRows || (expectedRows === null && cursorExhausted));
+
         let invalid = 0;
         let expired = 0;
-        let fresh = 0;
-        let lastKnown = 0;
-        const normalized = [];
+        const normalizedById = new Map();
         for (const raw of rawRows) {
           const vessel = normalizePocketWorldVessel(raw, now);
           if (!vessel) {
             invalid += 1;
             continue;
           }
-          const age = observationAge(vessel);
-          if (age > vesselDisplayMaxAge) {
+          if (observationAge(vessel) > vesselDisplayMaxAge) {
             expired += 1;
             continue;
           }
-          if (age <= vesselFreshAge) fresh += 1;
-          else lastKnown += 1;
-          normalized.push(vessel);
+          const existing = normalizedById.get(vessel.id);
+          if (!existing || timestampMs(vessel.timestamp) >= timestampMs(existing.timestamp)) {
+            normalizedById.set(vessel.id, vessel);
+          }
         }
-        normalized.sort((a, b) => timestampMs(b.timestamp) - timestampMs(a.timestamp));
-        for (const vessel of normalized.slice(0, vesselLimit)) cache.set(vessel.id, vessel);
+
+        const normalized = [...normalizedById.values()]
+          .sort((a, b) => timestampMs(b.timestamp) - timestampMs(a.timestamp))
+          .slice(0, vesselLimit);
+        const fresh = normalized.filter((vessel) => observationAge(vessel) <= vesselFreshAge).length;
+        const lastKnown = Math.max(0, normalized.length - fresh);
+        for (const vessel of normalized) cache.set(vessel.id, vessel);
         prune();
 
+        state.pagesFetched = payloads.length;
+        state.snapshotId = snapshotId;
+        state.nextCursor = nextCursor;
+        state.fetchComplete = fetchComplete;
+        state.paginationError = paginationError;
+        state.responseRowCount = rawRows.length;
         state.payloadCount = rawRows.length;
-        state.rowsAccepted += Math.min(normalized.length, vesselLimit);
-        state.freshRowsInPayload = Math.min(fresh, vesselLimit);
-        state.lastKnownRowsInPayload = Math.min(lastKnown, vesselLimit);
+        state.rowsAccepted += normalized.length;
+        state.freshRowsInPayload = fresh;
+        state.lastKnownRowsInPayload = lastKnown;
         state.rejectedInvalid += invalid;
         state.rejectedStale += expired;
         state.rejectedExpired += expired;
         state.lastSuccessAt = new Date(now()).toISOString();
-        state.lastError = null;
-        state.connected = payload?.connected !== false;
-        state.sourceHealth = payload?.source_health ?? null;
-        state.observedSources = Array.isArray(payload?.sources) ? payload.sources : [];
-        state.workingSources = Array.isArray(payload?.working_sources) ? payload.working_sources : [];
-        state.coverage = payload?.coverage ?? null;
-        state.totalAvailable = Number(payload?.total_available ?? payload?.total_tracked ?? rawRows.length) || 0;
-        state.truncated = Boolean(payload?.truncated);
+        state.lastError = paginationError;
+        state.connected = firstPayload?.connected !== false;
+        state.sourceHealth = payloads.find((payload) => payload?.source_health)?.source_health ?? null;
+        state.observedSources = unionStrings(payloads, "sources");
+        state.workingSources = unionStrings(payloads, "working_sources");
+        state.coverage = payloads.find((payload) => payload?.coverage)?.coverage ?? null;
+        state.totalAvailable = totalAvailable || rawRows.length;
+        state.truncated = !fetchComplete;
+
         if (cache.size > 0) {
-          state.status = state.freshVessels > 0
+          const baseStatus = state.freshVessels > 0
             ? state.staleHeader ? "live-regional-stale-global" : "live-regional"
             : "last-known-regional";
+          state.status = fetchComplete ? baseStatus : `${baseStatus}-partial`;
           state.successfulPolls += 1;
           saveCache();
         } else {
@@ -352,11 +506,14 @@ export function createPocketWorldLiveAisProvider({
         }
         return rows();
       } catch (error) {
-        state.status = error?.name === "AbortError" ? "timeout" : "provider-error";
+        state.status = error?.name === "AbortError"
+          ? "timeout"
+          : error?.statusCode
+            ? statusForHttp(error.statusCode)
+            : "provider-error";
         state.lastError = error instanceof Error ? error.message : String(error);
         return rows();
       } finally {
-        clearTimeout(timer);
         abortController = null;
         inFlight = null;
       }

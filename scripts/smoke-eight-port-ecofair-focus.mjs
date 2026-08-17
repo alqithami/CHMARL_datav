@@ -51,7 +51,8 @@ const websocketServer = new WebSocketServer({ host: "127.0.0.1", port: websocket
 websocketServer.on("connection", (socket) => socket.on("message", () => {}));
 
 const publicAisServer = createHttpServer((request, response) => {
-  if (request.url !== "/api/ships") {
+  const requestUrl = new URL(request.url ?? "/", `http://127.0.0.1:${publicAisPort}`);
+  if (requestUrl.pathname !== "/api/ships") {
     response.writeHead(404).end();
     return;
   }

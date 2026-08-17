@@ -49,6 +49,19 @@ assertIncludes(pocketWorldProvider, 'payload?.coverage', "public AIS coverage me
 assertIncludes(pocketWorldProvider, "loadCache();", "public AIS continuity cache is not restored at startup");
 assertIncludes(pocketWorldProvider, "last-known-regional", "public AIS last-known state is absent");
 assertIncludes(pocketWorldProvider, "freshVessels", "public AIS freshness diagnostics are absent");
+assertIncludes(pocketWorldProvider, "snapshot_id", "PocketWorld snapshot pagination is absent");
+assertIncludes(pocketWorldProvider, "next_cursor", "PocketWorld cursor traversal is absent");
+assertIncludes(pocketWorldProvider, "firstRequestLimit", "PocketWorld first request does not advertise its full page capacity");
+assertIncludes(pocketWorldProvider, "providerOmittedCursor", "PocketWorld cannot detect a provider-side truncated response without a cursor");
+assertIncludes(pocketWorldProvider, "pagesFetched", "PocketWorld pagination diagnostics are absent");
+assertIncludes(pocketWorldProvider, "fetchComplete", "PocketWorld complete-snapshot state is absent");
+assertIncludes(pocketWorldProvider, "DEFAULT_PAGE_SIZE = 5_000", "PocketWorld page size does not match the provider contract");
+assertIncludes(pocketWorldProvider, "PROVIDER_MAX_PAGE_SIZE = 5_000", "PocketWorld requests can exceed the provider page limit");
+assertIncludes(pocketWorldProvider, "PROVIDER_MAX_VESSELS = 50_000", "PocketWorld aggregate fleet limit is below the portal target");
+assertIncludes(pocketWorldProvider, "Math.min(PROVIDER_MAX_VESSELS", "PocketWorld aggregate capacity is still capped by the per-request page size");
+assertIncludes(pocketWorldProvider, "cursorForNextPage", "PocketWorld does not infer an offset cursor when a truncated snapshot omits next_cursor");
+assertIncludes(pocketWorldProvider, "metadata.totalAvailable > accumulatedRows", "PocketWorld inferred pagination does not check remaining rows");
+assertIncludes(pocketWorldProvider, "maxVessels = 50_000", "PocketWorld aggregate provider capacity remains below the portal target");
 assertNotIncludes(pocketWorldProvider, "placeholder", "public AIS provider contains placeholder rows");
 assertIncludes(runtime, "deriveOperational: OPERATIONAL_PRIORITY_ENABLED", "single-stream operational derivation is absent");
 assertIncludes(runtime, 'id: "Jubail Commercial Port"', "Jubail is missing from the eight-port portfolio");
@@ -72,6 +85,7 @@ assertIncludes(startProd, 'process.env.AISSTREAM_GLOBAL_TRACKING_ENABLED = "true
 assertIncludes(startProd, "process.env.AISSTREAM_TRACKING_BBOX = WORLD_AIS_BBOX", "production startup does not force the world box");
 assertIncludes(startProd, 'process.env.AISSTREAM_RECOVERY_ENABLED = "true"', "production startup does not enable silent-session recovery");
 assertIncludes(startProd, 'process.env.AISSTREAM_FIRST_FRAME_TIMEOUT_MS', "production startup does not configure first-frame recovery");
+assertIncludes(startProd, 'process.env.POCKETWORLD_MAX_VESSELS ??= "50000"', "production startup still limits PocketWorld to 5000 rows");
 assertIncludes(startProd, 'process.env.RUNTIME_DATA_DIR = runningOnRender ? "/var/data"', "Render persistence is not enforced");
 assertIncludes(render, "healthCheckPath: /health/live", "Render liveness endpoint is incorrect");
 assertIncludes(render, "value: -90,-180;90,180", "Render does not use the global AIS box");
@@ -83,7 +97,7 @@ assertIncludes(render, "DATALASTIC_API_KEY\n        sync: false", "Render does n
 assertIncludes(render, "DATALASTIC_SCAN_POINT_IDS", "Render does not configure live AIS fallback coverage");
 assertIncludes(render, "POCKETWORLD_AIS_ENABLED\n        value: true", "Render does not enable public live AIS fallback");
 assertIncludes(render, "POCKETWORLD_API_URL", "Render does not configure the public AIS endpoint");
-assertIncludes(render, "POCKETWORLD_MAX_VESSELS\n        value: 5000", "Render public AIS row bound is missing");
+assertIncludes(render, "POCKETWORLD_MAX_VESSELS\n        value: 50000", "Render public AIS capacity remains fixed at 5000");
 assertIncludes(render, "POCKETWORLD_DISPLAY_MAX_AGE_MS\n        value: 21600000", "Render last-known AIS retention is absent");
 assertIncludes(render, "POCKETWORLD_CACHE_FILE\n        value: /var/data/pocketworld-ais-cache.json", "Render public AIS persistence is absent");
 assertIncludes(render, "ECOFAIR_MAX_VESSEL_AGE_MS\n        value: 1800000", "Render EcoFair freshness guard is absent");
@@ -92,6 +106,7 @@ assertNotIncludes(render, "FIXED_VESSEL", "Render still configures manual/fixed 
 assertNotIncludes(render, "UPSTREAM_VESSEL", "Render still configures a non-AIS vessel provider");
 assertNotIncludes(envExample, "FIXED_VESSEL", "environment template still advertises manual vessels");
 assertNotIncludes(envExample, "UPSTREAM_VESSEL", "environment template still advertises non-AIS vessels");
+assertIncludes(envExample, "POCKETWORLD_MAX_VESSELS=50000", "environment template still caps PocketWorld at 5000");
 assertIncludes(dockerfile, "COPY package.json pnpm-lock.yaml ./", "Docker build does not copy the lockfile");
 assertIncludes(dockerfile, "pnpm install --frozen-lockfile", "Docker build is not locked");
 assertIncludes(packageJson, "scripts/smoke-ais-live.mjs", "live AIS integration smoke test is not part of verification");
