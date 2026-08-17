@@ -174,7 +174,15 @@ try {
   assert(restored.vessels.length === 2, "Persistent genuine AIS rows disappeared during the mirror outage");
   assert(restored.providers?.pocketworld?.restoredVessels === 2, "Persistent AIS rows were not restored after restart");
   assert(restored.counts.operational === 0, "Restored last-known rows incorrectly activated EcoFair");
+
+  const { json: outageHealth } = await fetchJsonUntil(`${secondBase}/health`, (_response, json) => (
+    mirrorRequests >= 2
+    && json?.pocketworld?.status === "provider-error"
+    && json?.vesselInputs?.trackingRows === 2
+  ));
   assert(mirrorRequests >= 2, "The mirror outage path was not exercised");
+  assert(outageHealth.pocketworld.cachedVessels === 2, "Mirror failure removed the persistent genuine AIS rows");
+  assert(outageHealth.vesselInputs.operationalRows === 0, "Mirror outage caused last-known rows to activate EcoFair");
 
   console.log("Public live AIS continuity smoke test passed.");
 } catch (error) {
