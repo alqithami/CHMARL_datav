@@ -1,0 +1,106 @@
+name: Diagnose empty world AIS
+
+on:
+  push:
+    branches:
+      - agent/diagnose-empty-world-ais
+    paths:
+      - .github/workflows/diagnose-empty-world-ais.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Probe portal and public AIS mirror
+        shell: bash
+        env:
+          PORTAL: https://chmarl-datav.onrender.com
+          MIRROR: https://pocketworld.org/api/ships
+        run: |
+          set -uo pipefail
+
+          echo '=== portal version ==='
+          curl -sS --connect-timeout 10 --max-time 30 "$PORTAL/version" | tee /tmp/version.json
+          echo
+
+          echo '=== portal health HTTP ==='
+          curl -sS -D /tmp/health.headers --connect-timeout 10 --max-time 30 "$PORTAL/health" -o /tmp/health.json
+          cat /tmp/health.headers
+          node - <<'NODE'
+          const fs = require('fs');
+          const h = JSON.parse(fs.readFileSync('/tmp/health.json', 'utf8'));
+          const output = {
+            release: h.release,
+            providerConfigured: h.providerConfigured,
+            providerState: h.providerState,
+            trackingScope: h.trackingScope,
+            operationalScope: h.operationalScope,
+            vesselInputs: h.vesselInputs,
+            aisstream: h.aisstream,
+            operationalAisstream: h.operationalAisstream,
+            datalastic: h.datalastic,
+            pocketworld: h.pocketworld,
+            ecofair: h.ecofair,
+            chmarl: h.chmarl,
+            runtime: h.runtime,
+          };
+          console.log(JSON.stringify(output, null, 2));
+          NODE
+
+          echo '=== portal vessel API HTTP ==='
+          curl -sS -D /tmp/vessels.headers --connect-timeout 10 --max-time 60 "$PORTAL/api/vessels" -o /tmp/vessels.json
+          cat /tmp/vessels.headers
+          node - <<'NODE'
+          const fs = require('fs');
+          const v = JSON.parse(fs.readFileSync('/tmp/vessels.json', 'utf8'));
+          const rows = Array.isArray(v.vessels) ? v.vessels : [];
+          console.log(JSON.stringify({
+            source: v.source,
+            scope: v.scope,
+            counts: v.counts,
+            inputs: v.inputs,
+            health: v.health,
+            operationalHealth: v.operationalHealth,
+            providers: v.providers,
+            vesselRows: rows.length,
+            firstRows: rows.slice(0, 3),
+          }, null, 2));
+          NODE
+
+          echo '=== direct PocketWorld HTTP ==='
+          curl -sS -D /tmp/mirror.headers --connect-timeout 10 --max-time 90 "$MIRROR" -o /tmp/mirror.json || true
+          cat /tmp/mirror.headers 2>/dev/null || true
+          echo 'mirror bytes:' $(wc -c < /tmp/mirror.json 2>/dev/null || echo 0)
+          node - <<'NODE'
+          const fs = require('fs');
+          if (!fs.existsSync('/tmp/mirror.json')) process.exit(0);
+          const text = fs.readFileSync('/tmp/mirror.json', 'utf8');
+          try {
+            const p = JSON.parse(text);
+            const rows = Array.isArray(p) ? p : p.ships ?? p.vessels ?? p.data ?? p.items ?? [];
+            console.log(JSON.stringify({
+              topLevelKeys: p && typeof p === 'object' && !Array.isArray(p) ? Object.keys(p) : [],
+              count: p.count,
+              totalTracked: p.total_tracked,
+              totalAvailable: p.total_available,
+              connected: p.connected,
+              sources: p.sources,
+              workingSources: p.working_sources,
+              sourceHealth: p.source_health,
+              coverage: p.coverage,
+              truncated: p.truncated,
+              rowCount: Array.isArray(rows) ? rows.length : null,
+              firstRows: Array.isArray(rows) ? rows.slice(0, 3) : null,
+              error: p.error,
+              message: p.message,
+            }, null, 2));
+          } catch (error) {
+            console.log(text.slice(0, 3000));
+            console.error(error.message);
+          }
+          NODE
