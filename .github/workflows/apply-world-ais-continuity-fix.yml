@@ -52,6 +52,7 @@ jobs:
           python3 scripts/apply-world-ais-continuity-fix.py
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           contract_path = Path("scripts/check-runtime-contract.mjs")
           contract = contract_path.read_text()
@@ -73,12 +74,14 @@ jobs:
 
           runtime_path = Path("server/vessel-feed-proxy/runtime-v3.mjs")
           runtime = runtime_path.read_text()
-          old_error_handler = '''  socket.on("error", (error) => {
-            state.connected = false;
-            state.lastError = error.message;
-            state.status = "socket-error";
-          });'''
-          new_error_handler = '''  socket.on("error", (error) => {
+          pattern = re.compile(
+              r'  socket\.on\("error", \(error\) => \{\n'
+              r'    state\.connected = false;\n'
+              r'    state\.lastError = error\.message;\n'
+              r'    state\.status = "socket-error";\n'
+              r'  \}\);'
+          )
+          replacement = '''  socket.on("error", (error) => {
             state.connected = false;
             state.lastError = error.message;
             if (timestampMs(state.rateLimitedUntil) > Date.now()) {
@@ -87,9 +90,10 @@ jobs:
             }
             state.status = "socket-error";
           });'''
-          if runtime.count(old_error_handler) != 1:
+          runtime, count = pattern.subn(replacement, runtime, count=1)
+          if count != 1:
               raise SystemExit("Could not preserve the AIS rate-limit state in the socket error handler")
-          runtime_path.write_text(runtime.replace(old_error_handler, new_error_handler, 1))
+          runtime_path.write_text(runtime)
           PY
           rm scripts/apply-world-ais-continuity-fix.py
           rm scripts/fix-world-ais-continuity-patch.py
