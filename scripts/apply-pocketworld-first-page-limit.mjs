@@ -65,6 +65,48 @@ smoke = replaceOnce(
 );
 write(smokePath, smoke);
 
+const eightPortSmokePath = "scripts/smoke-eight-port-ecofair-focus.mjs";
+let eightPortSmoke = read(eightPortSmokePath);
+eightPortSmoke = replaceOnce(
+  eightPortSmoke,
+  `const publicAisServer = createHttpServer((request, response) => {
+  if (request.url !== "/api/ships") {
+    response.writeHead(404).end();
+    return;
+  }
+`,
+  `const publicAisServer = createHttpServer((request, response) => {
+  const requestUrl = new URL(request.url ?? "/", \`http://127.0.0.1:\${publicAisPort}\`);
+  if (requestUrl.pathname !== "/api/ships") {
+    response.writeHead(404).end();
+    return;
+  }
+`,
+  "eight-port PocketWorld request-path fixture",
+);
+write(eightPortSmokePath, eightPortSmoke);
+
+const continuitySmokePath = "scripts/smoke-public-live-ais-continuity.mjs";
+let continuitySmoke = read(continuitySmokePath);
+continuitySmoke = replaceOnce(
+  continuitySmoke,
+  `const mirrorServer = createHttpServer((request, response) => {
+  if (request.url !== "/api/ships") {
+    response.writeHead(404).end();
+    return;
+  }
+`,
+  `const mirrorServer = createHttpServer((request, response) => {
+  const requestUrl = new URL(request.url ?? "/", \`http://127.0.0.1:\${mirrorPort}\`);
+  if (requestUrl.pathname !== "/api/ships") {
+    response.writeHead(404).end();
+    return;
+  }
+`,
+  "continuity PocketWorld request-path fixture",
+);
+write(continuitySmokePath, continuitySmoke);
+
 const contractPath = "scripts/check-runtime-contract.mjs";
 let contract = read(contractPath);
 contract = replaceOnce(
