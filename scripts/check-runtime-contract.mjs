@@ -57,6 +57,8 @@ assertIncludes(pocketWorldProvider, "pagesFetched", "PocketWorld pagination diag
 assertIncludes(pocketWorldProvider, "fetchComplete", "PocketWorld complete-snapshot state is absent");
 assertIncludes(pocketWorldProvider, "DEFAULT_PAGE_SIZE = 5_000", "PocketWorld page size does not match the provider contract");
 assertIncludes(pocketWorldProvider, "PROVIDER_MAX_PAGE_SIZE = 5_000", "PocketWorld requests can exceed the provider page limit");
+assertIncludes(pocketWorldProvider, "PROVIDER_MAX_VESSELS = 50_000", "PocketWorld aggregate fleet limit is below the portal target");
+assertIncludes(pocketWorldProvider, "Math.min(PROVIDER_MAX_VESSELS", "PocketWorld aggregate capacity is still capped by the per-request page size");
 assertIncludes(pocketWorldProvider, "cursorForNextPage", "PocketWorld does not infer an offset cursor when a truncated snapshot omits next_cursor");
 assertIncludes(pocketWorldProvider, "metadata.totalAvailable > accumulatedRows", "PocketWorld inferred pagination does not check remaining rows");
 assertIncludes(pocketWorldProvider, "maxVessels = 50_000", "PocketWorld aggregate provider capacity remains below the portal target");
