@@ -54,8 +54,8 @@ assertIncludes(main, 'import "leaflet/dist/leaflet.css"', "Leaflet base styles a
 assertIncludes(main, 'import "./leafletMap.css"', "Leaflet application styles are not loaded");
 assertIncludes(packageJson, '"leaflet": "1.9.4"', "Leaflet is not pinned to the stable release");
 assertIncludes(packageJson, '"@types/leaflet"', "Leaflet TypeScript definitions are absent");
-assertIncludes(stabilizer, "const maxPerGridCell = 20_000", "the frontend still thins the global AIS cohort");
-assertIncludes(stabilizer, "const maxDisplayRows = 20_000", "the frontend display cap is below the global AIS target");
+assertIncludes(stabilizer, "const maxPerGridCell = 50_000", "the frontend still thins a complete PocketWorld fleet");
+assertIncludes(stabilizer, "const maxDisplayRows = 50_000", "the frontend display cap is below the provider maximum");
 assertIncludes(coverage, 'id: "Jubail Commercial Port"', "Jubail is missing from frontend port coverage");
 assertIncludes(coverageMatrix, "Jeddah + KAP:", "primary-port coverage is not surfaced");
 

@@ -125,7 +125,7 @@ services:
       - key: POCKETWORLD_MAX_AGE_MS
         value: 21600000
       - key: POCKETWORLD_MAX_VESSELS
-        value: 5000
+        value: 50000
       - key: POCKETWORLD_CACHE_FILE
         value: /var/data/pocketworld-ais-cache.json
       - key: POCKETWORLD_CACHE_FLUSH_MS

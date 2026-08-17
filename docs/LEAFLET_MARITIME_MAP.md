@@ -23,11 +23,17 @@ The map retains these explicit views:
 
 Layer toggles control ports, operational zones, events, trails, and seamarks. Native Leaflet dragging, wheel zoom, touch gestures, keyboard navigation, attribution, and metric scale controls are enabled.
 
+## Complete vessel cohort
+
+The PocketWorld adapter follows the provider's stable `snapshot_id` and `cursor` pagination until the current snapshot is complete or the 50,000-row safety ceiling is reached. The backend therefore no longer stops at the first 5,000 rows. Provider diagnostics expose `totalAvailable`, `pagesFetched`, `snapshotId`, `nextCursor`, `fetchComplete`, and `truncated` so the portal can distinguish a complete fleet from a partial response.
+
+The Leaflet renderer and frontend stabilizer accept up to 50,000 genuine AIS observations. The expanded vessel rail shows at most 500 rows at once for DOM performance, but search and filters operate on the complete cohort and all matching vessels remain on the Canvas-rendered map.
+
 ## Performance and integrity
 
-Leaflet is configured with `preferCanvas: true`. AIS points are rendered as vector circle markers on a Canvas renderer rather than thousands of HTML marker elements. The expanded vessel rail shows at most 500 rows at once for DOM performance, but search and filters operate on the complete cohort and all matching vessels remain on the map.
+Leaflet is configured with `preferCanvas: true`. AIS points are rendered as vector circle markers on a Canvas renderer rather than thousands of HTML marker elements. PocketWorld is polled on its configured backend interval and the resulting complete snapshot is cached on the persistent Render disk.
 
-No manual, fixed, sample, synthetic, interpolated, or repositioned vessel is introduced by the map. Last-known observations keep their provider timestamp and remain visually differentiated. Backend freshness and eight-port geofencing continue to determine whether a vessel may contribute to EcoFair-CH-MARL calculations.
+No manual, fixed, sample, synthetic, interpolated, or repositioned vessel is introduced by the map. Last-known observations keep their provider timestamp and remain visually differentiated. Backend freshness and eight-port geofencing continue to determine whether a vessel may contribute to EcoFair-CH-MARL calculations. Loading the complete world cohort may reveal a previously omitted port-area observation, but it does not allow unrelated or stale vessels to activate EcoFair.
 
 ## Configuration
 
