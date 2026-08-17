@@ -2,9 +2,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 const DEFAULT_URL = "https://pocketworld.org/api/ships";
-const DEFAULT_PAGE_SIZE = 10_000;
+const DEFAULT_PAGE_SIZE = 5_000;
 const DEFAULT_MAX_PAGES = 10;
-const PROVIDER_MAX_PAGE_SIZE = 50_000;
+const PROVIDER_MAX_PAGE_SIZE = 5_000;
 
 function numeric(value) {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
@@ -67,6 +67,22 @@ function pageMetadata(payload) {
     totalAvailable: Number(payload.total_available ?? payload.total_tracked ?? payload.count ?? 0) || 0,
     truncated: Boolean(payload.truncated),
   };
+}
+
+function cursorForNextPage(metadata, accumulatedRows, snapshotId) {
+  if (metadata.nextCursor !== null && metadata.nextCursor !== undefined && String(metadata.nextCursor).trim()) {
+    return metadata.nextCursor;
+  }
+  if (
+    snapshotId !== null
+    && snapshotId !== undefined
+    && String(snapshotId).trim()
+    && metadata.truncated
+    && metadata.totalAvailable > accumulatedRows
+  ) {
+    return accumulatedRows;
+  }
+  return null;
 }
 
 function buildPageUrl(baseUrl, snapshotId, cursor, limit) {
@@ -375,9 +391,9 @@ export function createPocketWorldLiveAisProvider({
         payloads.push(firstPayload);
         let metadata = pageMetadata(firstPayload);
         const snapshotId = metadata.snapshotId;
-        let nextCursor = metadata.nextCursor;
         let totalAvailable = metadata.totalAvailable;
         const rawRows = [...responseRows(firstPayload)];
+        let nextCursor = cursorForNextPage(metadata, rawRows.length, snapshotId);
         const seenCursors = new Set();
         let paginationError = null;
 
@@ -402,8 +418,12 @@ export function createPocketWorldLiveAisProvider({
             payloads.push(pagePayload);
             rawRows.push(...responseRows(pagePayload));
             metadata = pageMetadata(pagePayload);
-            nextCursor = metadata.nextCursor;
             totalAvailable = Math.max(totalAvailable, metadata.totalAvailable);
+            nextCursor = cursorForNextPage(
+              { ...metadata, totalAvailable },
+              rawRows.length,
+              snapshotId,
+            );
           } catch (error) {
             paginationError = error instanceof Error ? error.message : String(error);
             break;
