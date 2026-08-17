@@ -16,11 +16,12 @@ AIS data is considered ready only when `/health/ready` returns HTTP 200 and the 
 
 `.github/workflows/production-monitor.yml` runs:
 
-- after a successful `Build` workflow on `main`;
 - every six hours;
 - manually through `workflow_dispatch`.
 
-The post-build run waits for Render to serve the exact commit that passed CI. It retries during normal deployment propagation and fails only when the application remains unavailable, serves the wrong revision, loses the dashboard shell, or breaks an API contract.
+The monitor intentionally does **not** run through `workflow_run` after `Build`. Render is configured with `autoDeployTrigger: checksPass`, so a monitor that waits for the new Render revision must not run as a check on the same commit. That creates a circular gate: Render waits for every check, while the monitor waits for Render. The automatic deployment gate is the single `Build` workflow; after it succeeds, Render can deploy without a second check blocking it.
+
+A manual monitor run can supply an expected revision and will retry during normal deployment propagation. Scheduled runs verify the currently served application and data state without assuming a new revision.
 
 The workflow uploads two evidence files for 14 days:
 
@@ -59,6 +60,12 @@ Override the target:
 
 ```bash
 CHMARL_DEPLOYMENT_URL=https://chmarl-datav.onrender.com pnpm monitor:production
+```
+
+Require a specific revision:
+
+```bash
+EXPECTED_REVISION=<git-sha> CHMARL_DEPLOYMENT_URL=https://chmarl-datav.onrender.com pnpm monitor:production
 ```
 
 Require live vessel data as a hard gate:
