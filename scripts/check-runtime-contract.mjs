@@ -55,8 +55,11 @@ assertIncludes(pocketWorldProvider, "firstRequestLimit", "PocketWorld first requ
 assertIncludes(pocketWorldProvider, "providerOmittedCursor", "PocketWorld cannot detect a provider-side truncated response without a cursor");
 assertIncludes(pocketWorldProvider, "pagesFetched", "PocketWorld pagination diagnostics are absent");
 assertIncludes(pocketWorldProvider, "fetchComplete", "PocketWorld complete-snapshot state is absent");
-assertIncludes(pocketWorldProvider, "DEFAULT_PAGE_SIZE = 10_000", "PocketWorld page size is not bounded");
-assertIncludes(pocketWorldProvider, "maxVessels = 50_000", "PocketWorld provider capacity remains below the API maximum");
+assertIncludes(pocketWorldProvider, "DEFAULT_PAGE_SIZE = 5_000", "PocketWorld page size does not match the provider contract");
+assertIncludes(pocketWorldProvider, "PROVIDER_MAX_PAGE_SIZE = 5_000", "PocketWorld requests can exceed the provider page limit");
+assertIncludes(pocketWorldProvider, "cursorForNextPage", "PocketWorld does not infer an offset cursor when a truncated snapshot omits next_cursor");
+assertIncludes(pocketWorldProvider, "metadata.totalAvailable > accumulatedRows", "PocketWorld inferred pagination does not check remaining rows");
+assertIncludes(pocketWorldProvider, "maxVessels = 50_000", "PocketWorld aggregate provider capacity remains below the portal target");
 assertNotIncludes(pocketWorldProvider, "placeholder", "public AIS provider contains placeholder rows");
 assertIncludes(runtime, "deriveOperational: OPERATIONAL_PRIORITY_ENABLED", "single-stream operational derivation is absent");
 assertIncludes(runtime, 'id: "Jubail Commercial Port"', "Jubail is missing from the eight-port portfolio");

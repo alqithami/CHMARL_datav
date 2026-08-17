@@ -25,7 +25,7 @@ Layer toggles control ports, operational zones, events, trails, and seamarks. Na
 
 ## Complete vessel cohort
 
-The PocketWorld adapter explicitly requests the largest bounded first page, then follows the provider's stable `snapshot_id` and `cursor` pagination until the current snapshot is complete or the 50,000-row safety ceiling is reached. The backend therefore no longer accepts a provider-default 5,000-row page as a complete fleet when `total_available` is larger. Provider diagnostics expose `totalAvailable`, `pagesFetched`, `snapshotId`, `nextCursor`, `fetchComplete`, and `truncated` so the portal can distinguish a complete fleet from a partial response.
+The PocketWorld adapter requests the provider's maximum 5,000-row page. PocketWorld can mark a snapshot as truncated and provide `snapshot_id` plus `total_available` while omitting `next_cursor`; in that case the adapter derives the next offset from the number of accumulated rows and continues with the same snapshot ID. Pagination stops only when the current snapshot is complete or the 50,000-row aggregate safety ceiling is reached. Provider diagnostics expose `totalAvailable`, `pagesFetched`, `snapshotId`, `nextCursor`, `fetchComplete`, and `truncated` so the portal can distinguish a complete fleet from a partial response.
 
 The Leaflet renderer and frontend stabilizer accept up to 50,000 genuine AIS observations. The expanded vessel rail shows at most 500 rows at once for DOM performance, but search and filters operate on the complete cohort and all matching vessels remain on the Canvas-rendered map.
 
