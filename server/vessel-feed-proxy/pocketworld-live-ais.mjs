@@ -370,7 +370,8 @@ export function createPocketWorldLiveAisProvider({
 
       try {
         const payloads = [];
-        const firstPayload = await fetchPage(state.url);
+        const firstRequestLimit = Math.min(paginationPageSize, vesselLimit);
+        const firstPayload = await fetchPage(buildPageUrl(state.url, null, null, firstRequestLimit));
         payloads.push(firstPayload);
         let metadata = pageMetadata(firstPayload);
         const snapshotId = metadata.snapshotId;
@@ -413,9 +414,13 @@ export function createPocketWorldLiveAisProvider({
         const cursorExhausted = nextCursor === null || nextCursor === undefined || !String(nextCursor).trim();
         const reachedExpectedRows = expectedRows !== null && rawRows.length >= expectedRows;
         const localLimitTruncates = totalAvailable > vesselLimit;
+        const providerOmittedCursor = expectedRows !== null && rawRows.length < expectedRows && cursorExhausted;
+        if (!paginationError && providerOmittedCursor) {
+          paginationError = `PocketWorld reported ${expectedRows} available rows but returned ${rawRows.length} without next_cursor`;
+        }
         const fetchComplete = !paginationError
           && !localLimitTruncates
-          && (cursorExhausted || reachedExpectedRows);
+          && (reachedExpectedRows || (expectedRows === null && cursorExhausted));
 
         let invalid = 0;
         let expired = 0;

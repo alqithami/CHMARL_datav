@@ -51,6 +51,8 @@ assertIncludes(pocketWorldProvider, "last-known-regional", "public AIS last-know
 assertIncludes(pocketWorldProvider, "freshVessels", "public AIS freshness diagnostics are absent");
 assertIncludes(pocketWorldProvider, "snapshot_id", "PocketWorld snapshot pagination is absent");
 assertIncludes(pocketWorldProvider, "next_cursor", "PocketWorld cursor traversal is absent");
+assertIncludes(pocketWorldProvider, "firstRequestLimit", "PocketWorld first request does not advertise its full page capacity");
+assertIncludes(pocketWorldProvider, "providerOmittedCursor", "PocketWorld cannot detect a provider-side truncated response without a cursor");
 assertIncludes(pocketWorldProvider, "pagesFetched", "PocketWorld pagination diagnostics are absent");
 assertIncludes(pocketWorldProvider, "fetchComplete", "PocketWorld complete-snapshot state is absent");
 assertIncludes(pocketWorldProvider, "DEFAULT_PAGE_SIZE = 10_000", "PocketWorld page size is not bounded");
