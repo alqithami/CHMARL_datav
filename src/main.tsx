@@ -1,8 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import "leaflet/dist/leaflet.css";
 import "./index.css";
 import "./tileMap.css";
+import "./leafletMap.css";
 import "./statusPanel.css";
 import "./operationalWatchlist.css";
 import "./platformLayout.css";
