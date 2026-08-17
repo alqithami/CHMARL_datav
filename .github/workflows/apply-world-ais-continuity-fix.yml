@@ -6,6 +6,7 @@ on:
       - agent/restore-world-ais-continuity
     paths:
       - scripts/apply-world-ais-continuity-fix.py
+      - scripts/fix-world-ais-continuity-patch.py
       - scripts/smoke-public-live-ais-continuity.mjs
       - scripts/smoke-ais-rate-limit-backoff.mjs
       - server/vessel-feed-proxy/pocketworld-live-ais.mjs
@@ -46,9 +47,11 @@ jobs:
 
       - name: Apply continuity and rate-limit changes
         run: |
+          python3 scripts/fix-world-ais-continuity-patch.py
           python3 -m py_compile scripts/apply-world-ais-continuity-fix.py
           python3 scripts/apply-world-ais-continuity-fix.py
           rm scripts/apply-world-ais-continuity-fix.py
+          rm scripts/fix-world-ais-continuity-patch.py
           rm .github/workflows/apply-world-ais-continuity-fix.yml
           node --check server/vessel-feed-proxy/runtime-v3.mjs
           node --check server/vessel-feed-proxy/pocketworld-live-ais.mjs
