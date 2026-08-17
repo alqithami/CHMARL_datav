@@ -239,6 +239,8 @@ const AISSTREAM_MAX_IMPLIED_SPEED_KN = Math.max(50, Number(process.env.AISSTREAM
 const AISSTREAM_HEARTBEAT_MS = Math.max(1_000, Number(process.env.AISSTREAM_HEARTBEAT_MS ?? 10_000));
 const AISSTREAM_FIRST_FRAME_TIMEOUT_MS = Math.max(1_000, Number(process.env.AISSTREAM_FIRST_FRAME_TIMEOUT_MS ?? 30_000));
 const AISSTREAM_SILENCE_TIMEOUT_MS = Math.max(15_000, Number(process.env.AISSTREAM_SILENCE_TIMEOUT_MS ?? 90_000));
+const AISSTREAM_RATE_LIMIT_BACKOFF_MS = Math.max(60_000, Number(process.env.AISSTREAM_RATE_LIMIT_BACKOFF_MS ?? 30 * 60_000));
+const AISSTREAM_PROFILE_CYCLE_BACKOFF_MS = Math.max(30_000, Number(process.env.AISSTREAM_PROFILE_CYCLE_BACKOFF_MS ?? 10 * 60_000));
 const DATALASTIC_AIS_ENABLED = process.env.DATALASTIC_AIS_ENABLED !== "false";
 const DATALASTIC_API_KEY = String(process.env.DATALASTIC_API_KEY ?? "").trim();
 const DATALASTIC_API_BASE_URL = process.env.DATALASTIC_API_BASE_URL ?? "https://api.datalastic.com/api/v0";
@@ -260,10 +262,13 @@ const POCKETWORLD_API_URL = process.env.POCKETWORLD_API_URL ?? "https://pocketwo
 const POCKETWORLD_ACTIVATION_DELAY_MS = Math.max(250, Number(process.env.POCKETWORLD_ACTIVATION_DELAY_MS ?? 45_000));
 const POCKETWORLD_POLL_INTERVAL_MS = Math.max(5_000, Number(process.env.POCKETWORLD_POLL_INTERVAL_MS ?? 5 * 60_000));
 const POCKETWORLD_TIMEOUT_MS = Math.max(1_000, Number(process.env.POCKETWORLD_TIMEOUT_MS ?? 30_000));
-const POCKETWORLD_MAX_AGE_MS = Math.max(60_000, Number(process.env.POCKETWORLD_MAX_AGE_MS ?? 30 * 60_000));
-const POCKETWORLD_MAX_VESSELS = Math.max(1, Number(process.env.POCKETWORLD_MAX_VESSELS ?? 2500));
+const POCKETWORLD_DISPLAY_MAX_AGE_MS = Math.max(60_000, Number(process.env.POCKETWORLD_DISPLAY_MAX_AGE_MS ?? process.env.POCKETWORLD_MAX_AGE_MS ?? 6 * 60 * 60_000));
+const POCKETWORLD_FRESH_AGE_MS = Math.min(POCKETWORLD_DISPLAY_MAX_AGE_MS, Math.max(60_000, Number(process.env.POCKETWORLD_FRESH_AGE_MS ?? 30 * 60_000)));
+const POCKETWORLD_MAX_VESSELS = Math.max(1, Number(process.env.POCKETWORLD_MAX_VESSELS ?? 5000));
+const POCKETWORLD_CACHE_FLUSH_MS = Math.max(5_000, Number(process.env.POCKETWORLD_CACHE_FLUSH_MS ?? 60_000));
 const MAX_INGEST_BODY_BYTES = Math.max(1_024, Number(process.env.MAX_INGEST_BODY_BYTES ?? 5 * 1024 * 1024));
 const ECOFAIR_OPERATIONAL_RADIUS_NM = Math.max(1, Number(process.env.ECOFAIR_OPERATIONAL_RADIUS_NM ?? 120));
+const ECOFAIR_MAX_VESSEL_AGE_MS = Math.max(60_000, Number(process.env.ECOFAIR_MAX_VESSEL_AGE_MS ?? 30 * 60_000));
 const ECOFAIR_TICK_MS = Math.max(10_000, Number(process.env.ECOFAIR_TICK_MS ?? 60_000));
 const CHMARL_HISTORY_LIMIT = Math.max(5, Number(process.env.CHMARL_HISTORY_LIMIT ?? 96));
 const CHMARL_HISTORY_MIN_INTERVAL_MS = Math.max(10_000, Number(process.env.CHMARL_HISTORY_MIN_INTERVAL_MS ?? 60_000));
@@ -277,6 +282,7 @@ function runtimePath(envName, fallbackName) {
 
 const TRACKING_AIS_CACHE_FILE = runtimePath("AISSTREAM_CACHE_FILE", "ais-tracking-cache.json");
 const OPERATIONAL_AIS_CACHE_FILE = runtimePath("AISSTREAM_OPERATIONAL_CACHE_FILE", "ais-operational-cache.json");
+const POCKETWORLD_CACHE_FILE = runtimePath("POCKETWORLD_CACHE_FILE", "pocketworld-ais-cache.json");
 const ECOFAIR_STATE_FILE = runtimePath("ECOFAIR_STATE_FILE", "ecofair-state.json");
 const CHMARL_EXPERIMENT_FILE = runtimePath("CHMARL_EXPERIMENT_FILE", "chmarl-episode.json");
 const PORT_EVENTS_FILE = runtimePath("PORT_EVENTS_FILE", "port-events.json");
@@ -339,7 +345,10 @@ function createAisState(label, boxes, filters, cacheFile, cacheLimit) {
     subscriptionSentAt: null,
     subscription: null,
     lastError: null,
+    lastHttpStatus: null,
     reconnectAttempt: 0,
+    rateLimitedUntil: null,
+    cycleBackoffUntil: null,
     status: AISSTREAM_API_KEY ? "connecting" : "disabled",
     openedAt: null,
     lastPongAt: null,
@@ -391,8 +400,11 @@ const pocketWorldProvider = createPocketWorldLiveAisProvider({
   url: POCKETWORLD_API_URL,
   pollIntervalMs: POCKETWORLD_POLL_INTERVAL_MS,
   timeoutMs: POCKETWORLD_TIMEOUT_MS,
-  maxAgeMs: POCKETWORLD_MAX_AGE_MS,
+  maxAgeMs: POCKETWORLD_DISPLAY_MAX_AGE_MS,
+  freshAgeMs: POCKETWORLD_FRESH_AGE_MS,
   maxVessels: POCKETWORLD_MAX_VESSELS,
+  cacheFile: POCKETWORLD_CACHE_FILE,
+  cacheFlushMs: POCKETWORLD_CACHE_FLUSH_MS,
 });
 
 const vesselInputState = {
@@ -403,6 +415,8 @@ const vesselInputState = {
   activeProviders: [],
   priorityAisRows: 0,
   trackingRows: 0,
+  freshTrackingRows: 0,
+  lastKnownTrackingRows: 0,
   primaryOperationalRows: 0,
   portfolioOperationalRows: 0,
   operationalRows: 0,
@@ -537,9 +551,18 @@ async function fetchProviderJson(url, token, timeoutMs = 10_000) {
   }
 }
 
+function vesselObservationAgeMs(vessel) {
+  const observedAt = timestampMs(vessel?.timestamp);
+  return observedAt > 0 ? Math.max(0, Date.now() - observedAt) : Number.POSITIVE_INFINITY;
+}
+
+function isOperationallyFresh(vessel) {
+  return vesselObservationAgeMs(vessel) <= ECOFAIR_MAX_VESSEL_AGE_MS;
+}
+
 function vesselsNearPorts(vessels, ports) {
   return vessels.filter((vessel) => {
-    if (!validCoordinates(vessel?.latitude, vessel?.longitude)) return false;
+    if (!validCoordinates(vessel?.latitude, vessel?.longitude) || !isOperationallyFresh(vessel)) return false;
     return ports.some((port) => haversineNm(vessel, port) <= ECOFAIR_OPERATIONAL_RADIUS_NM);
   });
 }
@@ -581,6 +604,7 @@ async function loadCombinedVessels() {
     for (const row of datalasticAis) merged.set(row.id, row);
     for (const row of trackingAis) merged.set(row.id, row);
     const tracking = [...merged.values()].filter((row) => validCoordinates(row.latitude, row.longitude));
+    const freshTracking = tracking.filter(isOperationallyFresh);
     const operational = operationalVessels(tracking);
     const primaryOperational = primaryOperationalVessels(tracking);
     const activeProviders = [
@@ -596,6 +620,8 @@ async function loadCombinedVessels() {
       activeProviders,
       priorityAisRows: priorityAis.length,
       trackingRows: tracking.length,
+      freshTrackingRows: freshTracking.length,
+      lastKnownTrackingRows: Math.max(0, tracking.length - freshTracking.length),
       primaryOperationalRows: primaryOperational.length,
       portfolioOperationalRows: operational.length,
       operationalRows: operational.length,
@@ -624,6 +650,9 @@ function sourceForTracking() {
     ...(Number(vesselInputState.pocketworldRows ?? 0) > 0 ? ["pocketworld"] : []),
   ];
   if (activeProviders.length > 1) return "ais-multi-provider";
+  if (activeProviders.length === 1 && activeProviders[0] === "pocketworld") {
+    return pocketWorldProvider.publicState().freshVessels > 0 ? "pocketworld" : "pocketworld-last-known";
+  }
   if (activeProviders.length === 1) return activeProviders[0];
   return AISSTREAM_API_KEY || DATALASTIC_API_KEY || POCKETWORLD_AIS_ENABLED ? "aisstream-waiting" : "none";
 }
@@ -823,7 +852,10 @@ function advanceAisProfile(state, reason) {
   if (!AISSTREAM_RECOVERY_ENABLED || AISSTREAM_RECOVERY_PROFILES.length < 2) return;
   const previousIndex = state.profileIndex;
   state.profileIndex = (state.profileIndex + 1) % AISSTREAM_RECOVERY_PROFILES.length;
-  if (state.profileIndex <= previousIndex) state.profileCycles += 1;
+  if (state.profileIndex <= previousIndex) {
+    state.profileCycles += 1;
+    state.cycleBackoffUntil = new Date(Date.now() + AISSTREAM_PROFILE_CYCLE_BACKOFF_MS).toISOString();
+  }
   state.profileSwitches += 1;
   state.lastProfileSwitchAt = new Date().toISOString();
   state.profileAdvancedForCurrentSocket = true;
@@ -837,12 +869,34 @@ function advanceAisProfile(state, reason) {
   }].slice(-12);
 }
 
+function retryAfterDelayMs(response) {
+  const value = response?.headers?.["retry-after"];
+  if (value === undefined) return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+  const date = Date.parse(String(value));
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : null;
+}
+
+function reconnectBackoff(state) {
+  const now = Date.now();
+  const rateLimitedUntil = timestampMs(state.rateLimitedUntil);
+  const cycleBackoffUntil = timestampMs(state.cycleBackoffUntil);
+  if (rateLimitedUntil > now) return { delay: rateLimitedUntil - now, status: "rate-limited" };
+  if (cycleBackoffUntil > now) return { delay: cycleBackoffUntil - now, status: "profile-backoff" };
+  if (rateLimitedUntil > 0) state.rateLimitedUntil = null;
+  if (cycleBackoffUntil > 0) state.cycleBackoffUntil = null;
+  return { delay: 0, status: "reconnecting" };
+}
+
 function scheduleAisReconnect(options) {
   const { state } = options;
   if (stopping || !AISSTREAM_API_KEY || state.reconnectTimer) return;
-  const delay = Math.min(30_000, 2_000 * 2 ** state.reconnectAttempt);
+  const backoff = reconnectBackoff(state);
+  const exponentialDelay = Math.min(5 * 60_000, 2_000 * 2 ** Math.min(state.reconnectAttempt, 8));
+  const delay = Math.max(backoff.delay, exponentialDelay);
   state.reconnectAttempt += 1;
-  state.status = "reconnecting";
+  state.status = backoff.status;
   state.reconnectTimer = setTimeout(() => {
     state.reconnectTimer = null;
     startAisStream(options);
@@ -860,6 +914,13 @@ function startAisStream({ state, cache, deriveOperational = false }) {
     clearTimeout(state.reconnectTimer);
     state.reconnectTimer = null;
   }
+  const backoff = reconnectBackoff(state);
+  if (backoff.delay > 0) {
+    scheduleAisReconnect(options);
+    return;
+  }
+  state.connectionMessageCount = 0;
+  state.profileAdvancedForCurrentSocket = false;
   const profile = activeAisProfile(state);
   setAisProfileState(state, profile);
   const socket = new WebSocket(AISSTREAM_URL, {
@@ -871,8 +932,10 @@ function startAisStream({ state, cache, deriveOperational = false }) {
   socket.on("open", () => {
     const openedAt = new Date().toISOString();
     state.connected = true;
-    state.reconnectAttempt = 0;
     state.lastError = null;
+    state.lastHttpStatus = null;
+    state.rateLimitedUntil = null;
+    state.cycleBackoffUntil = null;
     state.openedAt = openedAt;
     state.lastPongAt = openedAt;
     state.status = "connected-waiting";
@@ -926,6 +989,10 @@ function startAisStream({ state, cache, deriveOperational = false }) {
       state.lastSuccessfulProfile = state.activeProfile;
       state.lastSuccessfulAt = receivedAt;
       state.lastRecoveryReason = null;
+      state.reconnectAttempt = 0;
+      state.lastHttpStatus = null;
+      state.rateLimitedUntil = null;
+      state.cycleBackoffUntil = null;
       state.status = "live";
       mergeAisVessel(cache, state, vessel);
       if (deriveOperational) {
@@ -965,13 +1032,36 @@ function startAisStream({ state, cache, deriveOperational = false }) {
     if (!stopping) scheduleAisReconnect(options);
   });
   socket.on("error", (error) => {
-    state.connected = false;
-    state.lastError = error.message;
-    state.status = "socket-error";
-  });
+  state.connected = false;
+  state.lastError = error.message;
+  if (timestampMs(state.rateLimitedUntil) > Date.now()) {
+    state.status = "rate-limited";
+    return;
+  }
+  state.status = "socket-error";
+});
   socket.on("unexpected-response", (_request, response) => {
-    state.lastError = "AIS websocket rejected the subscription with HTTP " + (response.statusCode ?? "unknown");
-    state.status = "provider-error";
+    const statusCode = Number(response.statusCode ?? 0) || null;
+    state.connected = false;
+    state.socket = null;
+    state.firstFrameDeadlineAt = null;
+    state.lastHttpStatus = statusCode;
+    state.lastError = "AIS websocket rejected the subscription with HTTP " + (statusCode ?? "unknown");
+    state.profileAdvancedForCurrentSocket = true;
+    if (statusCode === 429) {
+      const delay = Math.max(AISSTREAM_RATE_LIMIT_BACKOFF_MS, retryAfterDelayMs(response) ?? 0);
+      state.rateLimitedUntil = new Date(Date.now() + delay).toISOString();
+      state.status = "rate-limited";
+    } else {
+      state.status = "provider-error";
+    }
+    response.resume?.();
+    try { socket.terminate(); } catch {}
+    if (state.reconnectTimer) {
+      clearTimeout(state.reconnectTimer);
+      state.reconnectTimer = null;
+    }
+    scheduleAisReconnect(options);
   });
 }
 
@@ -1028,7 +1118,10 @@ function vesselProviderConfigured() {
 
 function providerState() {
   if (!vesselProviderConfigured()) return "unconfigured";
-  if (vesselInputState.trackingRows > 0) return sourceForTracking() === "ais-multi-provider" ? "live-multi-provider" : "live";
+  if (vesselInputState.trackingRows > 0) {
+    if (sourceForTracking() === "pocketworld-last-known") return "degraded-last-known";
+    return sourceForTracking() === "ais-multi-provider" ? "live-multi-provider" : "live";
+  }
   const datalasticState = datalasticProvider.publicState();
   const pocketWorldState = pocketWorldProvider.publicState();
   if (["unauthorized", "credits-exhausted", "rate-limited", "provider-error", "request-error", "timeout"].includes(datalasticState.status)) {
@@ -1065,7 +1158,11 @@ function healthPayload() {
     staticDashboard: existsSync(STATIC_INDEX),
     runtime: runtimeState,
     trackingScope: {
-      mode: sourceForTracking() === "datalastic" ? "monitored-port-failover" : sourceForTracking() === "pocketworld" ? "regional-public-fallback" : (GLOBAL_TRACKING_ENABLED ? "global" : "regional"),
+      mode: sourceForTracking() === "datalastic"
+        ? "monitored-port-failover"
+        : ["pocketworld", "pocketworld-last-known"].includes(sourceForTracking())
+          ? "regional-public-fallback"
+          : (GLOBAL_TRACKING_ENABLED ? "global" : "regional"),
       source: sourceForTracking(),
       bbox: TRACKING_BBOX_TEXT,
       activeProfile: trackingAisState.activeProfile,
@@ -1079,6 +1176,7 @@ function healthPayload() {
     operationalScope: {
       radiusNm: ECOFAIR_OPERATIONAL_RADIUS_NM,
       rows: vesselInputState.operationalRows,
+      maxVesselAgeMs: ECOFAIR_MAX_VESSEL_AGE_MS,
       portfolioRows: vesselInputState.portfolioOperationalRows,
       primaryRows: vesselInputState.primaryOperationalRows,
       ports: PORT_REFERENCE_POINTS.map((port) => port.id),
@@ -1093,7 +1191,13 @@ function healthPayload() {
     ecofair: ecofair.summary(),
     portOps: { ...portOpsState, active: portOpsState.events > 0 || portOpsState.utilizationRows > 0 || portOpsState.queueRows > 0 },
     weather: { ...weatherState, active: weatherState.points > 0 },
-    persistence: { dataDir: RUNTIME_DATA_DIR, trackingCacheFile: TRACKING_AIS_CACHE_FILE, operationalCacheFile: OPERATIONAL_AIS_CACHE_FILE, ecofairStateFile: ECOFAIR_STATE_FILE },
+    persistence: {
+      dataDir: RUNTIME_DATA_DIR,
+      trackingCacheFile: TRACKING_AIS_CACHE_FILE,
+      operationalCacheFile: OPERATIONAL_AIS_CACHE_FILE,
+      pocketWorldCacheFile: POCKETWORLD_CACHE_FILE,
+      ecofairStateFile: ECOFAIR_STATE_FILE,
+    },
   };
 }
 
@@ -1229,6 +1333,8 @@ createServer(async (request, response) => {
       scope,
       counts: {
         tracking: tracking.length,
+        freshTracking: vesselInputState.freshTrackingRows,
+        lastKnownTracking: vesselInputState.lastKnownTrackingRows,
         operational: operational.length,
         portfolioOperational: operational.length,
         primaryOperational: primaryOperational.length,
@@ -1294,5 +1400,5 @@ createServer(async (request, response) => {
   if (AISSTREAM_API_KEY) console.log("AISStream live mode enabled.");
   if (DATALASTIC_API_KEY) console.log(`Datalastic live AIS failover enabled for ${DATALASTIC_SCAN_POINTS.map((point) => point.id).join(", ") || "no scan points"}.`);
   else console.log("Datalastic live AIS failover is not configured.");
-  console.log(`PocketWorld public AIS fallback: ${POCKETWORLD_AIS_ENABLED ? "enabled" : "disabled"}; max rows: ${POCKETWORLD_MAX_VESSELS}.`);
+  console.log(`PocketWorld public AIS fallback: ${POCKETWORLD_AIS_ENABLED ? "enabled" : "disabled"}; max rows: ${POCKETWORLD_MAX_VESSELS}; fresh age: ${Math.round(POCKETWORLD_FRESH_AGE_MS / 60_000)} min; display age: ${Math.round(POCKETWORLD_DISPLAY_MAX_AGE_MS / 3_600_000)} h.`);
 });

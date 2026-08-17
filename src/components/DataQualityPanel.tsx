@@ -78,6 +78,14 @@ function trackingStatus(data: DashboardData): QualityItem {
       tone: trackingRows > 0 && stale < trackingRows ? "good" : "warn",
     };
   }
+  if (data.source === "pocketworld-last-known") {
+    return {
+      label: "Vessel tracking",
+      value: `${trackingRows} last-known AIS rows`,
+      detail: `Regional providers still expose genuine AIS positions, but their timestamps exceed the ${Math.round(30)} minute operational freshness limit · rows remain visible with original timestamps · ${operationalRows} admitted to EcoFair · ${coverage}% positioned · ${stale} stale`,
+      tone: "warn",
+    };
+  }
   if (data.source === "ais-multi-provider") {
     return {
       label: "Vessel tracking",
@@ -184,6 +192,7 @@ function readinessHeadline(data: DashboardData) {
   if (data.source === "aisstream-waiting") return tracking > 0 ? `${tracking} recent vessels retained while AIS is silent` : "AISStream silent · secondary live AIS not active";
   if (data.source === "datalastic") return `Datalastic live AIS failover · ${tracking} vessels · ${operational} port calculations`;
   if (data.source === "pocketworld") return `Public regional live AIS · ${tracking} vessels · ${operational} port calculations`;
+  if (data.source === "pocketworld-last-known") return `Public regional AIS · ${tracking} last-known vessels · excluded from EcoFair until fresh`;
   if (data.source === "ais-multi-provider") return `Multi-provider live AIS · ${tracking} vessels · ${operational} port calculations`;
   if (data.source === "aisstream" && operational > 0) return `${tracking} stable display · ${reported} current API · ${operational} port calculations${continuity}`;
   if (data.source === "aisstream") return `${tracking} stable display · ${reported} current API · waiting for monitored-port vessels${continuity}`;

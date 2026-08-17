@@ -74,6 +74,10 @@ services:
         value: 30000
       - key: AISSTREAM_SILENCE_TIMEOUT_MS
         value: 90000
+      - key: AISSTREAM_RATE_LIMIT_BACKOFF_MS
+        value: 1800000
+      - key: AISSTREAM_PROFILE_CYCLE_BACKOFF_MS
+        value: 600000
       - key: MAX_INGEST_BODY_BYTES
         value: 5242880
       - key: AISSTREAM_CACHE_ENABLED
@@ -109,19 +113,29 @@ services:
       - key: POCKETWORLD_API_URL
         value: https://pocketworld.org/api/ships
       - key: POCKETWORLD_ACTIVATION_DELAY_MS
-        value: 45000
+        value: 5000
       - key: POCKETWORLD_POLL_INTERVAL_MS
         value: 300000
       - key: POCKETWORLD_TIMEOUT_MS
         value: 30000
-      - key: POCKETWORLD_MAX_AGE_MS
+      - key: POCKETWORLD_DISPLAY_MAX_AGE_MS
+        value: 21600000
+      - key: POCKETWORLD_FRESH_AGE_MS
         value: 1800000
+      - key: POCKETWORLD_MAX_AGE_MS
+        value: 21600000
       - key: POCKETWORLD_MAX_VESSELS
-        value: 2500
+        value: 5000
+      - key: POCKETWORLD_CACHE_FILE
+        value: /var/data/pocketworld-ais-cache.json
+      - key: POCKETWORLD_CACHE_FLUSH_MS
+        value: 60000
       - key: CHMARL_RUNTIME_ENABLED
         value: true
       - key: ECOFAIR_OPERATIONAL_RADIUS_NM
         value: 120
+      - key: ECOFAIR_MAX_VESSEL_AGE_MS
+        value: 1800000
       - key: ECOFAIR_EMISSION_BUDGET_TONNES_PER_DAY
         value: 0
       - key: ECOFAIR_BUDGET_TONNES_PER_VESSEL_PER_DAY
