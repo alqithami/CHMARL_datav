@@ -1,0 +1,383 @@
+/* Dense vessel speed profile for the narrow command rail and the focus modal. */
+
+.vessel-speed-profile {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.48rem;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.speed-profile-expanded {
+  display: none !important;
+}
+
+.speed-profile-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.32rem;
+}
+
+.speed-profile-stat {
+  min-width: 0;
+  padding: 0.38rem 0.42rem;
+  overflow: hidden;
+  border: 1px solid var(--mawani-border-subtle);
+  border-radius: 5px;
+  background: var(--mawani-surface-raised);
+}
+
+.speed-profile-stat span,
+.speed-profile-stat strong,
+.speed-profile-stat small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.speed-profile-stat span {
+  color: var(--mawani-text-helper);
+  font-size: 0.55rem;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.speed-profile-stat strong {
+  margin-top: 0.18rem;
+  color: var(--mawani-text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.05;
+}
+
+.speed-profile-stat small {
+  margin-top: 0.15rem;
+  color: var(--mawani-text-helper);
+  font-size: 0.55rem;
+  line-height: 1.1;
+}
+
+.speed-profile-bands {
+  display: grid;
+  grid-template-rows: repeat(5, minmax(0, 1fr));
+  align-content: stretch;
+  gap: 0.34rem;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.speed-profile-band {
+  display: grid;
+  grid-template-rows: auto 0.38rem;
+  align-content: center;
+  gap: 0.2rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+.speed-profile-band-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 0.32rem;
+  min-width: 0;
+}
+
+.speed-profile-band-heading > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.speed-profile-band-heading strong,
+.speed-profile-band-heading span,
+.speed-profile-band-heading small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.speed-profile-band-heading strong {
+  color: var(--mawani-text-secondary);
+  font-size: 0.65rem;
+  font-weight: 650;
+}
+
+.speed-profile-band-heading > div small {
+  color: var(--mawani-text-helper);
+  font-size: 0.53rem;
+}
+
+.speed-profile-band-heading > span {
+  color: var(--mawani-text-primary);
+  font-family: var(--mawani-mono);
+  font-size: 0.64rem;
+  font-weight: 650;
+  text-align: right;
+}
+
+.speed-profile-band-heading > small {
+  min-width: 2.3rem;
+  color: var(--mawani-text-helper);
+  font-size: 0.55rem;
+  text-align: right;
+}
+
+.speed-profile-band-track {
+  position: relative;
+  width: 100%;
+  height: 0.38rem;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--mawani-surface-raised);
+}
+
+.speed-profile-band-track > span {
+  display: block;
+  width: var(--speed-band-width, 0%);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--speed-band-color, var(--mawani-aqua-50));
+  transition: width 180ms ease-out;
+}
+
+.speed-profile-note {
+  margin: 0;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--mawani-border-subtle);
+  color: var(--mawani-text-helper);
+  font-size: 0.67rem;
+  line-height: 1.35;
+}
+
+.vessel-speed-profile-empty {
+  place-content: center;
+  justify-items: center;
+  gap: 0.35rem;
+  color: var(--mawani-text-helper);
+  text-align: center;
+}
+
+.vessel-speed-profile-empty strong {
+  color: var(--mawani-text-primary);
+  font-size: 0.82rem;
+}
+
+.vessel-speed-profile-empty small {
+  max-width: 15rem;
+  font-size: 0.65rem;
+  line-height: 1.35;
+}
+
+/* Keep the long title and the actual action inside the narrow left rail. */
+.panel-card:has(.vessel-speed-profile) .panel-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+}
+
+.panel-card:has(.vessel-speed-profile) .panel-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-card:has(.vessel-speed-profile) .panel-actions {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.panel-card:has(.vessel-speed-profile) .panel-tag {
+  display: none !important;
+}
+
+.panel-card:has(.vessel-speed-profile) .panel-focus-button {
+  display: inline-flex !important;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The speed profile focus view is sized to the viewport rather than a fixed chart minimum. */
+.focus-panel:has(.vessel-speed-profile) {
+  width: min(1080px, calc(100vw - 24px)) !important;
+  height: min(760px, calc(100dvh - 24px)) !important;
+  max-width: calc(100vw - 24px) !important;
+  max-height: calc(100dvh - 24px) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+}
+
+.focus-panel:has(.vessel-speed-profile) .focus-header {
+  margin: 0 !important;
+  padding: 0.72rem 0.82rem !important;
+  border-bottom: 1px solid var(--mawani-border-subtle);
+}
+
+.focus-panel:has(.vessel-speed-profile) .focus-header h2 {
+  font-size: 1rem !important;
+  font-weight: 550 !important;
+}
+
+.focus-panel:has(.vessel-speed-profile) .focus-header button {
+  min-height: 1.9rem;
+  padding: 0.32rem 0.62rem !important;
+  border: 1px solid var(--mawani-border-strong) !important;
+  border-radius: 5px !important;
+  background: var(--mawani-surface-raised) !important;
+  color: var(--mawani-text-primary) !important;
+  font-size: 0.7rem;
+}
+
+.focus-panel:has(.vessel-speed-profile) .focus-content {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.78rem !important;
+  overflow: hidden !important;
+}
+
+.focus-content .vessel-speed-profile {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.focus-content .vessel-speed-profile .speed-profile-compact {
+  display: none !important;
+}
+
+.focus-content .vessel-speed-profile .speed-profile-summary.speed-profile-expanded {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.focus-content .vessel-speed-profile .speed-profile-bands.speed-profile-expanded {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  gap: 0.62rem 0.9rem;
+  min-height: 0;
+  overflow: auto;
+}
+
+.focus-content .vessel-speed-profile .speed-profile-note.speed-profile-expanded {
+  display: block !important;
+}
+
+.focus-content .speed-profile-stat {
+  padding: 0.58rem 0.65rem;
+}
+
+.focus-content .speed-profile-stat span {
+  font-size: 0.61rem;
+}
+
+.focus-content .speed-profile-stat strong {
+  margin-top: 0.28rem;
+  font-size: 1rem;
+}
+
+.focus-content .speed-profile-stat small {
+  margin-top: 0.24rem;
+  font-size: 0.61rem;
+}
+
+.focus-content .speed-profile-band {
+  grid-template-rows: auto 0.58rem;
+  gap: 0.35rem;
+  padding: 0.58rem 0.65rem;
+  border: 1px solid var(--mawani-border-subtle);
+  border-radius: 6px;
+  background: var(--mawani-surface-raised);
+}
+
+.focus-content .speed-profile-band-heading strong {
+  font-size: 0.75rem;
+}
+
+.focus-content .speed-profile-band-heading > div small,
+.focus-content .speed-profile-band-heading > small {
+  font-size: 0.62rem;
+}
+
+.focus-content .speed-profile-band-heading > span {
+  font-size: 0.75rem;
+}
+
+.focus-content .speed-profile-band-track {
+  height: 0.58rem;
+  background: var(--mawani-surface);
+}
+
+:root[data-theme="light"] .speed-profile-stat,
+:root[data-theme="light"] .speed-profile-band-track,
+:root[data-theme="light"] .focus-content .speed-profile-band {
+  background: var(--mawani-surface-raised) !important;
+}
+
+:root[data-theme="light"] .focus-content .speed-profile-band-track {
+  background: var(--mawani-surface) !important;
+}
+
+@media (max-width: 900px) {
+  .focus-panel:has(.vessel-speed-profile) {
+    width: calc(100vw - 12px) !important;
+    height: calc(100dvh - 12px) !important;
+    max-width: calc(100vw - 12px) !important;
+    max-height: calc(100dvh - 12px) !important;
+  }
+
+  .focus-panel:has(.vessel-speed-profile) .focus-content {
+    overflow: auto !important;
+  }
+
+  .focus-content .vessel-speed-profile {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+
+  .focus-content .vessel-speed-profile .speed-profile-summary.speed-profile-expanded {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .focus-content .vessel-speed-profile .speed-profile-bands.speed-profile-expanded {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 420px) {
+  .speed-profile-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .speed-profile-stat:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .speed-profile-band-heading > div small {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .speed-profile-band-track > span {
+    transition: none;
+  }
+}
