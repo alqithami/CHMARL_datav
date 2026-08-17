@@ -54,11 +54,21 @@ jobs:
           from pathlib import Path
           path = Path("scripts/check-runtime-contract.mjs")
           text = path.read_text()
-          old = "assertIncludes(pocketWorldProvider, 'inputSource: `pocketworld-${source}`', \"public AIS provenance is absent\");"
-          new = "assertIncludes(pocketWorldProvider, 'row.inputSource ?? `pocketworld-${source}`', \"public AIS provenance is absent\");"
-          if text.count(old) != 1:
-              raise SystemExit("Could not align the PocketWorld provenance contract")
-          path.write_text(text.replace(old, new, 1))
+          replacements = [
+              (
+                  "assertIncludes(pocketWorldProvider, 'inputSource: `pocketworld-${source}`', \"public AIS provenance is absent\");",
+                  "assertIncludes(pocketWorldProvider, 'row.inputSource ?? `pocketworld-${source}`', \"public AIS provenance is absent\");",
+              ),
+              (
+                  "assertIncludes(runtime, 'return \"pocketworld-last-known\"', \"last-known public AIS source is not exposed\");",
+                  "assertIncludes(runtime, '\"pocketworld-last-known\"', \"last-known public AIS source is not exposed\");",
+              ),
+          ]
+          for old, new in replacements:
+              if text.count(old) != 1:
+                  raise SystemExit(f"Could not align contract: {old}")
+              text = text.replace(old, new, 1)
+          path.write_text(text)
           PY
           rm scripts/apply-world-ais-continuity-fix.py
           rm scripts/fix-world-ais-continuity-patch.py
