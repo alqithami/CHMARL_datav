@@ -27,6 +27,7 @@ import "./mawaniThemeModes.css";
 import "./topbarStatusClarity.css";
 import "./mapMotionStability.css";
 import "./mawaniVisualRefresh.css";
+import "./vesselSpeedProfile.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
