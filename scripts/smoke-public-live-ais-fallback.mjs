@@ -231,6 +231,7 @@ try {
   assert(websocketSubscriptions >= 1, "Primary AISStream subscription was not attempted");
   assert(pocketWorldRequests === 3, `Expected three PocketWorld pages, received ${pocketWorldRequests}`);
   assert(cursorRequests[0]?.cursor === null, "The initial PocketWorld request unexpectedly used a cursor");
+  assert(cursorRequests[0]?.limit === "100", "The initial PocketWorld request did not ask for the full local capacity");
   assert(cursorRequests[1]?.cursor === "2" && cursorRequests[2]?.cursor === "4", "PocketWorld cursors were not traversed in order");
   assert(vessels.counts.operational === 1, "Jeddah vessel on the final page did not enter monitored-port scope");
   assert(vessels.counts.primaryOperational === 1, "Jeddah vessel on the final page did not enter primary-port scope");
