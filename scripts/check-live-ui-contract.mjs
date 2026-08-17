@@ -20,6 +20,7 @@ const packageJson = read("package.json");
 const stabilizer = read("src/providers/vesselDisplayStabilizer.ts");
 const coverage = read("src/utils/portCoverage.ts");
 const coverageMatrix = read("src/components/insights/PortCoverageMatrix.tsx");
+const visualRefresh = read("src/mawaniVisualRefresh.css");
 
 for (const source of ["datalastic", "pocketworld", "pocketworld-last-known", "ais-multi-provider"]) {
   assertIncludes(dashboard, `source === "${source}"`, `${source} is not recognized as a live external source`);
@@ -52,6 +53,7 @@ assertNotIncludes(leafletScene, "buildTileGrid", "the old handcrafted map projec
 
 assertIncludes(main, 'import "leaflet/dist/leaflet.css"', "Leaflet base styles are not loaded");
 assertIncludes(main, 'import "./leafletMap.css"', "Leaflet application styles are not loaded");
+assertIncludes(main, 'import "./mawaniVisualRefresh.css"', "the final MAWANI visual refresh layer is not loaded");
 assertIncludes(packageJson, '"leaflet": "1.9.4"', "Leaflet is not pinned to the stable release");
 assertIncludes(packageJson, '"@types/leaflet"', "Leaflet TypeScript definitions are absent");
 assertIncludes(stabilizer, "const maxPerGridCell = 50_000", "the frontend still thins a complete PocketWorld fleet");
@@ -59,4 +61,16 @@ assertIncludes(stabilizer, "const maxDisplayRows = 50_000", "the frontend displa
 assertIncludes(coverage, 'id: "Jubail Commercial Port"', "Jubail is missing from frontend port coverage");
 assertIncludes(coverageMatrix, "Jeddah + KAP:", "primary-port coverage is not surfaced");
 
-console.log("Leaflet live vessel UI contract verified.");
+assertIncludes(visualRefresh, "--mawani-aqua-50: #00dbe7", "the approved aqua brand accent is absent");
+assertIncludes(visualRefresh, "--mawani-success: #24a148", "the fixed success colour is absent");
+assertIncludes(visualRefresh, "--mawani-warning: #ff6800", "the fixed warning colour is absent");
+assertIncludes(visualRefresh, "--mawani-error: #da1e28", "the fixed error colour is absent");
+assertIncludes(visualRefresh, 'grid-template-columns: 230px minmax(680px, 1fr) 300px', "the map-first desktop hierarchy is absent");
+assertIncludes(visualRefresh, ".scene-panel.executive-map-panel", "the primary map panel styling is absent");
+assertIncludes(visualRefresh, ".provider-quality-matrix .data-quality-items", "the compact readiness matrix is absent");
+assertIncludes(visualRefresh, ".metrics-grid.executive-kpis", "the refreshed KPI hierarchy is absent");
+assertIncludes(visualRefresh, ":root[data-theme=\"light\"]", "the refreshed light theme is absent");
+assertIncludes(visualRefresh, "@media (prefers-reduced-motion: reduce)", "reduced-motion support is absent");
+assertNotIncludes(visualRefresh, "linear-gradient(", "the final visual refresh uses decorative gradients");
+
+console.log("Leaflet live vessel UI and MAWANI visual design contract verified.");
