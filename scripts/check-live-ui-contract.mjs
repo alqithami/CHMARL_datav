@@ -15,6 +15,8 @@ function assertNotIncludes(content, text, label) {
 const dashboard = read("src/components/DashboardShell.tsx");
 const sceneEntry = read("src/components/ShipScene.tsx");
 const leafletScene = read("src/components/LeafletShipScene.tsx");
+const speedProfile = read("src/components/charts/VesselSpeedProfile.tsx");
+const speedProfileCss = read("src/vesselSpeedProfile.css");
 const main = read("src/main.tsx");
 const packageJson = read("package.json");
 const stabilizer = read("src/providers/vesselDisplayStabilizer.ts");
@@ -51,9 +53,22 @@ assertIncludes(leafletScene, "all {visibleVessels.length} remain on the map", "r
 assertNotIncludes(leafletScene, "fallbackVessels", "the map can still inject sample vessels");
 assertNotIncludes(leafletScene, "buildTileGrid", "the old handcrafted map projection remains active");
 
+assertIncludes(speedProfile, "compactBandDefinitions", "the minimized speed distribution is absent");
+assertIncludes(speedProfile, "expandedBandDefinitions", "the detailed speed distribution is absent");
+assertIncludes(speedProfile, "Average SOG", "the compact speed summary is absent");
+assertIncludes(speedProfile, "90th percentile", "the expanded speed statistics are absent");
+assertIncludes(speedProfile, "speed-profile-compact", "compact and expanded speed layouts are not separated");
+assertIncludes(speedProfile, "speed-profile-expanded", "the expanded speed layout is absent");
+assertNotIncludes(speedProfile, 'from "../Chart"', "the narrow speed profile still depends on a clipped ECharts canvas");
+assertIncludes(speedProfileCss, ".panel-card:has(.vessel-speed-profile) .panel-tag", "the narrow panel does not protect the Expand action");
+assertIncludes(speedProfileCss, ".focus-panel:has(.vessel-speed-profile)", "the speed-profile modal is not constrained to the viewport");
+assertIncludes(speedProfileCss, "grid-template-columns: repeat(2, minmax(0, 1fr))", "the expanded speed bands do not use the available width");
+assertIncludes(speedProfileCss, "calc(100dvh - 24px)", "the expanded speed profile can exceed the viewport trim");
+
 assertIncludes(main, 'import "leaflet/dist/leaflet.css"', "Leaflet base styles are not loaded");
 assertIncludes(main, 'import "./leafletMap.css"', "Leaflet application styles are not loaded");
 assertIncludes(main, 'import "./mawaniVisualRefresh.css"', "the final MAWANI visual refresh layer is not loaded");
+assertIncludes(main, 'import "./vesselSpeedProfile.css"', "the compact speed-profile styles are not loaded");
 assertIncludes(packageJson, '"leaflet": "1.9.4"', "Leaflet is not pinned to the stable release");
 assertIncludes(packageJson, '"@types/leaflet"', "Leaflet TypeScript definitions are absent");
 assertIncludes(stabilizer, "const maxPerGridCell = 50_000", "the frontend still thins a complete PocketWorld fleet");
@@ -73,4 +88,4 @@ assertIncludes(visualRefresh, ":root[data-theme=\"light\"]", "the refreshed ligh
 assertIncludes(visualRefresh, "@media (prefers-reduced-motion: reduce)", "reduced-motion support is absent");
 assertNotIncludes(visualRefresh, "linear-gradient(", "the final visual refresh uses decorative gradients");
 
-console.log("Leaflet live vessel UI and MAWANI visual design contract verified.");
+console.log("Leaflet live vessel UI, speed profile, and MAWANI visual design contract verified.");
