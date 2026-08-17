@@ -35,14 +35,14 @@ const BASE_TILE_ATTRIBUTION = "&copy; OpenStreetMap contributors";
 const SEAMARK_ATTRIBUTION = "Seamarks &copy; OpenSeaMap contributors";
 
 const ports: PortReference[] = [
-  { id: "Jeddah", label: "Jeddah Islamic Port", latitude: 21.4858, longitude: 39.1925, lat: 21.4858, lon: 39.1925, primary: true },
-  { id: "King Abdullah Port", label: "King Abdullah Port", latitude: 22.3924, longitude: 39.0953, lat: 22.3924, lon: 39.0953, primary: true },
-  { id: "Yanbu", label: "Yanbu Commercial Port", latitude: 24.0866, longitude: 38.0637, lat: 24.0866, lon: 38.0637 },
-  { id: "Jizan", label: "Jizan Port", latitude: 16.8917, longitude: 42.5511, lat: 16.8917, lon: 42.5511 },
-  { id: "Dammam", label: "King Abdulaziz Port, Dammam", latitude: 26.4318, longitude: 50.1015, lat: 26.4318, lon: 50.1015 },
-  { id: "Jubail Commercial Port", label: "Jubail Commercial Port", latitude: 27.0333, longitude: 49.6667, lat: 27.0333, lon: 49.6667 },
-  { id: "Jebel Ali", label: "Jebel Ali Port", latitude: 25.0114, longitude: 55.0611, lat: 25.0114, lon: 55.0611 },
-  { id: "Suez", label: "Suez", latitude: 29.9668, longitude: 32.5498, lat: 29.9668, lon: 32.5498 },
+  { id: "Jeddah", label: "Jeddah Islamic Port", lat: 21.4858, lon: 39.1925, primary: true },
+  { id: "King Abdullah Port", label: "King Abdullah Port", lat: 22.3924, lon: 39.0953, primary: true },
+  { id: "Yanbu", label: "Yanbu Commercial Port", lat: 24.0866, lon: 38.0637 },
+  { id: "Jizan", label: "Jizan Port", lat: 16.8917, lon: 42.5511 },
+  { id: "Dammam", label: "King Abdulaziz Port, Dammam", lat: 26.4318, lon: 50.1015 },
+  { id: "Jubail Commercial Port", label: "Jubail Commercial Port", lat: 27.0333, lon: 49.6667 },
+  { id: "Jebel Ali", label: "Jebel Ali Port", lat: 25.0114, lon: 55.0611 },
+  { id: "Suez", label: "Suez", lat: 29.9668, lon: 32.5498 },
 ];
 
 const portById = new Map(ports.map((port) => [port.id, port]));
@@ -309,6 +309,10 @@ export default function LeafletShipScene({ vessels = [], portEvents = [], expand
     baseLayer.on("tileerror", () => setTileErrorCount((count) => count + 1));
     baseLayer.addTo(map);
 
+    const seamarkPane = map.createPane("seamarkPane");
+    seamarkPane.style.zIndex = "250";
+    seamarkPane.style.pointerEvents = "none";
+
     const seamarks = L.tileLayer(SEAMARK_TILE_URL, {
       minZoom: MIN_ZOOM,
       maxZoom: 18,
@@ -318,7 +322,7 @@ export default function LeafletShipScene({ vessels = [], portEvents = [], expand
       crossOrigin: true,
       keepBuffer: 3,
       updateWhenIdle: true,
-      pane: "overlayPane",
+      pane: "seamarkPane",
     });
     seamarks.setZIndex(250);
 
