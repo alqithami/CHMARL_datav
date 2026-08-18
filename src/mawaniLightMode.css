@@ -1,0 +1,437 @@
+/*
+ * CH-MARL light-mode contrast and color system
+ *
+ * Loaded last so the light theme remains legible across historical component
+ * styles, the Leaflet expanded view, controls, tables, and focus dialogs.
+ * Presentation only: no AIS, map, port, or EcoFair behavior is changed.
+ */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --mawani-bg: #edf4f5;
+  --mawani-surface: #ffffff;
+  --mawani-surface-raised: #f4f8f9;
+  --mawani-surface-hover: #e5eef0;
+
+  --mawani-border-subtle: #bfd0d4;
+  --mawani-border-strong: #78979e;
+
+  --mawani-text-primary: #10272c;
+  --mawani-text-secondary: #36555c;
+  --mawani-text-helper: #5c747a;
+
+  --mawani-teal-70: #007984;
+  --mawani-teal-80: #005d66;
+  --mawani-teal-90: #00434a;
+  --mawani-aqua-50: #006f79;
+  --mawani-aqua-60: #005f68;
+  --mawani-ai-accent: #007985;
+
+  --mawani-success: #19783a;
+  --mawani-warning: #9c5200;
+  --mawani-error: #b4232d;
+  --mawani-info: #2e5aa7;
+
+  --ui-surface-soft: rgba(244, 248, 249, 0.98);
+  --ui-border-soft: rgba(54, 85, 92, 0.22);
+  --ui-aqua-soft: rgba(0, 111, 121, 0.10);
+  --ui-success-soft: rgba(25, 120, 58, 0.10);
+  --ui-warning-soft: rgba(156, 82, 0, 0.10);
+  --ui-error-soft: rgba(180, 35, 45, 0.08);
+  --ui-info-soft: rgba(46, 90, 167, 0.10);
+  --ui-panel-shadow: 0 10px 24px rgba(25, 55, 62, 0.10);
+
+  --light-control-bg: #f7fafb;
+  --light-control-hover: #e8f1f2;
+  --light-map-overlay: rgba(255, 255, 255, 0.96);
+  --light-map-overlay-strong: rgba(247, 251, 252, 0.98);
+  --light-focus-ring: #007984;
+}
+
+:root[data-theme="light"] html,
+:root[data-theme="light"] body,
+:root[data-theme="light"] #root,
+:root[data-theme="light"] .app-shell.executive-shell {
+  background: var(--mawani-bg) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] ::selection {
+  background: #b8e3e6;
+  color: var(--mawani-text-primary);
+}
+
+:root[data-theme="light"] :focus-visible {
+  outline-color: var(--light-focus-ring) !important;
+}
+
+:root[data-theme="light"] .topbar,
+:root[data-theme="light"] .panel-card,
+:root[data-theme="light"] .metric-card,
+:root[data-theme="light"] .command-summary-card,
+:root[data-theme="light"] .provider-quality-matrix .data-quality-summary,
+:root[data-theme="light"] .provider-quality-matrix .data-quality-item,
+:root[data-theme="light"] .watchlist-item,
+:root[data-theme="light"] .watchlist-recommendation,
+:root[data-theme="light"] .timeline-empty-state,
+:root[data-theme="light"] .port-ops-setup,
+:root[data-theme="light"] .actions-menu-panel,
+:root[data-theme="light"] .focus-panel {
+  border-color: var(--mawani-border-subtle) !important;
+  background: var(--mawani-surface) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .brand-title,
+:root[data-theme="light"] .panel-title,
+:root[data-theme="light"] .metric-value,
+:root[data-theme="light"] .command-summary-header strong,
+:root[data-theme="light"] .command-summary-card strong,
+:root[data-theme="light"] .provider-quality-matrix strong,
+:root[data-theme="light"] .watchlist-item strong,
+:root[data-theme="light"] .watchlist-recommendation strong,
+:root[data-theme="light"] .focus-header h2,
+:root[data-theme="light"] .speed-profile-stat strong,
+:root[data-theme="light"] .speed-profile-band-heading strong,
+:root[data-theme="light"] .speed-profile-band-heading > span {
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .brand-subtitle,
+:root[data-theme="light"] .metric-trend,
+:root[data-theme="light"] .command-summary-card small,
+:root[data-theme="light"] .provider-quality-matrix small,
+:root[data-theme="light"] .watchlist-item small,
+:root[data-theme="light"] .watchlist-recommendation small,
+:root[data-theme="light"] .timeline-empty-state,
+:root[data-theme="light"] .port-ops-setup,
+:root[data-theme="light"] .speed-profile-stat small,
+:root[data-theme="light"] .speed-profile-band-heading small,
+:root[data-theme="light"] .speed-profile-note {
+  color: var(--mawani-text-secondary) !important;
+}
+
+:root[data-theme="light"] .brand-kicker,
+:root[data-theme="light"] .metric-label,
+:root[data-theme="light"] .panel-tag,
+:root[data-theme="light"] .command-summary-header span,
+:root[data-theme="light"] .command-summary-card > span,
+:root[data-theme="light"] .provider-quality-matrix .data-quality-summary > span,
+:root[data-theme="light"] .provider-quality-matrix .data-quality-item > span {
+  color: var(--mawani-aqua-50) !important;
+}
+
+:root[data-theme="light"] .status-control-group .data-pill,
+:root[data-theme="light"] .status-control-group > button.pill,
+:root[data-theme="light"] .actions-menu summary,
+:root[data-theme="light"] .panel-focus-button,
+:root[data-theme="light"] .theme-toggle,
+:root[data-theme="light"] .focus-header button,
+:root[data-theme="light"] .command-summary-tabs button {
+  border-color: var(--mawani-border-subtle) !important;
+  background: var(--light-control-bg) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .status-control-group > button.pill:hover,
+:root[data-theme="light"] .actions-menu summary:hover,
+:root[data-theme="light"] .panel-focus-button:hover,
+:root[data-theme="light"] .theme-toggle:hover,
+:root[data-theme="light"] .focus-header button:hover,
+:root[data-theme="light"] .command-summary-tabs button:hover {
+  border-color: var(--mawani-aqua-50) !important;
+  background: var(--light-control-hover) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .command-summary-tabs button.active,
+:root[data-theme="light"] .leaflet-map-controls button.active,
+:root[data-theme="light"] .tile-filter-bar button.active {
+  border-color: var(--mawani-teal-80) !important;
+  background: var(--mawani-teal-80) !important;
+  color: #ffffff !important;
+}
+
+:root[data-theme="light"] input,
+:root[data-theme="light"] select,
+:root[data-theme="light"] textarea,
+:root[data-theme="light"] .vessel-table-toolbar input,
+:root[data-theme="light"] .vessel-table-toolbar select,
+:root[data-theme="light"] .rail-search-tools input,
+:root[data-theme="light"] .rail-search-tools select {
+  border-color: var(--mawani-border-subtle) !important;
+  background: var(--light-control-bg) !important;
+  color: var(--mawani-text-primary) !important;
+  caret-color: var(--mawani-teal-70) !important;
+}
+
+:root[data-theme="light"] input::placeholder,
+:root[data-theme="light"] textarea::placeholder,
+:root[data-theme="light"] .rail-search-tools input::placeholder {
+  color: var(--mawani-text-helper) !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme="light"] input:focus,
+:root[data-theme="light"] select:focus,
+:root[data-theme="light"] textarea:focus,
+:root[data-theme="light"] .rail-search-tools input:focus,
+:root[data-theme="light"] .rail-search-tools select:focus {
+  border-color: var(--mawani-aqua-50) !important;
+  box-shadow: 0 0 0 2px rgba(0, 111, 121, 0.12) !important;
+}
+
+:root[data-theme="light"] input[type="checkbox"] {
+  accent-color: var(--mawani-teal-70) !important;
+}
+
+:root[data-theme="light"] .metric-card-good .metric-trend,
+:root[data-theme="light"] .data-quality-item.good strong,
+:root[data-theme="light"] .ship-status.nominal {
+  color: var(--mawani-success) !important;
+}
+
+:root[data-theme="light"] .metric-card-warn .metric-trend,
+:root[data-theme="light"] .data-quality-item.warn strong,
+:root[data-theme="light"] .ship-status.warning {
+  color: var(--mawani-warning) !important;
+}
+
+:root[data-theme="light"] .ship-status.alert {
+  color: var(--mawani-error) !important;
+}
+
+:root[data-theme="light"] .watchlist-recommendation {
+  border-left-color: var(--mawani-ai-accent) !important;
+  background: var(--ui-aqua-soft) !important;
+}
+
+:root[data-theme="light"] .watchlist-item.normal {
+  border-left-color: var(--mawani-success) !important;
+}
+
+:root[data-theme="light"] .watchlist-item.warning {
+  border-left-color: var(--mawani-warning) !important;
+}
+
+:root[data-theme="light"] .watchlist-item.critical {
+  border-left-color: var(--mawani-error) !important;
+}
+
+:root[data-theme="light"] .focus-backdrop {
+  background: rgba(25, 48, 54, 0.36) !important;
+}
+
+:root[data-theme="light"] .focus-panel {
+  box-shadow: 0 24px 64px rgba(29, 62, 70, 0.20) !important;
+}
+
+:root[data-theme="light"] .focus-header {
+  border-bottom-color: var(--mawani-border-subtle) !important;
+  background: var(--mawani-surface) !important;
+}
+
+:root[data-theme="light"] .focus-content {
+  background: var(--mawani-surface-raised) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .expanded-map-rail {
+  border-color: var(--mawani-border-subtle) !important;
+  background: rgba(235, 242, 244, 0.97) !important;
+  color: var(--mawani-text-primary) !important;
+  box-shadow: -10px 0 30px rgba(31, 63, 70, 0.12) !important;
+}
+
+:root[data-theme="light"] .expanded-rail-section,
+:root[data-theme="light"] .tile-vessel-list,
+:root[data-theme="light"] .tile-event-list,
+:root[data-theme="light"] .ship-inspector-card {
+  border-color: var(--mawani-border-subtle) !important;
+  background: var(--mawani-surface) !important;
+  color: var(--mawani-text-primary) !important;
+  box-shadow: 0 8px 20px rgba(31, 63, 70, 0.08) !important;
+}
+
+:root[data-theme="light"] .rail-section-header span,
+:root[data-theme="light"] .ship-inspector-kicker {
+  color: var(--mawani-aqua-50) !important;
+}
+
+:root[data-theme="light"] .rail-section-header strong,
+:root[data-theme="light"] .tile-vessel-list-header strong,
+:root[data-theme="light"] .ship-inspector-header h3,
+:root[data-theme="light"] .tile-vessel-list-items button span {
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .tile-vessel-list-header,
+:root[data-theme="light"] .rail-search-tools {
+  border-bottom-color: var(--mawani-border-subtle) !important;
+}
+
+:root[data-theme="light"] .tile-vessel-list-header span {
+  color: var(--mawani-aqua-50) !important;
+}
+
+:root[data-theme="light"] .vessel-detail-section.muted p,
+:root[data-theme="light"] .rail-empty-state,
+:root[data-theme="light"] .tile-vessel-list-items button small,
+:root[data-theme="light"] .rail-detail-list dt,
+:root[data-theme="light"] .ship-inspector-card dt {
+  color: var(--mawani-text-secondary) !important;
+}
+
+:root[data-theme="light"] .rail-detail-list dd,
+:root[data-theme="light"] .ship-inspector-card dd {
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .rail-search-tools label {
+  color: var(--mawani-text-secondary) !important;
+}
+
+:root[data-theme="light"] .rail-search-tools button,
+:root[data-theme="light"] .rail-action-button,
+:root[data-theme="light"] .ship-inspector-card button {
+  border-color: var(--mawani-border-strong) !important;
+  background: var(--light-control-bg) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .rail-search-tools button:hover,
+:root[data-theme="light"] .rail-action-button:hover,
+:root[data-theme="light"] .ship-inspector-card button:hover {
+  border-color: var(--mawani-aqua-50) !important;
+  background: var(--light-control-hover) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .tile-vessel-list-items button {
+  border-color: var(--mawani-border-subtle) !important;
+  background: var(--mawani-surface-raised) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .tile-vessel-list-items button:hover,
+:root[data-theme="light"] .tile-vessel-list-items button.active {
+  border-color: var(--mawani-aqua-50) !important;
+  background: #e1f0f2 !important;
+}
+
+:root[data-theme="light"] .tile-vessel-list-items button.stale {
+  border-color: rgba(156, 82, 0, 0.38) !important;
+  background: var(--ui-warning-soft) !important;
+}
+
+:root[data-theme="light"] .tile-vessel-list-items button.stale small::after {
+  color: var(--mawani-warning) !important;
+}
+
+:root[data-theme="light"] .leaflet-map-root .leaflet-tile-pane {
+  filter: saturate(0.94) brightness(1.01) contrast(1.01) !important;
+}
+
+:root[data-theme="light"] .leaflet-map-controls,
+:root[data-theme="light"] .tile-filter-bar,
+:root[data-theme="light"] .leaflet-map-root .leaflet-control-zoom,
+:root[data-theme="light"] .leaflet-map-root .leaflet-control-scale-line,
+:root[data-theme="light"] .leaflet-map-root .leaflet-control-attribution,
+:root[data-theme="light"] .leaflet-port-label,
+:root[data-theme="light"] .leaflet-vessel-tooltip,
+:root[data-theme="light"] .leaflet-event-tooltip {
+  border-color: var(--mawani-border-subtle) !important;
+  background: var(--light-map-overlay) !important;
+  color: var(--mawani-text-primary) !important;
+  box-shadow: 0 8px 22px rgba(31, 63, 70, 0.14) !important;
+}
+
+:root[data-theme="light"] .leaflet-map-controls button,
+:root[data-theme="light"] .tile-filter-bar button {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: var(--mawani-text-secondary) !important;
+}
+
+:root[data-theme="light"] .leaflet-map-controls button:hover,
+:root[data-theme="light"] .tile-filter-bar button:hover {
+  border-color: var(--mawani-border-subtle) !important;
+  background: var(--light-control-hover) !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .leaflet-map-controls > span,
+:root[data-theme="light"] .leaflet-map-root .leaflet-control-attribution,
+:root[data-theme="light"] .leaflet-map-root .leaflet-control-attribution a,
+:root[data-theme="light"] .leaflet-vessel-tooltip-content span,
+:root[data-theme="light"] .leaflet-event-tooltip-content span {
+  color: var(--mawani-text-secondary) !important;
+}
+
+:root[data-theme="light"] .leaflet-map-root .leaflet-control-zoom a,
+:root[data-theme="light"] .leaflet-vessel-tooltip-content strong,
+:root[data-theme="light"] .leaflet-event-tooltip-content strong,
+:root[data-theme="light"] .leaflet-port-label {
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .leaflet-map-root .leaflet-control-zoom a {
+  background: var(--light-map-overlay-strong) !important;
+  border-bottom-color: var(--mawani-border-subtle) !important;
+}
+
+:root[data-theme="light"] .leaflet-map-root .leaflet-control-zoom a:hover {
+  background: var(--mawani-teal-80) !important;
+  color: #ffffff !important;
+}
+
+:root[data-theme="light"] .leaflet-port-label.is-primary {
+  border-color: var(--mawani-aqua-50) !important;
+  background: #dceff1 !important;
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .leaflet-vessel-tooltip::before,
+:root[data-theme="light"] .leaflet-event-tooltip::before {
+  border-top-color: var(--light-map-overlay) !important;
+}
+
+:root[data-theme="light"] .vessel-table,
+:root[data-theme="light"] .vessel-table th,
+:root[data-theme="light"] .vessel-table td {
+  color: var(--mawani-text-primary) !important;
+}
+
+:root[data-theme="light"] .vessel-table th {
+  background: var(--mawani-surface-raised) !important;
+  color: var(--mawani-text-secondary) !important;
+}
+
+:root[data-theme="light"] .vessel-table th,
+:root[data-theme="light"] .vessel-table td {
+  border-bottom-color: var(--mawani-border-subtle) !important;
+}
+
+:root[data-theme="light"] .vessel-table tbody tr:hover {
+  background: var(--light-control-hover) !important;
+}
+
+:root[data-theme="light"] .speed-profile-stat,
+:root[data-theme="light"] .focus-content .speed-profile-band,
+:root[data-theme="light"] .speed-profile-band-track {
+  border-color: var(--mawani-border-subtle) !important;
+  background: var(--mawani-surface-raised) !important;
+}
+
+:root[data-theme="light"] .focus-content .speed-profile-band-track {
+  background: var(--mawani-surface) !important;
+}
+
+@media (prefers-contrast: more) {
+  :root[data-theme="light"] {
+    --mawani-border-subtle: #8ba4aa;
+    --mawani-text-secondary: #26444b;
+    --mawani-text-helper: #405f66;
+  }
+}
