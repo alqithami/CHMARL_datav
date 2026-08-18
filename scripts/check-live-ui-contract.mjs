@@ -23,6 +23,8 @@ const stabilizer = read("src/providers/vesselDisplayStabilizer.ts");
 const coverage = read("src/utils/portCoverage.ts");
 const coverageMatrix = read("src/components/insights/PortCoverageMatrix.tsx");
 const visualRefresh = read("src/mawaniVisualRefresh.css");
+const lightMode = read("src/mawaniLightMode.css");
+const lightPaletteDocument = read("docs/LIGHT_MODE_COLOR_PALETTE.md");
 
 for (const source of ["datalastic", "pocketworld", "pocketworld-last-known", "ais-multi-provider"]) {
   assertIncludes(dashboard, `source === "${source}"`, `${source} is not recognized as a live external source`);
@@ -69,6 +71,7 @@ assertIncludes(main, 'import "leaflet/dist/leaflet.css"', "Leaflet base styles a
 assertIncludes(main, 'import "./leafletMap.css"', "Leaflet application styles are not loaded");
 assertIncludes(main, 'import "./mawaniVisualRefresh.css"', "the final MAWANI visual refresh layer is not loaded");
 assertIncludes(main, 'import "./vesselSpeedProfile.css"', "the compact speed-profile styles are not loaded");
+assertIncludes(main, 'import "./mawaniLightMode.css"', "the final light-mode contrast layer is not loaded");
 assertIncludes(packageJson, '"leaflet": "1.9.4"', "Leaflet is not pinned to the stable release");
 assertIncludes(packageJson, '"@types/leaflet"', "Leaflet TypeScript definitions are absent");
 assertIncludes(stabilizer, "const maxPerGridCell = 50_000", "the frontend still thins a complete PocketWorld fleet");
@@ -88,4 +91,22 @@ assertIncludes(visualRefresh, ":root[data-theme=\"light\"]", "the refreshed ligh
 assertIncludes(visualRefresh, "@media (prefers-reduced-motion: reduce)", "reduced-motion support is absent");
 assertNotIncludes(visualRefresh, "linear-gradient(", "the final visual refresh uses decorative gradients");
 
-console.log("Leaflet live vessel UI, speed profile, and MAWANI visual design contract verified.");
+assertIncludes(lightMode, '--mawani-text-primary: #10272c', "the light theme does not define a strong primary text color");
+assertIncludes(lightMode, '--mawani-text-secondary: #36555c', "the light theme does not define a readable secondary text color");
+assertIncludes(lightMode, '--mawani-text-helper: #5c747a', "the light theme helper color is too weak or absent");
+assertIncludes(lightMode, '--mawani-aqua-50: #006f79', "the light-mode aqua accent is absent");
+assertIncludes(lightMode, '--mawani-success: #19783a', "the light-mode success color is absent");
+assertIncludes(lightMode, '--mawani-warning: #9c5200', "the light-mode warning color is absent");
+assertIncludes(lightMode, '--mawani-error: #b4232d', "the light-mode error color is absent");
+assertIncludes(lightMode, ".expanded-map-rail", "the expanded Leaflet rail is not covered by the light theme");
+assertIncludes(lightMode, ".rail-search-tools label", "light-mode filter labels are not protected");
+assertIncludes(lightMode, ".tile-vessel-list-items button span", "light-mode vessel names are not protected");
+assertIncludes(lightMode, ".focus-header h2", "light-mode focus titles are not protected");
+assertIncludes(lightMode, "@media (prefers-contrast: more)", "the light theme does not support increased-contrast preference");
+assertNotIncludes(lightMode, "linear-gradient(", "the light-mode enhancement uses decorative gradients");
+
+assertIncludes(lightPaletteDocument, "#10272C", "the palette document omits primary text");
+assertIncludes(lightPaletteDocument, "#006F79", "the palette document omits the light aqua accent");
+assertIncludes(lightPaletteDocument, "Expanded-map vessel rows", "the palette document does not cover the reported light-mode problem");
+
+console.log("Leaflet live vessel UI, speed profile, MAWANI design, and light-mode contrast contracts verified.");
