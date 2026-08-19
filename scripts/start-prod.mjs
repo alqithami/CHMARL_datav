@@ -62,7 +62,9 @@ process.env.AISSTREAM_PROFILE_CYCLE_BACKOFF_MS ??= "600000";
 // by provider availability, deduplication, and the configured freshness window.
 process.env.AISSTREAM_MAX_VESSELS = "0";
 process.env.AISSTREAM_OPERATIONAL_MAX_VESSELS = "0";
-process.env.AISSTREAM_MAX_AGE_MS ??= String(24 * 60 * 60 * 1000);
+process.env.AISSTREAM_MAX_AGE_MS = runningOnRender
+  ? "86400000"
+  : (process.env.AISSTREAM_MAX_AGE_MS || String(24 * 60 * 60 * 1000));
 process.env.AISSTREAM_TRAIL_POINTS = runningOnRender ? "4" : (process.env.AISSTREAM_TRAIL_POINTS || "4");
 process.env.AISSTREAM_CACHE_ENABLED ??= "true";
 process.env.AISSTREAM_CACHE_FLUSH_MS ??= "15000";
@@ -80,9 +82,13 @@ process.env.POCKETWORLD_API_URL ??= "https://pocketworld.org/api/ships";
 process.env.POCKETWORLD_ACTIVATION_DELAY_MS ??= "5000";
 process.env.POCKETWORLD_POLL_INTERVAL_MS ??= "300000";
 process.env.POCKETWORLD_TIMEOUT_MS ??= "30000";
-process.env.POCKETWORLD_DISPLAY_MAX_AGE_MS ??= "86400000";
+process.env.POCKETWORLD_DISPLAY_MAX_AGE_MS = runningOnRender
+  ? "86400000"
+  : (process.env.POCKETWORLD_DISPLAY_MAX_AGE_MS || "86400000");
 process.env.POCKETWORLD_FRESH_AGE_MS ??= "1800000";
-process.env.POCKETWORLD_MAX_AGE_MS ??= process.env.POCKETWORLD_DISPLAY_MAX_AGE_MS;
+process.env.POCKETWORLD_MAX_AGE_MS = runningOnRender
+  ? process.env.POCKETWORLD_DISPLAY_MAX_AGE_MS
+  : (process.env.POCKETWORLD_MAX_AGE_MS || process.env.POCKETWORLD_DISPLAY_MAX_AGE_MS);
 process.env.POCKETWORLD_MAX_VESSELS = "0";
 process.env.POCKETWORLD_MAX_PAGES ??= "1000";
 process.env.POCKETWORLD_CACHE_FLUSH_MS ??= "60000";
