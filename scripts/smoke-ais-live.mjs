@@ -24,7 +24,7 @@ function availablePort() {
 
 async function fetchJsonWithRetry(url, predicate) {
   let last;
-  for (let attempt = 0; attempt < 200; attempt += 1) {
+  for (let attempt = 0; attempt < 240; attempt += 1) {
     try {
       const response = await fetch(url);
       const json = await response.json();
@@ -38,7 +38,7 @@ async function fetchJsonWithRetry(url, predicate) {
   throw new Error("Timed out waiting for " + url + ": " + (last instanceof Error ? last.message : JSON.stringify(last?.json)));
 }
 
-const runtimeDir = mkdtempSync(join(tmpdir(), "chmarl-ais-recovery-"));
+const runtimeDir = mkdtempSync(join(tmpdir(), "chmarl-ais-resubscribe-"));
 const weatherFile = join(runtimeDir, "weather.json");
 writeFileSync(weatherFile, JSON.stringify({ points: [] }));
 const backendPort = await availablePort();
@@ -47,19 +47,20 @@ const websocketServer = new WebSocketServer({ host: "127.0.0.1", port: websocket
 const output = [];
 const subscriptions = [];
 let connectionCount = 0;
+let vesselSent = false;
 
 websocketServer.on("connection", (socket) => {
   connectionCount += 1;
-  const connectionNumber = connectionCount;
   socket.on("message", (data) => {
     const subscription = JSON.parse(data.toString());
-    subscriptions.push({ connectionNumber, subscription });
-    if (connectionNumber === 1) return;
+    subscriptions.push(subscription);
+    if (subscriptions.length < 2 || vesselSent) return;
+    vesselSent = true;
     socket.send(JSON.stringify({
       MessageType: "PositionReport",
       MetaData: {
         MMSI: 123456789,
-        ShipName: "AIS RECOVERY TEST",
+        ShipName: "AIS RESUBSCRIBE TEST",
         latitude: 21.4858,
         longitude: 39.1925,
         time_utc: new Date().toISOString(),
@@ -91,9 +92,11 @@ const env = {
   AISSTREAM_FILTER_TYPES: "UnknownMessage",
   AISSTREAM_OPERATIONAL_PRIORITY_ENABLED: "true",
   AISSTREAM_RECOVERY_ENABLED: "true",
-  AISSTREAM_HEARTBEAT_MS: "1000",
-  AISSTREAM_FIRST_FRAME_TIMEOUT_MS: "1200",
-  AISSTREAM_SILENCE_TIMEOUT_MS: "60000",
+  AISSTREAM_HEARTBEAT_MS: "500",
+  AISSTREAM_FIRST_FRAME_TIMEOUT_MS: "700",
+  AISSTREAM_SILENT_RESUBSCRIBE_MS: "800",
+  AISSTREAM_HARD_RECONNECT_MS: "10000",
+  AISSTREAM_SILENCE_TIMEOUT_MS: "5000",
   AISSTREAM_CACHE_ENABLED: "false",
   POCKETWORLD_AIS_ENABLED: "false",
   CHMARL_RUNTIME_ENABLED: "false",
@@ -112,15 +115,16 @@ try {
   const baseUrl = "http://127.0.0.1:" + backendPort;
   const result = await fetchJsonWithRetry(baseUrl + "/api/vessels", (_response, json) => json?.vessels?.some((row) => row.id === "MMSI-123456789"));
   const vessels = result.json;
-  const first = subscriptions[0]?.subscription;
-  const recovered = subscriptions.find((entry) => entry.connectionNumber > 1)?.subscription;
+  const first = subscriptions[0];
+  const refreshed = subscriptions[1];
 
-  assert(connectionCount >= 2, "Silent first AIS socket did not reconnect");
+  assert(connectionCount === 1, `Silent AIS recovery opened ${connectionCount} sockets instead of reusing one healthy socket`);
+  assert(subscriptions.length >= 2, "Silent AIS socket was not resubscribed in place");
   assert(first?.APIKey === "test-key", "AIS API key was not trimmed before subscription");
   assert(JSON.stringify(first?.BoundingBoxes) === JSON.stringify([[[-90, -180], [90, 180]]]), "Primary AIS subscription was not global");
-  assert(!("FilterMessageTypes" in first), "Primary AIS subscription unexpectedly filtered provider frames");
-  assert(JSON.stringify(recovered?.BoundingBoxes) === JSON.stringify([[[-90, -180], [90, 180]]]), "Recovery subscription narrowed the worldwide bounding box");
-  assert(Array.isArray(recovered?.FilterMessageTypes) && recovered.FilterMessageTypes.includes("PositionReport"), "Recovery profile did not reduce the stream to position messages");
+  assert(JSON.stringify(refreshed?.BoundingBoxes) === JSON.stringify([[[-90, -180], [90, 180]]]), "Silent-session resubscription narrowed the world bounding box");
+  assert(Array.isArray(first?.FilterMessageTypes) && first.FilterMessageTypes.includes("PositionReport"), "Primary AIS subscription was not limited to position-bearing messages");
+  assert(Array.isArray(refreshed?.FilterMessageTypes) && refreshed.FilterMessageTypes.includes("PositionReport"), "Resubscription lost the position-message filter");
   assert(vessels.source === "aisstream", "Expected aisstream source, received " + vessels.source);
   assert(vessels.counts?.tracking === 1, "Expected one live AIS row, received " + vessels.counts?.tracking);
   assert(vessels.counts?.operational === 1, "Recovered AIS row was not derived into monitored-port scope");
@@ -128,10 +132,12 @@ try {
   assert(vessels.vessels[0].inputSource === "global-tracking", "Vessel did not preserve its AIS source");
   assert(vessels.inputs?.fixedRows === undefined && vessels.inputs?.upstreamRows === undefined, "Non-AIS input counters remain in the API contract");
   assert(vessels.health?.messageCount >= 1 && vessels.health?.usablePositionMessages >= 1, "AIS frame counters were not updated");
-  assert(vessels.health?.profileSwitches >= 1, "Silent socket did not record a profile switch");
+  assert(vessels.health?.subscriptionRefreshes >= 1, "Silent socket did not record an in-place subscription refresh");
+  assert(vessels.health?.hardReconnects === 0, "Healthy silent socket was hard-reconnected before resubscription recovered it");
   assert(vessels.health?.activeProfile === "world-position-only", "Unexpected recovery profile: " + vessels.health?.activeProfile);
-  assert(vessels.health?.lastSuccessfulProfile === "world-position-only", "Successful worldwide recovery profile was not recorded");
+  assert(vessels.health?.lastSuccessfulProfile === "world-position-only", "Successful world profile was not recorded");
   assert(vessels.health?.lastFrameAt && vessels.health?.lastMessageAt, "AIS frame timestamps were not recorded");
+  assert(vessels.health?.locationFilter === "none" && vessels.health?.discardedByLocation === 0, "AIS tracking introduced a location discard");
 
   const primaryScope = await fetch(baseUrl + "/api/vessels?scope=primary").then((response) => response.json());
   assert(primaryScope.scope === "primary" && primaryScope.vessels.length === 1, "Primary-port API scope did not return the recovered vessel");
@@ -142,10 +148,9 @@ try {
   const ingest = await fetch(baseUrl + "/api/vessels/ingest", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ vessels: [] }) });
   assert(ingest.status === 404, "Manual vessel ingest endpoint still exists: " + ingest.status);
 
-  assert(vessels.health?.countLimited === false && vessels.health?.locationFilter === "none", "AIS recovery did not preserve the unbounded global policy");
-  console.log("Worldwide live AIS recovery integration smoke test passed.");
+  console.log("Silent AISStream in-place resubscription smoke test passed.");
 } catch (error) {
-  throw new Error((error instanceof Error ? error.message : String(error)) + "\n\nRuntime output:\n" + output.join("").slice(-10000));
+  throw new Error((error instanceof Error ? error.message : String(error)) + "\n\nRuntime output:\n" + output.join("").slice(-12000));
 } finally {
   child.kill("SIGTERM");
   await new Promise((resolve) => {

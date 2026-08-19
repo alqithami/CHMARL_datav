@@ -26,13 +26,15 @@ assertIncludes(runtime, 'path === "/health/live"', "liveness endpoint is absent"
 assertIncludes(runtime, 'path === "/health/ready"', "readiness endpoint is absent");
 assertIncludes(runtime, 'path === "/version"', "version endpoint is absent");
 assertIncludes(runtime, "const TRACKING_BBOX_TEXT = WORLD_AIS_BBOX", "global AIS subscription is not enforced");
-assertIncludes(runtime, "const AISSTREAM_FILTER_TYPES = []", "AIS provider frames remain filtered");
+assertIncludes(runtime, "const AISSTREAM_FILTER_TYPES = AISSTREAM_POSITION_FILTER_TYPES", "worldwide AIS is not constrained to position-bearing messages");
 assertIncludes(runtime, 'String(process.env.AISSTREAM_API_KEY ?? "").trim()', "AIS API key is not normalized");
 assertIncludes(runtime, "state.lastFrameAt", "raw AIS frame diagnostics are absent");
 assertIncludes(runtime, "AISSTREAM_RECOVERY_PROFILES", "adaptive AIS subscription profiles are absent");
 assertIncludes(runtime, "AISSTREAM_FIRST_FRAME_TIMEOUT_MS", "AIS first-frame timeout is absent");
 assertIncludes(runtime, "connectionMessageCount", "per-connection AIS frame accounting is absent");
-assertIncludes(runtime, "advanceAisProfile", "silent AIS sockets do not rotate profiles");
+assertIncludes(runtime, "sendAisSubscription", "silent AIS sockets cannot refresh a subscription in place");
+assertIncludes(runtime, "subscriptionRefreshes", "AIS subscription-refresh diagnostics are absent");
+assertIncludes(runtime, "hardReconnects", "AIS controlled hard-reconnect diagnostics are absent");
 assertIncludes(runtime, "perMessageDeflate: false", "AIS websocket compression is not explicitly disabled");
 assertIncludes(runtime, "createDatalasticLiveAisProvider", "secondary genuine live AIS provider is not integrated");
 assertIncludes(runtime, "datalasticFailoverDue", "silent AISStream sessions do not activate live AIS failover");
@@ -68,6 +70,7 @@ assertIncludes(runtime, "deriveOperational: OPERATIONAL_PRIORITY_ENABLED", "sing
 assertIncludes(runtime, 'id: "Jubail Commercial Port"', "Jubail is missing from the eight-port portfolio");
 assertIncludes(runtime, "PRIMARY_PORT_REFERENCE_POINTS", "Jeddah and King Abdullah focus is absent");
 assertIncludes(runtime, 'id: "world-position-only"', "AIS recovery does not preserve worldwide position coverage");
+assertNotIncludes(runtime, 'id: "world-unfiltered"', "the high-volume unfiltered worldwide profile is still active");
 assertNotIncludes(runtime, 'id: "primary-ports-position-only"', "tracking recovery can still narrow the subscription by location");
 assertNotIncludes(runtime, 'id: "red-sea-gulf-position-only"', "tracking recovery can still narrow to a regional subscription");
 assertIncludes(runtime, "primaryOperationalVessels", "primary operational scope is absent");
@@ -88,6 +91,8 @@ assertIncludes(startProd, 'process.env.AISSTREAM_GLOBAL_TRACKING_ENABLED = "true
 assertIncludes(startProd, "process.env.AISSTREAM_TRACKING_BBOX = WORLD_AIS_BBOX", "production startup does not force the world box");
 assertIncludes(startProd, 'process.env.AISSTREAM_RECOVERY_ENABLED = "true"', "production startup does not enable silent-session recovery");
 assertIncludes(startProd, 'process.env.AISSTREAM_FIRST_FRAME_TIMEOUT_MS', "production startup does not configure first-frame recovery");
+assertIncludes(startProd, 'process.env.AISSTREAM_SILENT_RESUBSCRIBE_MS', "production startup does not configure in-place silent resubscription");
+assertIncludes(startProd, 'process.env.AISSTREAM_HARD_RECONNECT_MS', "production startup does not configure controlled hard reconnects");
 assertIncludes(startProd, 'process.env.AISSTREAM_MAX_VESSELS = "0"', "production startup does not remove the AISStream count ceiling");
 assertIncludes(startProd, 'process.env.AISSTREAM_OPERATIONAL_MAX_VESSELS = "0"', "production startup does not remove the operational cache count ceiling");
 assertIncludes(startProd, 'process.env.DATALASTIC_MAX_VESSELS = "0"', "production startup does not remove the Datalastic cache ceiling");
@@ -97,9 +102,12 @@ assertIncludes(render, "healthCheckPath: /health/live", "Render liveness endpoin
 assertIncludes(render, "value: -90,-180;90,180", "Render does not use the global AIS box");
 assertIncludes(render, "AISSTREAM_MAX_VESSELS\n        value: 0", "Render still applies an AISStream vessel-count ceiling");
 assertIncludes(render, "AISSTREAM_OPERATIONAL_MAX_VESSELS\n        value: 0", "Render still caps the operational AIS cache");
+assertIncludes(render, "AISSTREAM_MAX_AGE_MS\n        value: 86400000", "Render AIS continuity retention is below 24 hours");
 assertIncludes(render, "AISSTREAM_RECOVERY_ENABLED\n        value: true", "Render does not enable AIS silent-session recovery");
 assertIncludes(render, "AISSTREAM_FIRST_FRAME_TIMEOUT_MS\n        value: 30000", "Render first-frame timeout is not configured");
 assertIncludes(render, "AISSTREAM_SILENCE_TIMEOUT_MS\n        value: 90000", "Render silence timeout is too slow");
+assertIncludes(render, "AISSTREAM_SILENT_RESUBSCRIBE_MS\n        value: 120000", "Render does not refresh silent subscriptions in place");
+assertIncludes(render, "AISSTREAM_HARD_RECONNECT_MS\n        value: 1800000", "Render hard-reconnect interval is too aggressive or absent");
 assertIncludes(render, "DATALASTIC_API_KEY\n        sync: false", "Render does not declare the secondary live AIS secret");
 assertIncludes(render, "DATALASTIC_SCAN_POINT_IDS", "Render does not configure live AIS fallback coverage");
 assertIncludes(render, "POCKETWORLD_AIS_ENABLED\n        value: true", "Render does not enable public live AIS fallback");
@@ -107,7 +115,7 @@ assertIncludes(render, "POCKETWORLD_API_URL", "Render does not configure the pub
 assertIncludes(render, "POCKETWORLD_MAX_VESSELS\n        value: 0", "Render still applies a PocketWorld aggregate vessel ceiling");
 assertIncludes(render, "POCKETWORLD_MAX_PAGES\n        value: 1000", "Render does not allow complete provider pagination");
 assertIncludes(render, "DATALASTIC_MAX_VESSELS\n        value: 0", "Render still caps Datalastic rows");
-assertIncludes(render, "POCKETWORLD_DISPLAY_MAX_AGE_MS\n        value: 21600000", "Render last-known AIS retention is absent");
+assertIncludes(render, "POCKETWORLD_DISPLAY_MAX_AGE_MS\n        value: 86400000", "Render regional continuity retention is below 24 hours");
 assertIncludes(render, "POCKETWORLD_CACHE_FILE\n        value: /var/data/pocketworld-ais-cache.json", "Render public AIS persistence is absent");
 assertIncludes(render, "ECOFAIR_MAX_VESSEL_AGE_MS\n        value: 1800000", "Render EcoFair freshness guard is absent");
 assertIncludes(render, "AISSTREAM_RATE_LIMIT_BACKOFF_MS\n        value: 1800000", "Render AIS rate-limit backoff is absent");
@@ -116,6 +124,8 @@ assertNotIncludes(render, "UPSTREAM_VESSEL", "Render still configures a non-AIS 
 assertNotIncludes(envExample, "FIXED_VESSEL", "environment template still advertises manual vessels");
 assertNotIncludes(envExample, "UPSTREAM_VESSEL", "environment template still advertises non-AIS vessels");
 assertIncludes(envExample, "AISSTREAM_MAX_VESSELS=0", "environment template does not document unlimited AISStream retention");
+assertIncludes(envExample, "VITE_VESSEL_DISPLAY_RETENTION_MS=86400000", "environment template does not document 24-hour browser continuity");
+assertIncludes(envExample, "AISSTREAM_SILENT_RESUBSCRIBE_MS=120000", "environment template does not document silent resubscription");
 assertIncludes(envExample, "POCKETWORLD_MAX_VESSELS=0", "environment template does not document unlimited PocketWorld retention");
 assertIncludes(envExample, "DATALASTIC_MAX_VESSELS=0", "environment template does not document unlimited Datalastic retention");
 assertIncludes(dockerfile, "COPY package.json pnpm-lock.yaml ./", "Docker build does not copy the lockfile");
