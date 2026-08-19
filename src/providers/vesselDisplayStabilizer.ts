@@ -40,12 +40,14 @@ let lastStats: VesselDisplayStats = {
 };
 
 function hasCoordinates(vessel: Vessel): vessel is Vessel & { latitude: number; longitude: number } {
-  return Number.isFinite(vessel.latitude)
-    && Number.isFinite(vessel.longitude)
-    && (vessel.latitude as number) >= -90
-    && (vessel.latitude as number) <= 90
-    && (vessel.longitude as number) >= -180
-    && (vessel.longitude as number) <= 180;
+  const latitude = vessel.latitude as number;
+  const longitude = vessel.longitude as number;
+  return Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && latitude >= -90
+    && latitude <= 90
+    && longitude >= -180
+    && longitude <= 180;
 }
 
 function vesselTimestamp(vessel: Vessel) {
