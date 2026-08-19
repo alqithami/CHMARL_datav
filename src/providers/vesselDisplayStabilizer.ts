@@ -3,7 +3,6 @@ import type { Vessel } from "@/data/chmarlData";
 type CachedVessel = {
   vessel: Vessel;
   lastObservedAt: number;
-  sampleScore: number;
 };
 
 export type VesselDisplayStats = {
@@ -13,19 +12,20 @@ export type VesselDisplayStats = {
   heldRows: number;
   cachedRows: number;
   expiredRows: number;
+  rejectedInvalidRows: number;
+  countLimited: false;
+  discardedByLocation: 0;
   updatedAt: number;
 };
 
-const standardRetentionMs = 60 * 60 * 1000;
-const middleEastRetentionMs = 6 * 60 * 60 * 1000;
-const gridDegrees = 180;
-const maxPerGridCell = 50_000;
-const maxDisplayRows = 50_000;
+const configuredRetentionMs = Number(import.meta.env.VITE_VESSEL_DISPLAY_RETENTION_MS ?? 6 * 60 * 60 * 1000);
+const retentionMs = Number.isFinite(configuredRetentionMs) && configuredRetentionMs > 0
+  ? configuredRetentionMs
+  : 6 * 60 * 60 * 1000;
 const maxImpliedSpeedKn = 120;
 const minimumJumpDistanceNm = 5;
 
 const cache = new Map<string, CachedVessel>();
-const selectedIds = new Set<string>();
 let lastStats: VesselDisplayStats = {
   reportedRows: 0,
   displayRows: 0,
@@ -33,35 +33,19 @@ let lastStats: VesselDisplayStats = {
   heldRows: 0,
   cachedRows: 0,
   expiredRows: 0,
+  rejectedInvalidRows: 0,
+  countLimited: false,
+  discardedByLocation: 0,
   updatedAt: 0,
 };
-
-function stableScore(value: string) {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
 
 function hasCoordinates(vessel: Vessel): vessel is Vessel & { latitude: number; longitude: number } {
   return Number.isFinite(vessel.latitude)
     && Number.isFinite(vessel.longitude)
-    && (vessel.latitude as number) >= -85.051129
-    && (vessel.latitude as number) <= 85.051129
+    && (vessel.latitude as number) >= -90
+    && (vessel.latitude as number) <= 90
     && (vessel.longitude as number) >= -180
     && (vessel.longitude as number) <= 180;
-}
-
-function gridKey(vessel: Vessel & { latitude: number; longitude: number }) {
-  const latitudeBand = Math.floor((vessel.latitude + 90) / gridDegrees);
-  const longitudeBand = Math.floor((vessel.longitude + 180) / gridDegrees);
-  return `${latitudeBand}:${longitudeBand}`;
-}
-
-function inMiddleEastOperationalCorridor(vessel: Vessel & { latitude: number; longitude: number }) {
-  return vessel.latitude >= 10 && vessel.latitude <= 33 && vessel.longitude >= 30 && vessel.longitude <= 59;
 }
 
 function vesselTimestamp(vessel: Vessel) {
@@ -94,109 +78,55 @@ function acceptsPositionUpdate(existing: Vessel, incoming: Vessel) {
   return true;
 }
 
-function stickyBucketSelection(bucket: CachedVessel[]) {
-  const retained = bucket
-    .filter((entry) => selectedIds.has(entry.vessel.id))
-    .sort((a, b) => b.lastObservedAt - a.lastObservedAt || a.sampleScore - b.sampleScore)
-    .slice(0, maxPerGridCell);
-  if (retained.length >= maxPerGridCell) return retained;
-
-  const retainedIds = new Set(retained.map((entry) => entry.vessel.id));
-  const additions = bucket
-    .filter((entry) => !retainedIds.has(entry.vessel.id))
-    .sort((a, b) => a.sampleScore - b.sampleScore)
-    .slice(0, maxPerGridCell - retained.length);
-  return [...retained, ...additions];
-}
-
-function capSelection(entries: CachedVessel[]) {
-  if (entries.length <= maxDisplayRows) return entries;
-  const protectedEntries = entries.filter((entry) => hasCoordinates(entry.vessel) && inMiddleEastOperationalCorridor(entry.vessel));
-  const protectedIds = new Set(protectedEntries.map((entry) => entry.vessel.id));
-  const previouslyVisible = entries.filter((entry) => !protectedIds.has(entry.vessel.id) && selectedIds.has(entry.vessel.id));
-  const newcomers = entries.filter((entry) => !protectedIds.has(entry.vessel.id) && !selectedIds.has(entry.vessel.id));
-
-  protectedEntries.sort((a, b) => vesselTimestamp(b.vessel) - vesselTimestamp(a.vessel) || a.sampleScore - b.sampleScore);
-  previouslyVisible.sort((a, b) => b.lastObservedAt - a.lastObservedAt || a.sampleScore - b.sampleScore);
-  newcomers.sort((a, b) => a.sampleScore - b.sampleScore);
-  return [...protectedEntries, ...previouslyVisible, ...newcomers].slice(0, maxDisplayRows);
-}
-
 /**
- * A world AIS subscription can return a different high-volume cohort on each
- * poll. This cache separates "not present in the latest response" from "no
- * longer tracked". Existing display members remain sticky through short API
- * gaps and are removed only after their retention window expires.
+ * Retain every valid vessel row supplied by the backend. The display cache is
+ * deduplicated by vessel ID and pruned only by a uniform time window. No count
+ * ceiling, spatial sampling, regional preference, or geographic discard is
+ * applied. Invalid/missing coordinates remain excluded because the map cannot
+ * render a position that was not reported.
  */
 export function stabilizeVesselDisplay(rows: Vessel[], now = Date.now()) {
   const seenIds = new Set<string>();
+  let rejectedInvalidRows = 0;
+
   for (const vessel of rows) {
-    if (!vessel.id || !hasCoordinates(vessel)) continue;
+    if (!vessel.id || !hasCoordinates(vessel)) {
+      rejectedInvalidRows += 1;
+      continue;
+    }
     seenIds.add(vessel.id);
     const existing = cache.get(vessel.id);
     if (existing && !acceptsPositionUpdate(existing.vessel, vessel)) {
       cache.set(vessel.id, { ...existing, lastObservedAt: now });
       continue;
     }
-    cache.set(vessel.id, {
-      vessel,
-      lastObservedAt: now,
-      sampleScore: existing?.sampleScore ?? stableScore(vessel.id),
-    });
+    cache.set(vessel.id, { vessel, lastObservedAt: now });
   }
 
   let expiredRows = 0;
   for (const [id, entry] of cache.entries()) {
-    if (!hasCoordinates(entry.vessel)) {
+    if (!hasCoordinates(entry.vessel) || now - entry.lastObservedAt > retentionMs) {
       cache.delete(id);
-      selectedIds.delete(id);
-      expiredRows += 1;
-      continue;
-    }
-    const retentionMs = inMiddleEastOperationalCorridor(entry.vessel) ? middleEastRetentionMs : standardRetentionMs;
-    if (now - entry.lastObservedAt > retentionMs) {
-      cache.delete(id);
-      selectedIds.delete(id);
       expiredRows += 1;
     }
   }
 
-  const protectedRows: CachedVessel[] = [];
-  const cells = new Map<string, CachedVessel[]>();
-  for (const entry of cache.values()) {
-    if (!hasCoordinates(entry.vessel)) continue;
-    if (inMiddleEastOperationalCorridor(entry.vessel)) {
-      protectedRows.push(entry);
-      continue;
-    }
-    const key = gridKey(entry.vessel);
-    const bucket = cells.get(key) ?? [];
-    bucket.push(entry);
-    cells.set(key, bucket);
-  }
-
-  protectedRows.sort((a, b) => vesselTimestamp(b.vessel) - vesselTimestamp(a.vessel) || a.sampleScore - b.sampleScore);
-  const selected: CachedVessel[] = [...protectedRows];
-  for (const [, bucket] of [...cells.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-    selected.push(...stickyBucketSelection(bucket));
-  }
-
-  const capped = capSelection(selected);
-  selectedIds.clear();
-  for (const entry of capped) selectedIds.add(entry.vessel.id);
-
-  const freshRows = capped.filter((entry) => seenIds.has(entry.vessel.id)).length;
+  const retained = [...cache.values()];
+  const freshRows = retained.filter((entry) => seenIds.has(entry.vessel.id)).length;
   lastStats = {
     reportedRows: seenIds.size,
-    displayRows: capped.length,
+    displayRows: retained.length,
     freshRows,
-    heldRows: Math.max(0, capped.length - freshRows),
-    cachedRows: cache.size,
+    heldRows: Math.max(0, retained.length - freshRows),
+    cachedRows: retained.length,
     expiredRows,
+    rejectedInvalidRows,
+    countLimited: false,
+    discardedByLocation: 0,
     updatedAt: now,
   };
 
-  return capped
+  return retained
     .map((entry) => entry.vessel)
     .sort((a, b) => a.id.localeCompare(b.id));
 }
