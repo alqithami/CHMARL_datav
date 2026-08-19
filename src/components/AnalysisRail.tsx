@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { DashboardData } from "@/data/loadSampleDashboardData";
 import VesselSpeedProfile from "./charts/VesselSpeedProfile";
 
@@ -59,7 +60,7 @@ function RailCard({
   detail: string;
   tone: "good" | "warning" | "critical" | "missing" | "info";
   onClick: () => void;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <button type="button" className={`analysis-rail-card ${tone}`} onClick={onClick} title="Open detailed panel">
