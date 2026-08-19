@@ -4,6 +4,29 @@ import { resolve } from "node:path";
 
 const backendTarget = process.env.VITE_PROXY_TARGET ?? "http://localhost:8787";
 
+function vendorChunk(id: string) {
+  const normalizedId = id.replaceAll("\\", "/");
+  if (!normalizedId.includes("/node_modules/")) return undefined;
+
+  if (
+    normalizedId.includes("/node_modules/react/") ||
+    normalizedId.includes("/node_modules/react-dom/") ||
+    normalizedId.includes("/node_modules/scheduler/")
+  ) {
+    return "vendor-react";
+  }
+  if (normalizedId.includes("/node_modules/leaflet/")) {
+    return "vendor-leaflet";
+  }
+  if (
+    normalizedId.includes("/node_modules/echarts/") ||
+    normalizedId.includes("/node_modules/zrender/")
+  ) {
+    return "vendor-charts";
+  }
+  return undefined;
+}
+
 export default defineConfig({
   plugins: [react()],
   base: process.env.VITE_BASE_PATH ?? "/",
@@ -22,13 +45,10 @@ export default defineConfig({
     },
   },
   build: {
+    chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom"],
-          "vendor-three": ["three", "@react-three/fiber", "@react-three/drei"],
-          "vendor-echarts": ["echarts"],
-        },
+        manualChunks: vendorChunk,
       },
     },
   },
