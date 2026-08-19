@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, type CSSProperties } from "react";
 import {
   init,
-  use,
+  use as useECharts,
   type ECharts,
   type EChartsCoreOption,
 } from "echarts/core";
@@ -14,7 +14,7 @@ import {
 } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 
-use([
+useECharts([
   BarChart,
   LineChart,
   AxisPointerComponent,
