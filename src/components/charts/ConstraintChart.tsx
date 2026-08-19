@@ -5,7 +5,17 @@ export type ConstraintChartProps = {
   data: { name: string; value: number }[];
 };
 
+function constraintSummary(data: ConstraintChartProps["data"]) {
+  if (data.length === 0) {
+    return "No vessel-derived constraint values are currently available.";
+  }
+  return data
+    .map((item) => `${item.name}: ${item.value}%`)
+    .join("; ");
+}
+
 export default function ConstraintChart({ data }: ConstraintChartProps) {
+  const summary = useMemo(() => constraintSummary(data), [data]);
   const option = useMemo(
     () => ({
       grid: { left: 12, right: 18, top: 16, bottom: 6, containLabel: true },
@@ -56,5 +66,11 @@ export default function ConstraintChart({ data }: ConstraintChartProps) {
     [data]
   );
 
-  return <Chart option={option} />;
+  return (
+    <Chart
+      option={option}
+      ariaLabel="Operational constraint pressure chart"
+      summary={summary}
+    />
+  );
 }
