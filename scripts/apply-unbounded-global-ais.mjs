@@ -48,12 +48,8 @@ function optionalCountLimit(value) {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
 }
 
-function countLimitLabel(value) {
-  return value === null ? "unlimited" : String(value);
-}
-
 function timestampMs(value) {`,
-    "optional AIS count-limit helpers",
+    "optional AIS count-limit helper",
   );
 
   content = replaceOnce(
@@ -75,6 +71,14 @@ function timestampMs(value) {`,
     && longitude <= 180;
 }`,
     "full geographic coordinate range",
+  );
+
+  content = replaceOnce(
+    content,
+    `const PRIMARY_PORT_REFERENCE_POINTS = PORT_REFERENCE_POINTS.filter((port) => PRIMARY_PORT_IDS.has(port.id));
+const PRIMARY_PORT_BBOX = "20.70,38.35;22.95,39.85";`,
+    `const PRIMARY_PORT_REFERENCE_POINTS = PORT_REFERENCE_POINTS.filter((port) => PRIMARY_PORT_IDS.has(port.id));`,
+    "unused primary recovery bounding box",
   );
 
   content = replaceOnce(
@@ -125,7 +129,7 @@ const POCKETWORLD_CACHE_FLUSH_MS = Math.max(5_000, Number(process.env.POCKETWORL
     locationFilter: "none",
     discardedByLocation: 0,
     cacheFile,`,
-    "AIS state tracking policy diagnostics",
+    "AIS state policy diagnostics",
   );
 
   content = replaceOnce(
@@ -201,7 +205,9 @@ const POCKETWORLD_CACHE_FLUSH_MS = Math.max(5_000, Number(process.env.POCKETWORL
   return serviceStartedAt === 0 || Date.now() - serviceStartedAt >= POCKETWORLD_ACTIVATION_DELAY_MS;
 }`,
     `function pocketWorldRefreshDue() {
-  return POCKETWORLD_AIS_ENABLED;
+  if (!POCKETWORLD_AIS_ENABLED) return false;
+  const serviceStartedAt = timestampMs(SERVICE_STARTED_AT);
+  return serviceStartedAt === 0 || Date.now() - serviceStartedAt >= POCKETWORLD_ACTIVATION_DELAY_MS;
 }`,
     "continuous PocketWorld merge policy",
   );
@@ -211,6 +217,25 @@ const POCKETWORLD_CACHE_FLUSH_MS = Math.max(5_000, Number(process.env.POCKETWORL
     `    if (pocketWorldFailoverDue(datalasticAis.length)) await pocketWorldProvider.refresh();`,
     `    if (pocketWorldRefreshDue()) await pocketWorldProvider.refresh();`,
     "continuous PocketWorld refresh call",
+  );
+
+  content = replaceOnce(
+    content,
+    `    const merged = new Map();
+    for (const row of pocketWorldAis) merged.set(row.id, row);
+    for (const row of datalasticAis) merged.set(row.id, row);
+    for (const row of trackingAis) merged.set(row.id, row);`,
+    `    const merged = new Map();
+    const mergeLatest = (row) => {
+      const existing = merged.get(row.id);
+      if (!existing || timestampMs(row.timestamp) >= timestampMs(existing.timestamp)) {
+        merged.set(row.id, { ...existing, ...row });
+      }
+    };
+    for (const row of pocketWorldAis) mergeLatest(row);
+    for (const row of datalasticAis) mergeLatest(row);
+    for (const row of trackingAis) mergeLatest(row);`,
+    "latest-observation multi-provider merge",
   );
 
   content = replaceOnce(
@@ -229,29 +254,6 @@ const POCKETWORLD_CACHE_FLUSH_MS = Math.max(5_000, Number(process.env.POCKETWORL
       retentionMs: AISSTREAM_MAX_AGE_MS,
     },`,
     "health tracking policy",
-  );
-
-  content = replaceOnce(
-    content,
-    `  return base.replace("## Fleet measures", `${scopeSection}## Fleet measures`).replace("- Vessel positions: aisstream.io live AIS (Red Sea / Gulf bounding boxes).", "- Vessel tracking: AISStream remains the primary worldwide source. When it produces no frames, the runtime first uses a configured Datalastic port scan and then a public PocketWorld mirror of current BarentsWatch, Fintraffic, and Singapore MPA AIS observations. Every row retains its source timestamp and provenance; no manual or synthetic vessel rows are accepted.");`,
-    `  return base.replace("## Fleet measures", `${scopeSection}## Fleet measures`).replace("- Vessel positions: aisstream.io live AIS (Red Sea / Gulf bounding boxes).", "- Vessel tracking: AISStream remains the primary worldwide source and every recovery subscription stays global. PocketWorld is continuously merged as a genuine regional source, while Datalastic can supplement configured port scans. The runtime applies no vessel-count ceiling or geographic tracking filter to valid coordinates; rows remain deduplicated by vessel ID and governed only by freshness. No manual or synthetic vessel rows are accepted.");`,
-    "AIS report scope wording",
-  );
-
-  content = replaceOnce(
-    content,
-    `  console.log(`Global AIS boxes: ${TRACKING_BOXES.length}; cache limit: ${AISSTREAM_MAX_VESSELS}`);
-  console.log(`Operational AIS derivation: ${OPERATIONAL_PRIORITY_ENABLED ? "enabled" : "disabled"}; monitored boxes: ${OPERATIONAL_BOXES.length}; cache limit: ${AISSTREAM_OPERATIONAL_MAX_VESSELS}`);`,
-    `  console.log(`Global AIS boxes: ${TRACKING_BOXES.length}; cache count policy: ${countLimitLabel(AISSTREAM_MAX_VESSELS)}; location filter: none`);
-  console.log(`Operational AIS derivation: ${OPERATIONAL_PRIORITY_ENABLED ? "enabled" : "disabled"}; monitored boxes: ${OPERATIONAL_BOXES.length}; cache count policy: ${countLimitLabel(AISSTREAM_OPERATIONAL_MAX_VESSELS)}`);`,
-    "runtime startup count-policy log",
-  );
-
-  content = replaceOnce(
-    content,
-    `  console.log(`PocketWorld public AIS fallback: ${POCKETWORLD_AIS_ENABLED ? "enabled" : "disabled"}; max rows: ${POCKETWORLD_MAX_VESSELS}; fresh age: ${Math.round(POCKETWORLD_FRESH_AGE_MS / 60_000)} min; display age: ${Math.round(POCKETWORLD_DISPLAY_MAX_AGE_MS / 3_600_000)} h.`);`,
-    `  console.log(`PocketWorld public AIS source: ${POCKETWORLD_AIS_ENABLED ? "enabled" : "disabled"}; aggregate count policy: ${countLimitLabel(POCKETWORLD_MAX_VESSELS)}; page guard: ${POCKETWORLD_MAX_PAGES}; fresh age: ${Math.round(POCKETWORLD_FRESH_AGE_MS / 60_000)} min; display age: ${Math.round(POCKETWORLD_DISPLAY_MAX_AGE_MS / 3_600_000)} h.`);`,
-    "PocketWorld startup count-policy log",
   );
 
   write(path, content);
@@ -286,12 +288,7 @@ assertNotIncludes(pocketWorldProvider, "PROVIDER_MAX_VESSELS", "PocketWorld stil
 function updateAisSmoke() {
   const path = "scripts/smoke-ais-live.mjs";
   let content = read(path);
-  content = replaceOnce(
-    content,
-    '  assert(JSON.stringify(recovered?.BoundingBoxes) === JSON.stringify([[[20.70, 38.35], [22.95, 39.85]]]), "First recovery profile did not prioritize Jeddah and King Abdullah Port");',
-    '  assert(JSON.stringify(recovered?.BoundingBoxes) === JSON.stringify([[[-90, -180], [90, 180]]]), "Recovery subscription narrowed the worldwide bounding box");',
-    "global recovery bounding box assertion",
-  );
+  content = replaceOnce(content, '  assert(JSON.stringify(recovered?.BoundingBoxes) === JSON.stringify([[[20.70, 38.35], [22.95, 39.85]]]), "First recovery profile did not prioritize Jeddah and King Abdullah Port");', '  assert(JSON.stringify(recovered?.BoundingBoxes) === JSON.stringify([[[-90, -180], [90, 180]]]), "Recovery subscription narrowed the worldwide bounding box");', "global recovery bounding box assertion");
   content = replaceOnce(content, '  assert(vessels.health?.activeProfile === "primary-ports-position-only", "Unexpected recovery profile: " + vessels.health?.activeProfile);', '  assert(vessels.health?.activeProfile === "world-position-only", "Unexpected recovery profile: " + vessels.health?.activeProfile);', "active global recovery profile assertion");
   content = replaceOnce(content, '  assert(vessels.health?.lastSuccessfulProfile === "primary-ports-position-only", "Successful primary-port recovery profile was not recorded");', '  assert(vessels.health?.lastSuccessfulProfile === "world-position-only", "Successful worldwide recovery profile was not recorded");', "successful global recovery profile assertion");
   content = replaceOnce(content, '  console.log("Adaptive live AIS recovery integration smoke test passed.");', '  assert(vessels.health?.countLimited === false && vessels.health?.locationFilter === "none", "AIS recovery did not preserve the unbounded global policy");\n  console.log("Worldwide live AIS recovery integration smoke test passed.");', "AIS recovery smoke completion");
@@ -316,10 +313,7 @@ assertNotIncludes(stabilizer, "inMiddleEastOperationalCorridor", "the frontend s
 }
 
 function removeBootstrapFiles() {
-  for (const path of [
-    "scripts/apply-unbounded-global-ais.mjs",
-    ".github/workflows/apply-unbounded-global-ais.yml",
-  ]) {
+  for (const path of ["scripts/apply-unbounded-global-ais.mjs", ".github/workflows/apply-unbounded-global-ais.yml"]) {
     if (existsSync(path)) {
       rmSync(path);
       console.log(`removed ${path}`);
