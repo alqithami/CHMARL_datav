@@ -46,7 +46,7 @@ process.env.AISSTREAM_URL = runningOnRender
   : (process.env.AISSTREAM_URL?.trim() || "wss://stream.aisstream.io/v0/stream");
 process.env.AISSTREAM_GLOBAL_TRACKING_ENABLED = "true";
 process.env.AISSTREAM_TRACKING_BBOX = WORLD_AIS_BBOX;
-process.env.AISSTREAM_FILTER_TYPES = "";
+process.env.AISSTREAM_FILTER_TYPES = "PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport,LongRangeAisBroadcastMessage";
 process.env.AISSTREAM_OPERATIONAL_PRIORITY_ENABLED = "true";
 process.env.AISSTREAM_OPERATIONAL_BBOX ??= mergeBboxText(REGIONAL_AIS_BBOX, SAUDI_PORT_AIS_BBOXES);
 process.env.AISSTREAM_OPERATIONAL_FILTER_TYPES = "";
@@ -54,13 +54,15 @@ process.env.AISSTREAM_RECOVERY_ENABLED = "true";
 process.env.AISSTREAM_HEARTBEAT_MS = runningOnRender ? "10000" : (process.env.AISSTREAM_HEARTBEAT_MS || "10000");
 process.env.AISSTREAM_FIRST_FRAME_TIMEOUT_MS = runningOnRender ? "30000" : (process.env.AISSTREAM_FIRST_FRAME_TIMEOUT_MS || "30000");
 process.env.AISSTREAM_SILENCE_TIMEOUT_MS = runningOnRender ? "90000" : (process.env.AISSTREAM_SILENCE_TIMEOUT_MS || "90000");
+process.env.AISSTREAM_SILENT_RESUBSCRIBE_MS = runningOnRender ? "120000" : (process.env.AISSTREAM_SILENT_RESUBSCRIBE_MS || "120000");
+process.env.AISSTREAM_HARD_RECONNECT_MS = runningOnRender ? "1800000" : (process.env.AISSTREAM_HARD_RECONNECT_MS || "1800000");
 process.env.AISSTREAM_RATE_LIMIT_BACKOFF_MS ??= "1800000";
 process.env.AISSTREAM_PROFILE_CYCLE_BACKOFF_MS ??= "600000";
 // Zero means no application-imposed vessel-count ceiling. Rows remain bounded
 // by provider availability, deduplication, and the configured freshness window.
 process.env.AISSTREAM_MAX_VESSELS = "0";
 process.env.AISSTREAM_OPERATIONAL_MAX_VESSELS = "0";
-process.env.AISSTREAM_MAX_AGE_MS ??= String(6 * 60 * 60 * 1000);
+process.env.AISSTREAM_MAX_AGE_MS ??= String(24 * 60 * 60 * 1000);
 process.env.AISSTREAM_TRAIL_POINTS = runningOnRender ? "4" : (process.env.AISSTREAM_TRAIL_POINTS || "4");
 process.env.AISSTREAM_CACHE_ENABLED ??= "true";
 process.env.AISSTREAM_CACHE_FLUSH_MS ??= "15000";
@@ -78,7 +80,7 @@ process.env.POCKETWORLD_API_URL ??= "https://pocketworld.org/api/ships";
 process.env.POCKETWORLD_ACTIVATION_DELAY_MS ??= "5000";
 process.env.POCKETWORLD_POLL_INTERVAL_MS ??= "300000";
 process.env.POCKETWORLD_TIMEOUT_MS ??= "30000";
-process.env.POCKETWORLD_DISPLAY_MAX_AGE_MS ??= "21600000";
+process.env.POCKETWORLD_DISPLAY_MAX_AGE_MS ??= "86400000";
 process.env.POCKETWORLD_FRESH_AGE_MS ??= "1800000";
 process.env.POCKETWORLD_MAX_AGE_MS ??= process.env.POCKETWORLD_DISPLAY_MAX_AGE_MS;
 process.env.POCKETWORLD_MAX_VESSELS = "0";
@@ -106,7 +108,7 @@ console.log(`PocketWorld public AIS source: ${process.env.POCKETWORLD_AIS_ENABLE
 console.log("PocketWorld pagination: snapshot_id/cursor traversal continues until provider exhaustion; page size remains provider-bounded.");
 console.log("Global AIS tracking: true; count policy: unlimited; location filter: none for valid coordinates.");
 console.log(`Global AIS BBOX: ${WORLD_AIS_BBOX}`);
-console.log("AIS recovery remains worldwide and changes message filters only; it never narrows the tracking bounding box to a region.");
+console.log("AISStream uses one worldwide position-only subscription. Silent healthy sockets are resubscribed in place before any controlled hard reconnect.");
 console.log("AIS silent-session recovery: enabled; first-frame timeout " + process.env.AISSTREAM_FIRST_FRAME_TIMEOUT_MS + " ms; silence timeout " + process.env.AISSTREAM_SILENCE_TIMEOUT_MS + " ms.");
 console.log(`Operational AIS derivation: ${process.env.AISSTREAM_OPERATIONAL_PRIORITY_ENABLED}`);
 console.log(`Runtime data directory: ${process.env.RUNTIME_DATA_DIR}`);

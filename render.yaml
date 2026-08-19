@@ -27,6 +27,8 @@ services:
       - key: VITE_VESSEL_FETCH_INTERVAL_MS
         value: 15000
       - key: VITE_VESSEL_DISPLAY_RETENTION_MS
+        value: 86400000
+      - key: VITE_VESSEL_DISPLAY_RETENTION_MS
         value: 21600000
       - key: VITE_CHMARL_EXPERIMENT_URL
         value: /api/chmarl/episode
@@ -51,7 +53,7 @@ services:
       - key: AISSTREAM_TRACKING_BBOX
         value: -90,-180;90,180
       - key: AISSTREAM_FILTER_TYPES
-        value: ""
+        value: PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport,LongRangeAisBroadcastMessage
       - key: AISSTREAM_OPERATIONAL_PRIORITY_ENABLED
         value: true
       - key: AISSTREAM_OPERATIONAL_BBOX
@@ -63,7 +65,7 @@ services:
       - key: AISSTREAM_OPERATIONAL_MAX_VESSELS
         value: 0
       - key: AISSTREAM_MAX_AGE_MS
-        value: 21600000
+        value: 86400000
       - key: AISSTREAM_TRAIL_POINTS
         value: 4
       - key: AISSTREAM_MAX_IMPLIED_SPEED_KN
@@ -76,6 +78,10 @@ services:
         value: 30000
       - key: AISSTREAM_SILENCE_TIMEOUT_MS
         value: 90000
+      - key: AISSTREAM_SILENT_RESUBSCRIBE_MS
+        value: 120000
+      - key: AISSTREAM_HARD_RECONNECT_MS
+        value: 1800000
       - key: AISSTREAM_RATE_LIMIT_BACKOFF_MS
         value: 1800000
       - key: AISSTREAM_PROFILE_CYCLE_BACKOFF_MS
@@ -121,11 +127,11 @@ services:
       - key: POCKETWORLD_TIMEOUT_MS
         value: 30000
       - key: POCKETWORLD_DISPLAY_MAX_AGE_MS
-        value: 21600000
+        value: 86400000
       - key: POCKETWORLD_FRESH_AGE_MS
         value: 1800000
       - key: POCKETWORLD_MAX_AGE_MS
-        value: 21600000
+        value: 86400000
       - key: POCKETWORLD_MAX_VESSELS
         value: 0
       - key: POCKETWORLD_MAX_PAGES

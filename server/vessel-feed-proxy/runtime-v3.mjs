@@ -219,29 +219,33 @@ const TRACKING_BOXES = parseBoundingBoxes(TRACKING_BBOX_TEXT);
 const OPERATIONAL_BOXES = parseBoundingBoxes(OPERATIONAL_BBOX_TEXT);
 const AISSTREAM_API_KEY = String(process.env.AISSTREAM_API_KEY ?? "").trim();
 const AISSTREAM_URL = process.env.AISSTREAM_URL ?? "wss://stream.aisstream.io/v0/stream";
-const AISSTREAM_FILTER_TYPES = [];
-const AISSTREAM_OPERATIONAL_FILTER_TYPES = [];
 const AISSTREAM_POSITION_FILTER_TYPES = [
   "PositionReport",
   "StandardClassBPositionReport",
   "ExtendedClassBPositionReport",
   "LongRangeAisBroadcastMessage",
 ];
+// The portal needs current positions, not the full worldwide static/binary
+// message firehose. The worldwide box is retained while provider load is kept
+// within the documented whole-world processing envelope.
+const AISSTREAM_FILTER_TYPES = AISSTREAM_POSITION_FILTER_TYPES;
+const AISSTREAM_OPERATIONAL_FILTER_TYPES = AISSTREAM_POSITION_FILTER_TYPES;
 const AISSTREAM_RECOVERY_ENABLED = process.env.AISSTREAM_RECOVERY_ENABLED !== "false";
 const AISSTREAM_RECOVERY_PROFILES = [
-  { id: "world-unfiltered", description: "worldwide, all AIS message types", boxes: TRACKING_BOXES, filters: AISSTREAM_FILTER_TYPES },
   { id: "world-position-only", description: "worldwide, position-bearing messages", boxes: TRACKING_BOXES, filters: AISSTREAM_POSITION_FILTER_TYPES },
 ];
 const AISSTREAM_MAX_VESSELS = optionalCountLimit(process.env.AISSTREAM_MAX_VESSELS ?? 0);
 const AISSTREAM_OPERATIONAL_MAX_VESSELS = optionalCountLimit(process.env.AISSTREAM_OPERATIONAL_MAX_VESSELS ?? 0);
 const AISSTREAM_TRAIL_POINTS = Math.max(2, Number(process.env.AISSTREAM_TRAIL_POINTS ?? 12));
-const AISSTREAM_MAX_AGE_MS = Math.max(60_000, Number(process.env.AISSTREAM_MAX_AGE_MS ?? 6 * 60 * 60 * 1000));
+const AISSTREAM_MAX_AGE_MS = Math.max(60_000, Number(process.env.AISSTREAM_MAX_AGE_MS ?? 24 * 60 * 60 * 1000));
 const AISSTREAM_CACHE_ENABLED = process.env.AISSTREAM_CACHE_ENABLED !== "false";
 const AISSTREAM_CACHE_FLUSH_MS = Math.max(5_000, Number(process.env.AISSTREAM_CACHE_FLUSH_MS ?? 30_000));
 const AISSTREAM_MAX_IMPLIED_SPEED_KN = Math.max(50, Number(process.env.AISSTREAM_MAX_IMPLIED_SPEED_KN ?? 120));
 const AISSTREAM_HEARTBEAT_MS = Math.max(1_000, Number(process.env.AISSTREAM_HEARTBEAT_MS ?? 10_000));
 const AISSTREAM_FIRST_FRAME_TIMEOUT_MS = Math.max(1_000, Number(process.env.AISSTREAM_FIRST_FRAME_TIMEOUT_MS ?? 30_000));
 const AISSTREAM_SILENCE_TIMEOUT_MS = Math.max(15_000, Number(process.env.AISSTREAM_SILENCE_TIMEOUT_MS ?? 90_000));
+const AISSTREAM_SILENT_RESUBSCRIBE_MS = Math.max(500, Number(process.env.AISSTREAM_SILENT_RESUBSCRIBE_MS ?? 2 * 60_000));
+const AISSTREAM_HARD_RECONNECT_MS = Math.max(AISSTREAM_SILENT_RESUBSCRIBE_MS + 1_000, Number(process.env.AISSTREAM_HARD_RECONNECT_MS ?? 30 * 60_000));
 const AISSTREAM_RATE_LIMIT_BACKOFF_MS = Math.max(60_000, Number(process.env.AISSTREAM_RATE_LIMIT_BACKOFF_MS ?? 30 * 60_000));
 const AISSTREAM_PROFILE_CYCLE_BACKOFF_MS = Math.max(30_000, Number(process.env.AISSTREAM_PROFILE_CYCLE_BACKOFF_MS ?? 10 * 60_000));
 const DATALASTIC_AIS_ENABLED = process.env.DATALASTIC_AIS_ENABLED !== "false";
@@ -265,7 +269,7 @@ const POCKETWORLD_API_URL = process.env.POCKETWORLD_API_URL ?? "https://pocketwo
 const POCKETWORLD_ACTIVATION_DELAY_MS = Math.max(250, Number(process.env.POCKETWORLD_ACTIVATION_DELAY_MS ?? 45_000));
 const POCKETWORLD_POLL_INTERVAL_MS = Math.max(5_000, Number(process.env.POCKETWORLD_POLL_INTERVAL_MS ?? 5 * 60_000));
 const POCKETWORLD_TIMEOUT_MS = Math.max(1_000, Number(process.env.POCKETWORLD_TIMEOUT_MS ?? 30_000));
-const POCKETWORLD_DISPLAY_MAX_AGE_MS = Math.max(60_000, Number(process.env.POCKETWORLD_DISPLAY_MAX_AGE_MS ?? process.env.POCKETWORLD_MAX_AGE_MS ?? 6 * 60 * 60_000));
+const POCKETWORLD_DISPLAY_MAX_AGE_MS = Math.max(60_000, Number(process.env.POCKETWORLD_DISPLAY_MAX_AGE_MS ?? process.env.POCKETWORLD_MAX_AGE_MS ?? 24 * 60 * 60_000));
 const POCKETWORLD_FRESH_AGE_MS = Math.min(POCKETWORLD_DISPLAY_MAX_AGE_MS, Math.max(60_000, Number(process.env.POCKETWORLD_FRESH_AGE_MS ?? 30 * 60_000)));
 const POCKETWORLD_MAX_VESSELS = optionalCountLimit(process.env.POCKETWORLD_MAX_VESSELS ?? 0);
 const POCKETWORLD_MAX_PAGES = Math.min(10_000, Math.max(1, Number(process.env.POCKETWORLD_MAX_PAGES ?? 1_000)));
@@ -358,6 +362,12 @@ function createAisState(label, boxes, filters, cacheFile, cacheLimit) {
     lastPongAt: null,
     lastCloseAt: null,
     watchdogRestarts: 0,
+    subscriptionRefreshes: 0,
+    lastSubscriptionRefreshAt: null,
+    nextSubscriptionRefreshAt: null,
+    silentSinceAt: null,
+    hardReconnects: 0,
+    lastHardReconnectAt: null,
     profileIndex: 0,
     activeProfile: AISSTREAM_RECOVERY_PROFILES[0].id,
     activeProfileDescription: AISSTREAM_RECOVERY_PROFILES[0].description,
@@ -924,6 +934,35 @@ function scheduleAisReconnect(options) {
   state.reconnectTimer.unref?.();
 }
 
+function sendAisSubscription(state, socket, profile, reason = "initial") {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+  const subscription = { APIKey: AISSTREAM_API_KEY, BoundingBoxes: profile.boxes };
+  if (profile.filters.length > 0) subscription.FilterMessageTypes = profile.filters;
+  const sentAt = new Date().toISOString();
+  socket.send(JSON.stringify(subscription));
+  state.subscriptionSentAt = sentAt;
+  state.subscription = {
+    profile: profile.id,
+    description: profile.description,
+    boundingBoxes: profile.boxes,
+    filterMessageTypes: profile.filters,
+  };
+  state.firstFrameDeadlineAt = new Date(Date.now() + AISSTREAM_FIRST_FRAME_TIMEOUT_MS).toISOString();
+  if (reason !== "initial") {
+    state.subscriptionRefreshes += 1;
+    state.lastSubscriptionRefreshAt = sentAt;
+    state.nextSubscriptionRefreshAt = new Date(Date.now() + AISSTREAM_SILENT_RESUBSCRIBE_MS).toISOString();
+    state.lastRecoveryReason = reason;
+    state.profileHistory = [...state.profileHistory, {
+      at: sentAt,
+      event: "subscription-refresh",
+      profile: profile.id,
+      reason,
+    }].slice(-12);
+  }
+  return true;
+}
+
 function startAisStream({ state, cache, deriveOperational = false }) {
   const options = { state, cache, deriveOperational };
   if (!AISSTREAM_API_KEY || stopping) {
@@ -962,6 +1001,8 @@ function startAisStream({ state, cache, deriveOperational = false }) {
     state.connectionMessageCount = 0;
     state.profileAdvancedForCurrentSocket = false;
     state.firstFrameDeadlineAt = new Date(Date.now() + AISSTREAM_FIRST_FRAME_TIMEOUT_MS).toISOString();
+    state.silentSinceAt = openedAt;
+    state.nextSubscriptionRefreshAt = new Date(Date.now() + AISSTREAM_SILENT_RESUBSCRIBE_MS).toISOString();
     state.profileHistory = [...state.profileHistory, {
       at: openedAt,
       event: "subscription",
@@ -975,16 +1016,7 @@ function startAisStream({ state, cache, deriveOperational = false }) {
       operationalAisState.status = "derived-waiting";
       operationalAisState.lastError = null;
     }
-    const subscription = { APIKey: AISSTREAM_API_KEY, BoundingBoxes: profile.boxes };
-    if (profile.filters.length > 0) subscription.FilterMessageTypes = profile.filters;
-    state.subscriptionSentAt = new Date().toISOString();
-    state.subscription = {
-      profile: profile.id,
-      description: profile.description,
-      boundingBoxes: profile.boxes,
-      filterMessageTypes: profile.filters,
-    };
-    socket.send(JSON.stringify(subscription));
+    sendAisSubscription(state, socket, profile, "initial");
   });
   socket.on("pong", () => {
     state.lastPongAt = new Date().toISOString();
@@ -995,6 +1027,8 @@ function startAisStream({ state, cache, deriveOperational = false }) {
       state.connectionMessageCount += 1;
       state.lastFrameAt = new Date().toISOString();
       state.firstFrameDeadlineAt = null;
+      state.silentSinceAt = null;
+      state.nextSubscriptionRefreshAt = null;
       const raw = JSON.parse(data.toString());
       if (raw.error) {
         state.lastError = String(raw.error);
@@ -1041,9 +1075,11 @@ function startAisStream({ state, cache, deriveOperational = false }) {
     state.firstFrameDeadlineAt = null;
     state.socket = null;
     if (reason?.length) state.lastError = "AIS websocket closed (" + code + "): " + reason.toString();
-    if (!stopping && closedBeforeFirstFrame && !state.profileAdvancedForCurrentSocket) {
-      advanceAisProfile(state, "socket closed before the first AIS frame (code " + code + ")");
+    if (!stopping && closedBeforeFirstFrame) {
+      state.lastRecoveryReason = "socket closed before the first AIS frame (code " + code + ")";
     }
+    state.silentSinceAt = null;
+    state.nextSubscriptionRefreshAt = null;
     if (deriveOperational) {
       operationalAisState.connected = false;
       operationalAisState.lastCloseAt = closedAt;
@@ -1138,12 +1174,18 @@ function vesselProviderConfigured() {
 
 function providerState() {
   if (!vesselProviderConfigured()) return "unconfigured";
+  const source = sourceForTracking();
+  const pocketWorldState = pocketWorldProvider.publicState();
   if (vesselInputState.trackingRows > 0) {
-    if (sourceForTracking() === "pocketworld-last-known") return "degraded-last-known";
-    return sourceForTracking() === "ais-multi-provider" ? "live-multi-provider" : "live";
+    if (
+      Number(vesselInputState.aisstreamRows ?? 0) === 0
+      && Number(vesselInputState.pocketworldRows ?? 0) > 0
+      && pocketWorldState.coverage?.worldwide_ready === false
+    ) return "degraded-regional-only";
+    if (source === "pocketworld-last-known") return "degraded-last-known";
+    return source === "ais-multi-provider" ? "live-multi-provider" : "live";
   }
   const datalasticState = datalasticProvider.publicState();
-  const pocketWorldState = pocketWorldProvider.publicState();
   if (["unauthorized", "credits-exhausted", "rate-limited", "provider-error", "request-error", "timeout"].includes(datalasticState.status)) {
     if (!POCKETWORLD_AIS_ENABLED) return "datalastic-" + datalasticState.status;
   }
@@ -1199,6 +1241,10 @@ function healthPayload() {
       validLatitudeRange: [-90, 90],
       validLongitudeRange: [-180, 180],
       retentionMs: AISSTREAM_MAX_AGE_MS,
+      worldwideReady: Number(vesselInputState.aisstreamRows ?? 0) > 0
+        || pocketWorldProvider.publicState().coverage?.worldwide_ready === true,
+      silentResubscribeMs: AISSTREAM_SILENT_RESUBSCRIBE_MS,
+      hardReconnectMs: AISSTREAM_HARD_RECONNECT_MS,
     },
     operationalScope: {
       radiusNm: ECOFAIR_OPERATIONAL_RADIUS_NM,
@@ -1280,30 +1326,53 @@ const aisWatchdogInterval = setInterval(() => {
     });
     return;
   }
+
   try { socket.ping(); }
   catch (error) { state.lastError = error instanceof Error ? error.message : String(error); }
+
+  const now = Date.now();
   const openedAt = timestampMs(state.openedAt);
   const lastFrameAt = timestampMs(state.lastFrameAt);
   const lastPongAt = timestampMs(state.lastPongAt);
-  const now = Date.now();
-  const firstFrameTimedOut = state.connectionMessageCount === 0
-    && openedAt > 0
-    && now - openedAt > AISSTREAM_FIRST_FRAME_TIMEOUT_MS;
-  const streamBecameSilent = state.connectionMessageCount > 0
-    && lastFrameAt > 0
-    && now - lastFrameAt > AISSTREAM_SILENCE_TIMEOUT_MS;
+  const lastActivityAt = lastFrameAt > 0 ? lastFrameAt : openedAt;
+  const silentForMs = lastActivityAt > 0 ? now - lastActivityAt : 0;
+  const silenceThresholdMs = state.connectionMessageCount === 0
+    ? AISSTREAM_FIRST_FRAME_TIMEOUT_MS
+    : AISSTREAM_SILENCE_TIMEOUT_MS;
   const heartbeatLost = lastPongAt > 0 && now - lastPongAt > AISSTREAM_HEARTBEAT_MS * 3;
-  if (firstFrameTimedOut || streamBecameSilent || heartbeatLost) {
+  const hardReconnectDue = silentForMs >= AISSTREAM_HARD_RECONNECT_MS;
+
+  if (heartbeatLost || hardReconnectDue) {
     state.watchdogRestarts += 1;
-    const reason = firstFrameTimedOut
-      ? "connected AIS socket produced no first frame within " + Math.round(AISSTREAM_FIRST_FRAME_TIMEOUT_MS / 1000) + " seconds"
-      : streamBecameSilent
-        ? "AIS provider produced no frames for " + Math.round((now - lastFrameAt) / 1000) + " seconds"
-        : "AIS websocket heartbeat timed out";
-    state.lastError = reason;
-    advanceAisProfile(state, reason);
-    state.status = "profile-recovery";
+    state.hardReconnects += 1;
+    state.lastHardReconnectAt = new Date().toISOString();
+    state.lastError = heartbeatLost
+      ? "AIS websocket heartbeat timed out"
+      : "AIS provider produced no frames for " + Math.round(silentForMs / 1000) + " seconds; performing a controlled hard reconnect";
+    state.status = heartbeatLost ? "heartbeat-reconnect" : "hard-reconnect";
+    state.firstFrameDeadlineAt = null;
+    state.silentSinceAt = state.silentSinceAt ?? new Date(lastActivityAt || now).toISOString();
     try { socket.terminate(); } catch {}
+    return;
+  }
+
+  if (silentForMs < silenceThresholdMs) return;
+  state.silentSinceAt = state.silentSinceAt ?? new Date(lastActivityAt || now).toISOString();
+  const lastSubscriptionAt = Math.max(
+    timestampMs(state.subscriptionSentAt),
+    timestampMs(state.lastSubscriptionRefreshAt),
+  );
+  const refreshDue = now - lastSubscriptionAt >= AISSTREAM_SILENT_RESUBSCRIBE_MS;
+  if (!refreshDue || !AISSTREAM_RECOVERY_ENABLED) {
+    state.status = "connected-silent";
+    state.nextSubscriptionRefreshAt = new Date(lastSubscriptionAt + AISSTREAM_SILENT_RESUBSCRIBE_MS).toISOString();
+    return;
+  }
+
+  const profile = activeAisProfile(state);
+  if (sendAisSubscription(state, socket, profile, "open socket produced no AIS position frames")) {
+    state.status = "connected-silent-resubscribed";
+    state.lastError = "AIS socket is open but silent; the worldwide position subscription was refreshed in place";
   }
 }, AISSTREAM_HEARTBEAT_MS);
 aisWatchdogInterval.unref?.();
