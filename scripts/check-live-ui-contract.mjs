@@ -15,10 +15,16 @@ function assertNotIncludes(content, text, label) {
 const dashboard = read("src/components/DashboardShell.tsx");
 const sceneEntry = read("src/components/ShipScene.tsx");
 const leafletScene = read("src/components/LeafletShipScene.tsx");
+const sharedChart = read("src/components/Chart.tsx");
+const constraintChart = read("src/components/charts/ConstraintChart.tsx");
+const portUtilizationChart = read("src/components/charts/PortUtilizationChart.tsx");
+const rewardTrend = read("src/components/charts/RewardTrend.tsx");
 const speedProfile = read("src/components/charts/VesselSpeedProfile.tsx");
 const speedProfileCss = read("src/vesselSpeedProfile.css");
 const main = read("src/main.tsx");
 const packageJson = read("package.json");
+const viteConfig = read("vite.config.ts");
+const artifactVerifier = read("scripts/verify-build-artifacts.mjs");
 const stabilizer = read("src/providers/vesselDisplayStabilizer.ts");
 const coverage = read("src/utils/portCoverage.ts");
 const coverageMatrix = read("src/components/insights/PortCoverageMatrix.tsx");
@@ -55,6 +61,25 @@ assertIncludes(leafletScene, "all {visibleVessels.length} remain on the map", "r
 assertNotIncludes(leafletScene, "fallbackVessels", "the map can still inject sample vessels");
 assertNotIncludes(leafletScene, "buildTileGrid", "the old handcrafted map projection remains active");
 
+assertIncludes(sharedChart, 'from "echarts/core"', "the shared chart still imports the complete ECharts distribution");
+assertIncludes(sharedChart, 'from "echarts/charts"', "tree-shakable ECharts chart modules are not registered");
+assertIncludes(sharedChart, 'from "echarts/components"', "tree-shakable ECharts components are not registered");
+assertIncludes(sharedChart, 'from "echarts/renderers"', "the ECharts Canvas renderer is not registered explicitly");
+assertIncludes(sharedChart, "BarChart", "the used bar-chart module is not registered");
+assertIncludes(sharedChart, "LineChart", "the used line-chart module is not registered");
+assertIncludes(sharedChart, "role=\"img\"", "chart canvases do not expose an accessible image role");
+assertIncludes(sharedChart, "aria-describedby={summaryId}", "chart summaries are not connected to the rendered chart");
+assertIncludes(sharedChart, "window.requestAnimationFrame", "chart resize work is not coalesced");
+assertNotIncludes(sharedChart, 'import * as echarts from "echarts"', "the full ECharts runtime import returned");
+for (const [source, label] of [
+  [constraintChart, "constraint pressure"],
+  [portUtilizationChart, "port utilization"],
+  [rewardTrend, "reward trend"],
+]) {
+  assertIncludes(source, "ariaLabel=", `${label} chart lacks an accessible name`);
+  assertIncludes(source, "summary={summary}", `${label} chart lacks a textual data summary`);
+}
+
 assertIncludes(speedProfile, "compactBandDefinitions", "the minimized speed distribution is absent");
 assertIncludes(speedProfile, "expandedBandDefinitions", "the detailed speed distribution is absent");
 assertIncludes(speedProfile, "Average SOG", "the compact speed summary is absent");
@@ -74,6 +99,14 @@ assertIncludes(main, 'import "./vesselSpeedProfile.css"', "the compact speed-pro
 assertIncludes(main, 'import "./mawaniLightMode.css"', "the final light-mode contrast layer is not loaded");
 assertIncludes(packageJson, '"leaflet": "1.9.4"', "Leaflet is not pinned to the stable release");
 assertIncludes(packageJson, '"@types/leaflet"', "Leaflet TypeScript definitions are absent");
+assertIncludes(viteConfig, "manualChunks: vendorChunk", "Vite does not use reachability-based vendor chunking");
+assertIncludes(viteConfig, 'return "vendor-leaflet"', "Leaflet is not isolated as an active map dependency");
+assertIncludes(viteConfig, 'return "vendor-charts"', "the modular chart runtime is not isolated");
+assertNotIncludes(viteConfig, '"vendor-three"', "the unused Three.js stack is still forced into production");
+assertNotIncludes(viteConfig, '"vendor-echarts"', "the retired full ECharts bundle is still forced into production");
+assertIncludes(artifactVerifier, "MAX_PRODUCTION_JS_CHUNK_BYTES", "production JavaScript chunks have no enforced budget");
+assertIncludes(artifactVerifier, "/vendor-three-/i", "the artifact gate does not reject a reintroduced Three.js bundle");
+assertIncludes(artifactVerifier, "/vendor-echarts-/i", "the artifact gate does not reject the retired full ECharts bundle");
 assertIncludes(stabilizer, "const maxPerGridCell = 50_000", "the frontend still thins a complete PocketWorld fleet");
 assertIncludes(stabilizer, "const maxDisplayRows = 50_000", "the frontend display cap is below the provider maximum");
 assertIncludes(coverage, 'id: "Jubail Commercial Port"', "Jubail is missing from frontend port coverage");
@@ -109,4 +142,4 @@ assertIncludes(lightPaletteDocument, "#10272C", "the palette document omits prim
 assertIncludes(lightPaletteDocument, "#006F79", "the palette document omits the light aqua accent");
 assertIncludes(lightPaletteDocument, "Expanded-map vessel rows", "the palette document does not cover the reported light-mode problem");
 
-console.log("Leaflet live vessel UI, speed profile, MAWANI design, and light-mode contrast contracts verified.");
+console.log("Leaflet live vessel UI, accessible modular charts, speed profile, MAWANI design, and light-mode contrast contracts verified.");
