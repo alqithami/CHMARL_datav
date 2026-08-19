@@ -6,6 +6,11 @@ on:
       - agent/diagnose-live-geography-regression
     paths:
       - .github/workflows/diagnose-live-geography-regression.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/diagnose-live-geography-regression.yml
 
 permissions:
   contents: read
@@ -218,7 +223,6 @@ jobs:
           run().catch((error) => {
             console.log('=== DIAGNOSTIC COULD NOT COMPLETE ===');
             console.log(error instanceof Error ? error.stack : String(error));
-            // This is a read-only diagnostic. Do not generate failure email noise.
             process.exitCode = 0;
           });
           NODE
