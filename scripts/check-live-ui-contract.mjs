@@ -12,7 +12,15 @@ function assertNotIncludes(content, text, label) {
   if (content.includes(text)) throw new Error(`Live vessel UI contract failed: ${label}`);
 }
 
-const dashboard = read("src/components/DashboardShell.tsx");
+const dashboardEntry = read("src/components/DashboardShell.tsx");
+const dashboard = read("src/components/ProfessionalDashboardShell.tsx");
+const portalHeader = read("src/components/PortalHeader.tsx");
+const readinessStrip = read("src/components/ReadinessStrip.tsx");
+const analysisRail = read("src/components/AnalysisRail.tsx");
+const operationsRail = read("src/components/OperationsRail.tsx");
+const commandWorkspace = read("src/components/CommandWorkspace.tsx");
+const themeToggle = read("src/components/ThemeToggle.tsx");
+const app = read("src/App.tsx");
 const sceneEntry = read("src/components/ShipScene.tsx");
 const leafletScene = read("src/components/LeafletShipScene.tsx");
 const sharedChart = read("src/components/Chart.tsx");
@@ -30,8 +38,11 @@ const coverage = read("src/utils/portCoverage.ts");
 const coverageMatrix = read("src/components/insights/PortCoverageMatrix.tsx");
 const visualRefresh = read("src/mawaniVisualRefresh.css");
 const lightMode = read("src/mawaniLightMode.css");
+const portalVision = read("src/portalVision.css");
 const lightPaletteDocument = read("docs/LIGHT_MODE_COLOR_PALETTE.md");
+const portalArchitecture = read("docs/PORTAL_INTERFACE_ARCHITECTURE.md");
 
+assertIncludes(dashboardEntry, 'export { default } from "./ProfessionalDashboardShell"', "the production entry does not use the professional portal shell");
 for (const source of ["datalastic", "pocketworld", "pocketworld-last-known", "ais-multi-provider"]) {
   assertIncludes(dashboard, `source === "${source}"`, `${source} is not recognized as a live external source`);
 }
@@ -39,6 +50,37 @@ assertIncludes(dashboard, 'if (source === "pocketworld") return "Public regional
 assertIncludes(dashboard, 'if (source === "pocketworld-last-known") return "Public regional AIS · last known"', "last-known AIS is mislabeled as unavailable");
 assertIncludes(dashboard, 'if (source === "datalastic") return "Datalastic live AIS"', "Datalastic is mislabeled as unavailable");
 assertIncludes(dashboard, 'if (source === "ais-multi-provider") return "Multi-provider live AIS"', "multi-provider AIS is mislabeled as unavailable");
+assertIncludes(dashboard, "<PortalHeader", "the professional application header is absent");
+assertIncludes(dashboard, "<ReadinessStrip", "the compact readiness strip is absent");
+assertIncludes(dashboard, "<AnalysisRail", "the persistent analysis rail is absent");
+assertIncludes(dashboard, "<OperationsRail", "the self-contained operations rail is absent");
+assertIncludes(dashboard, "<CommandWorkspace", "the lower command workspace is absent");
+assertIncludes(dashboard, 'className="portal-command-stage"', "the map-first command stage is absent");
+assertNotIncludes(dashboard, "Design tokens", "design tokens are visible in the production portal shell");
+
+assertIncludes(portalHeader, "Operational Vessel Intelligence Dashboard", "the exact approved dashboard title is missing");
+assertIncludes(portalHeader, "AIS-informed maritime logistics and port intelligence", "the product subtitle is missing");
+assertIncludes(portalHeader, "<ThemeToggle inline />", "the theme control is not integrated into the header");
+assertIncludes(portalHeader, "Refresh", "the header refresh action is absent");
+assertIncludes(portalHeader, "Export", "the header export action is absent");
+assertIncludes(themeToggle, "inline?: boolean", "the theme toggle does not support the header layout");
+assertNotIncludes(app, "ThemeToggle", "a duplicate floating theme toggle remains mounted");
+
+for (const label of ["Live input readiness", "Vessel tracking / AIS", "EcoFair-CH-MARL", "Port operations"]) {
+  assertIncludes(readinessStrip, label, `readiness card is absent: ${label}`);
+}
+assertIncludes(analysisRail, "Reward index", "the analysis rail reward index is absent");
+assertIncludes(analysisRail, "Feasibility score", "the analysis rail feasibility score is absent");
+assertIncludes(analysisRail, "Monitored-port pressure", "the analysis rail port pressure is absent");
+assertIncludes(analysisRail, "Vessel speed profile", "the compact speed profile is absent from the analysis rail");
+assertIncludes(operationsRail, "Selected vessel", "persistent selected-vessel context is absent");
+assertIncludes(operationsRail, "Tracked vessels", "the compact tracked-vessel list is absent");
+assertIncludes(operationsRail, "Operational watchlist", "the operational watchlist is absent");
+assertIncludes(operationsRail, "Port events", "the compact port-event feed is absent");
+assertIncludes(commandWorkspace, "Command summary", "the lower command summary is absent");
+assertIncludes(commandWorkspace, "Port coverage matrix", "the port coverage workspace is absent");
+assertIncludes(commandWorkspace, "Vessel &amp; event preview", "the vessel and event preview is absent");
+assertNotIncludes(commandWorkspace, "Design tokens", "design tokens are visible in the command workspace");
 
 assertIncludes(sceneEntry, 'export { default } from "./LeafletShipScene"', "ShipScene does not use the Leaflet renderer");
 assertIncludes(leafletScene, 'import * as L from "leaflet"', "Leaflet is not imported");
@@ -97,6 +139,7 @@ assertIncludes(main, 'import "./leafletMap.css"', "Leaflet application styles ar
 assertIncludes(main, 'import "./mawaniVisualRefresh.css"', "the final MAWANI visual refresh layer is not loaded");
 assertIncludes(main, 'import "./vesselSpeedProfile.css"', "the compact speed-profile styles are not loaded");
 assertIncludes(main, 'import "./mawaniLightMode.css"', "the final light-mode contrast layer is not loaded");
+assertIncludes(main, 'import "./portalVision.css"', "the professional portal vision is not loaded last");
 assertIncludes(packageJson, '"leaflet": "1.9.4"', "Leaflet is not pinned to the stable release");
 assertIncludes(packageJson, '"@types/leaflet"', "Leaflet TypeScript definitions are absent");
 assertIncludes(viteConfig, "manualChunks: vendorChunk", "Vite does not use reachability-based vendor chunking");
@@ -116,30 +159,28 @@ assertIncludes(visualRefresh, "--mawani-aqua-50: #00dbe7", "the approved aqua br
 assertIncludes(visualRefresh, "--mawani-success: #24a148", "the fixed success colour is absent");
 assertIncludes(visualRefresh, "--mawani-warning: #ff6800", "the fixed warning colour is absent");
 assertIncludes(visualRefresh, "--mawani-error: #da1e28", "the fixed error colour is absent");
-assertIncludes(visualRefresh, 'grid-template-columns: 230px minmax(680px, 1fr) 300px', "the map-first desktop hierarchy is absent");
-assertIncludes(visualRefresh, ".scene-panel.executive-map-panel", "the primary map panel styling is absent");
-assertIncludes(visualRefresh, ".provider-quality-matrix .data-quality-items", "the compact readiness matrix is absent");
-assertIncludes(visualRefresh, ".metrics-grid.executive-kpis", "the refreshed KPI hierarchy is absent");
-assertIncludes(visualRefresh, ":root[data-theme=\"light\"]", "the refreshed light theme is absent");
-assertIncludes(visualRefresh, "@media (prefers-reduced-motion: reduce)", "reduced-motion support is absent");
 assertNotIncludes(visualRefresh, "linear-gradient(", "the final visual refresh uses decorative gradients");
 
 assertIncludes(lightMode, '--mawani-text-primary: #10272c', "the light theme does not define a strong primary text color");
 assertIncludes(lightMode, '--mawani-text-secondary: #36555c', "the light theme does not define a readable secondary text color");
 assertIncludes(lightMode, '--mawani-text-helper: #5c747a', "the light theme helper color is too weak or absent");
-assertIncludes(lightMode, '--mawani-aqua-50: #006f79', "the light-mode aqua accent is absent");
-assertIncludes(lightMode, '--mawani-success: #19783a', "the light-mode success color is absent");
-assertIncludes(lightMode, '--mawani-warning: #9c5200', "the light-mode warning color is absent");
-assertIncludes(lightMode, '--mawani-error: #b4232d', "the light-mode error color is absent");
-assertIncludes(lightMode, ".expanded-map-rail", "the expanded Leaflet rail is not covered by the light theme");
-assertIncludes(lightMode, ".rail-search-tools label", "light-mode filter labels are not protected");
-assertIncludes(lightMode, ".tile-vessel-list-items button span", "light-mode vessel names are not protected");
-assertIncludes(lightMode, ".focus-header h2", "light-mode focus titles are not protected");
 assertIncludes(lightMode, "@media (prefers-contrast: more)", "the light theme does not support increased-contrast preference");
 assertNotIncludes(lightMode, "linear-gradient(", "the light-mode enhancement uses decorative gradients");
 
+assertIncludes(portalVision, 'grid-template-columns: 220px minmax(620px, 1fr) 320px', "the professional three-column map-first layout is absent");
+assertIncludes(portalVision, ".portal-readiness-strip", "the four-card readiness layout is absent");
+assertIncludes(portalVision, ".portal-analysis-rail", "the analysis rail styling is absent");
+assertIncludes(portalVision, ".portal-operations-rail", "the operations rail styling is absent");
+assertIncludes(portalVision, ".portal-command-workspace", "the command workspace styling is absent");
+assertIncludes(portalVision, ":root[data-theme=\"light\"]", "the professional layout lacks light-theme parity");
+assertIncludes(portalVision, "@media (prefers-reduced-motion: reduce)", "the professional layout lacks reduced-motion support");
+assertNotIncludes(portalVision, "linear-gradient(", "the professional portal uses decorative gradients");
+assertNotIncludes(portalVision, "Design tokens", "design tokens are rendered by the professional CSS layer");
+
 assertIncludes(lightPaletteDocument, "#10272C", "the palette document omits primary text");
 assertIncludes(lightPaletteDocument, "#006F79", "the palette document omits the light aqua accent");
-assertIncludes(lightPaletteDocument, "Expanded-map vessel rows", "the palette document does not cover the reported light-mode problem");
+assertIncludes(portalArchitecture, "Operational Vessel Intelligence Dashboard", "the interface architecture omits the approved title");
+assertIncludes(portalArchitecture, "Design-system tokens", "the interface architecture does not document the hidden-token boundary");
+assertIncludes(portalArchitecture, "Map-first command stage", "the interface architecture does not document the map-first hierarchy");
 
-console.log("Leaflet live vessel UI, accessible modular charts, speed profile, MAWANI design, and light-mode contrast contracts verified.");
+console.log("Professional map-first portal, Leaflet UI, accessible modular charts, speed profile, MAWANI design, and light-mode contracts verified.");

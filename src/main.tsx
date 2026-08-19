@@ -29,6 +29,7 @@ import "./mapMotionStability.css";
 import "./mawaniVisualRefresh.css";
 import "./vesselSpeedProfile.css";
 import "./mawaniLightMode.css";
+import "./portalVision.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
