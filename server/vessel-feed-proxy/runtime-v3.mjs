@@ -36,7 +36,6 @@ const PORT_REFERENCE_POINTS = [
 
 const PRIMARY_PORT_IDS = new Set(["Jeddah", "King Abdullah Port"]);
 const PRIMARY_PORT_REFERENCE_POINTS = PORT_REFERENCE_POINTS.filter((port) => PRIMARY_PORT_IDS.has(port.id));
-const PRIMARY_PORT_BBOX = "20.70,38.35;22.95,39.85";
 
 const WEATHER_POINTS = [
   { locationId: "suez", name: "Suez", latitude: 29.9668, longitude: 32.5498 },
@@ -76,6 +75,13 @@ function numberValue(value) {
   return undefined;
 }
 
+function optionalCountLimit(value) {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!text || ["0", "unlimited", "none", "infinity", "inf"].includes(text)) return null;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+}
+
 function timestampMs(value) {
   const parsed = Date.parse(String(value ?? ""));
   return Number.isFinite(parsed) ? parsed : 0;
@@ -102,8 +108,8 @@ function haversineNm(a, b) {
 function validCoordinates(latitude, longitude) {
   return Number.isFinite(latitude)
     && Number.isFinite(longitude)
-    && latitude >= -85.051129
-    && latitude <= 85.051129
+    && latitude >= -90
+    && latitude <= 90
     && longitude >= -180
     && longitude <= 180;
 }
@@ -224,13 +230,10 @@ const AISSTREAM_POSITION_FILTER_TYPES = [
 const AISSTREAM_RECOVERY_ENABLED = process.env.AISSTREAM_RECOVERY_ENABLED !== "false";
 const AISSTREAM_RECOVERY_PROFILES = [
   { id: "world-unfiltered", description: "worldwide, all AIS message types", boxes: TRACKING_BOXES, filters: AISSTREAM_FILTER_TYPES },
-  { id: "primary-ports-position-only", description: "Jeddah Islamic Port and King Abdullah Port approaches", boxes: parseBoundingBoxes(PRIMARY_PORT_BBOX), filters: AISSTREAM_POSITION_FILTER_TYPES },
-  { id: "portfolio-position-only", description: "eight monitored port approaches, position-bearing messages", boxes: OPERATIONAL_BOXES, filters: AISSTREAM_POSITION_FILTER_TYPES },
-  { id: "red-sea-gulf-position-only", description: "Red Sea and Gulf, position-bearing messages", boxes: parseBoundingBoxes(REGIONAL_AIS_BBOX), filters: AISSTREAM_POSITION_FILTER_TYPES },
   { id: "world-position-only", description: "worldwide, position-bearing messages", boxes: TRACKING_BOXES, filters: AISSTREAM_POSITION_FILTER_TYPES },
 ];
-const AISSTREAM_MAX_VESSELS = Math.max(100, Number(process.env.AISSTREAM_MAX_VESSELS ?? 8000));
-const AISSTREAM_OPERATIONAL_MAX_VESSELS = Math.max(100, Number(process.env.AISSTREAM_OPERATIONAL_MAX_VESSELS ?? 2500));
+const AISSTREAM_MAX_VESSELS = optionalCountLimit(process.env.AISSTREAM_MAX_VESSELS ?? 0);
+const AISSTREAM_OPERATIONAL_MAX_VESSELS = optionalCountLimit(process.env.AISSTREAM_OPERATIONAL_MAX_VESSELS ?? 0);
 const AISSTREAM_TRAIL_POINTS = Math.max(2, Number(process.env.AISSTREAM_TRAIL_POINTS ?? 12));
 const AISSTREAM_MAX_AGE_MS = Math.max(60_000, Number(process.env.AISSTREAM_MAX_AGE_MS ?? 6 * 60 * 60 * 1000));
 const AISSTREAM_CACHE_ENABLED = process.env.AISSTREAM_CACHE_ENABLED !== "false";
@@ -249,7 +252,7 @@ const DATALASTIC_SCAN_INTERVAL_MS = Math.max(1_000, Number(process.env.DATALASTI
 const DATALASTIC_TIMEOUT_MS = Math.max(1_000, Number(process.env.DATALASTIC_TIMEOUT_MS ?? 15_000));
 const DATALASTIC_SCAN_RADIUS_NM = Math.min(50, Math.max(1, Number(process.env.DATALASTIC_SCAN_RADIUS_NM ?? 50)));
 const DATALASTIC_MAX_AGE_MS = Math.max(60_000, Number(process.env.DATALASTIC_MAX_AGE_MS ?? 45 * 60_000));
-const DATALASTIC_MAX_VESSELS = Math.max(1, Number(process.env.DATALASTIC_MAX_VESSELS ?? 5000));
+const DATALASTIC_MAX_VESSELS = optionalCountLimit(process.env.DATALASTIC_MAX_VESSELS ?? 0);
 const DATALASTIC_SCAN_POINT_SELECTION = String(process.env.DATALASTIC_SCAN_POINT_IDS ?? "Jeddah,King Abdullah Port")
   .split(",")
   .map((item) => item.trim())
@@ -264,7 +267,8 @@ const POCKETWORLD_POLL_INTERVAL_MS = Math.max(5_000, Number(process.env.POCKETWO
 const POCKETWORLD_TIMEOUT_MS = Math.max(1_000, Number(process.env.POCKETWORLD_TIMEOUT_MS ?? 30_000));
 const POCKETWORLD_DISPLAY_MAX_AGE_MS = Math.max(60_000, Number(process.env.POCKETWORLD_DISPLAY_MAX_AGE_MS ?? process.env.POCKETWORLD_MAX_AGE_MS ?? 6 * 60 * 60_000));
 const POCKETWORLD_FRESH_AGE_MS = Math.min(POCKETWORLD_DISPLAY_MAX_AGE_MS, Math.max(60_000, Number(process.env.POCKETWORLD_FRESH_AGE_MS ?? 30 * 60_000)));
-const POCKETWORLD_MAX_VESSELS = Math.max(1, Number(process.env.POCKETWORLD_MAX_VESSELS ?? 5000));
+const POCKETWORLD_MAX_VESSELS = optionalCountLimit(process.env.POCKETWORLD_MAX_VESSELS ?? 0);
+const POCKETWORLD_MAX_PAGES = Math.min(10_000, Math.max(1, Number(process.env.POCKETWORLD_MAX_PAGES ?? 1_000)));
 const POCKETWORLD_CACHE_FLUSH_MS = Math.max(5_000, Number(process.env.POCKETWORLD_CACHE_FLUSH_MS ?? 60_000));
 const MAX_INGEST_BODY_BYTES = Math.max(1_024, Number(process.env.MAX_INGEST_BODY_BYTES ?? 5 * 1024 * 1024));
 const ECOFAIR_OPERATIONAL_RADIUS_NM = Math.max(1, Number(process.env.ECOFAIR_OPERATIONAL_RADIUS_NM ?? 120));
@@ -373,6 +377,9 @@ function createAisState(label, boxes, filters, cacheFile, cacheLimit) {
     rejectedImplausible: 0,
     cachedVessels: 0,
     cacheLimit,
+    countLimited: cacheLimit !== null,
+    locationFilter: "none",
+    discardedByLocation: 0,
     cacheFile,
     cacheSavedAt: null,
     cacheLoadedAt: null,
@@ -403,6 +410,7 @@ const pocketWorldProvider = createPocketWorldLiveAisProvider({
   maxAgeMs: POCKETWORLD_DISPLAY_MAX_AGE_MS,
   freshAgeMs: POCKETWORLD_FRESH_AGE_MS,
   maxVessels: POCKETWORLD_MAX_VESSELS,
+  maxPages: POCKETWORLD_MAX_PAGES,
   cacheFile: POCKETWORLD_CACHE_FILE,
   cacheFlushMs: POCKETWORLD_CACHE_FLUSH_MS,
 });
@@ -421,6 +429,10 @@ const vesselInputState = {
   portfolioOperationalRows: 0,
   operationalRows: 0,
   operationalRadiusNm: ECOFAIR_OPERATIONAL_RADIUS_NM,
+  countLimited: false,
+  locationFilter: "none",
+  discardedByLocation: 0,
+  countPolicy: "unlimited-by-count; deduplicated by vessel ID; freshness-retained",
   lastLoadedAt: null,
   lastError: null,
 };
@@ -485,10 +497,12 @@ function mergeAisVessel(cache, state, update) {
   const merged = { ...existing, ...update, name, trail: trail && trail.length > 1 ? trail : undefined };
   if (cache.has(update.id)) cache.delete(update.id);
   cache.set(update.id, merged);
-  while (cache.size > state.cacheLimit) {
-    const oldestKey = cache.keys().next().value;
-    if (!oldestKey) break;
-    cache.delete(oldestKey);
+  if (state.cacheLimit !== null) {
+    while (cache.size > state.cacheLimit) {
+      const oldestKey = cache.keys().next().value;
+      if (!oldestKey) break;
+      cache.delete(oldestKey);
+    }
   }
   state.cachedVessels = cache.size;
 }
@@ -497,7 +511,9 @@ function loadCache(cache, state) {
   if (!AISSTREAM_CACHE_ENABLED || !existsSync(state.cacheFile)) return;
   try {
     const payload = JSON.parse(readFileSync(state.cacheFile, "utf8"));
-    for (const raw of rowsFrom(payload, ["vessels"]).slice(-state.cacheLimit)) {
+    const cachedRows = rowsFrom(payload, ["vessels"]);
+    const rowsToRestore = state.cacheLimit === null ? cachedRows : cachedRows.slice(-state.cacheLimit);
+    for (const raw of rowsToRestore) {
       const vessel = normalizeVessel(raw);
       if (vessel && isFresh(vessel)) cache.set(vessel.id, vessel);
     }
@@ -583,10 +599,8 @@ function datalasticFailoverDue() {
   return serviceStartedAt === 0 || Date.now() - serviceStartedAt >= DATALASTIC_ACTIVATION_DELAY_MS;
 }
 
-function pocketWorldFailoverDue(datalasticRows) {
-  if (!POCKETWORLD_AIS_ENABLED || datalasticRows > 0) return false;
-  const lastPrimaryFrame = timestampMs(trackingAisState.lastFrameAt);
-  if (lastPrimaryFrame > 0 && Date.now() - lastPrimaryFrame < AISSTREAM_SILENCE_TIMEOUT_MS) return false;
+function pocketWorldRefreshDue() {
+  if (!POCKETWORLD_AIS_ENABLED) return false;
   const serviceStartedAt = timestampMs(SERVICE_STARTED_AT);
   return serviceStartedAt === 0 || Date.now() - serviceStartedAt >= POCKETWORLD_ACTIVATION_DELAY_MS;
 }
@@ -596,13 +610,19 @@ async function loadCombinedVessels() {
     if (datalasticFailoverDue()) await datalasticProvider.refresh();
     const trackingAis = cacheRows(trackingAisCache, trackingAisState);
     const datalasticAis = datalasticProvider.rows().map((row) => normalizeVessel(row)).filter(Boolean);
-    if (pocketWorldFailoverDue(datalasticAis.length)) await pocketWorldProvider.refresh();
+    if (pocketWorldRefreshDue()) await pocketWorldProvider.refresh();
     const pocketWorldAis = pocketWorldProvider.rows().map((row) => normalizeVessel(row)).filter(Boolean);
     const priorityAis = OPERATIONAL_PRIORITY_ENABLED ? cacheRows(operationalAisCache, operationalAisState) : [];
     const merged = new Map();
-    for (const row of pocketWorldAis) merged.set(row.id, row);
-    for (const row of datalasticAis) merged.set(row.id, row);
-    for (const row of trackingAis) merged.set(row.id, row);
+    const mergeLatest = (row) => {
+      const existing = merged.get(row.id);
+      if (!existing || timestampMs(row.timestamp) >= timestampMs(existing.timestamp)) {
+        merged.set(row.id, { ...existing, ...row });
+      }
+    };
+    for (const row of pocketWorldAis) mergeLatest(row);
+    for (const row of datalasticAis) mergeLatest(row);
+    for (const row of trackingAis) mergeLatest(row);
     const tracking = [...merged.values()].filter((row) => validCoordinates(row.latitude, row.longitude));
     const freshTracking = tracking.filter(isOperationallyFresh);
     const operational = operationalVessels(tracking);
@@ -1172,6 +1192,13 @@ function healthPayload() {
       profileCycles: trackingAisState.profileCycles,
       rows: vesselInputState.trackingRows,
       maxRows: AISSTREAM_MAX_VESSELS,
+      countLimited: AISSTREAM_MAX_VESSELS !== null,
+      countPolicy: AISSTREAM_MAX_VESSELS === null ? "unlimited-by-count" : "configured-count-limit",
+      locationFilter: "none",
+      discardedByLocation: 0,
+      validLatitudeRange: [-90, 90],
+      validLongitudeRange: [-180, 180],
+      retentionMs: AISSTREAM_MAX_AGE_MS,
     },
     operationalScope: {
       radiusNm: ECOFAIR_OPERATIONAL_RADIUS_NM,

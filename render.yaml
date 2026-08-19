@@ -26,6 +26,8 @@ services:
         value: /api/vessels
       - key: VITE_VESSEL_FETCH_INTERVAL_MS
         value: 15000
+      - key: VITE_VESSEL_DISPLAY_RETENTION_MS
+        value: 21600000
       - key: VITE_CHMARL_EXPERIMENT_URL
         value: /api/chmarl/episode
       - key: VITE_PORT_EVENTS_URL
@@ -57,9 +59,9 @@ services:
       - key: AISSTREAM_OPERATIONAL_FILTER_TYPES
         value: PositionReport,StandardClassBPositionReport,ExtendedClassBPositionReport,LongRangeAisBroadcastMessage
       - key: AISSTREAM_MAX_VESSELS
-        value: 20000
+        value: 0
       - key: AISSTREAM_OPERATIONAL_MAX_VESSELS
-        value: 3000
+        value: 0
       - key: AISSTREAM_MAX_AGE_MS
         value: 21600000
       - key: AISSTREAM_TRAIL_POINTS
@@ -105,7 +107,7 @@ services:
       - key: DATALASTIC_MAX_AGE_MS
         value: 2700000
       - key: DATALASTIC_MAX_VESSELS
-        value: 5000
+        value: 0
       - key: DATALASTIC_SCAN_POINT_IDS
         value: "Jeddah,King Abdullah Port"
       - key: POCKETWORLD_AIS_ENABLED
@@ -125,7 +127,9 @@ services:
       - key: POCKETWORLD_MAX_AGE_MS
         value: 21600000
       - key: POCKETWORLD_MAX_VESSELS
-        value: 50000
+        value: 0
+      - key: POCKETWORLD_MAX_PAGES
+        value: 1000
       - key: POCKETWORLD_CACHE_FILE
         value: /var/data/pocketworld-ais-cache.json
       - key: POCKETWORLD_CACHE_FLUSH_MS

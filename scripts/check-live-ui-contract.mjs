@@ -150,8 +150,11 @@ assertNotIncludes(viteConfig, '"vendor-echarts"', "the retired full ECharts bund
 assertIncludes(artifactVerifier, "MAX_PRODUCTION_JS_CHUNK_BYTES", "production JavaScript chunks have no enforced budget");
 assertIncludes(artifactVerifier, "/vendor-three-/i", "the artifact gate does not reject a reintroduced Three.js bundle");
 assertIncludes(artifactVerifier, "/vendor-echarts-/i", "the artifact gate does not reject the retired full ECharts bundle");
-assertIncludes(stabilizer, "const maxPerGridCell = 50_000", "the frontend still thins a complete PocketWorld fleet");
-assertIncludes(stabilizer, "const maxDisplayRows = 50_000", "the frontend display cap is below the provider maximum");
+assertIncludes(stabilizer, "countLimited: false", "the frontend does not expose an unbounded display policy");
+assertIncludes(stabilizer, "discardedByLocation: 0", "the frontend does not expose zero geographic discards");
+assertIncludes(stabilizer, "latitude >= -90", "the frontend does not accept the complete latitude range");
+assertNotIncludes(stabilizer, "maxDisplayRows", "the frontend still contains a hard vessel display ceiling");
+assertNotIncludes(stabilizer, "inMiddleEastOperationalCorridor", "the frontend still applies region-specific retention or prioritization");
 assertIncludes(coverage, 'id: "Jubail Commercial Port"', "Jubail is missing from frontend port coverage");
 assertIncludes(coverageMatrix, "Jeddah + KAP:", "primary-port coverage is not surfaced");
 

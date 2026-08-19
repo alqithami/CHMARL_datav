@@ -3,9 +3,8 @@ import { dirname } from "node:path";
 
 const DEFAULT_URL = "https://pocketworld.org/api/ships";
 const DEFAULT_PAGE_SIZE = 5_000;
-const DEFAULT_MAX_PAGES = 10;
+const DEFAULT_MAX_PAGES = 1_000;
 const PROVIDER_MAX_PAGE_SIZE = 5_000;
-const PROVIDER_MAX_VESSELS = 50_000;
 
 function numeric(value) {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
@@ -14,6 +13,13 @@ function numeric(value) {
     return Number.isFinite(parsed) ? parsed : undefined;
   }
   return undefined;
+}
+
+function optionalCountLimit(value) {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!text || ["0", "unlimited", "none", "infinity", "inf"].includes(text)) return null;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
 }
 
 function timestampValue(row, now) {
@@ -54,12 +60,7 @@ function responseRows(payload) {
 
 function pageMetadata(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return {
-      snapshotId: null,
-      nextCursor: null,
-      totalAvailable: 0,
-      truncated: false,
-    };
+    return { snapshotId: null, nextCursor: null, totalAvailable: 0, truncated: false };
   }
   const nextCursor = payload.next_cursor ?? payload.nextCursor ?? null;
   return {
@@ -160,7 +161,7 @@ export function createPocketWorldLiveAisProvider({
   timeoutMs = 30_000,
   maxAgeMs = 6 * 60 * 60_000,
   freshAgeMs = 30 * 60_000,
-  maxVessels = 50_000,
+  maxVessels = 0,
   pageSize = DEFAULT_PAGE_SIZE,
   maxPages = DEFAULT_MAX_PAGES,
   cacheFile,
@@ -173,9 +174,9 @@ export function createPocketWorldLiveAisProvider({
   const requestTimeout = Math.max(1_000, Number(timeoutMs) || 30_000);
   const vesselDisplayMaxAge = Math.max(60_000, Number(maxAgeMs) || 6 * 60 * 60_000);
   const vesselFreshAge = Math.min(vesselDisplayMaxAge, Math.max(60_000, Number(freshAgeMs) || 30 * 60_000));
-  const vesselLimit = Math.min(PROVIDER_MAX_VESSELS, Math.max(1, Number(maxVessels) || PROVIDER_MAX_VESSELS));
+  const vesselLimit = optionalCountLimit(maxVessels);
   const paginationPageSize = Math.min(PROVIDER_MAX_PAGE_SIZE, Math.max(1, Number(pageSize) || DEFAULT_PAGE_SIZE));
-  const paginationMaxPages = Math.min(100, Math.max(1, Number(maxPages) || DEFAULT_MAX_PAGES));
+  const paginationMaxPages = Math.min(10_000, Math.max(1, Number(maxPages) || DEFAULT_MAX_PAGES));
   const cachePath = String(cacheFile ?? "").trim();
   const cacheWriteInterval = Math.max(5_000, Number(cacheFlushMs) || 60_000);
   const cache = new Map();
@@ -194,6 +195,9 @@ export function createPocketWorldLiveAisProvider({
     displayMaxAgeMs: vesselDisplayMaxAge,
     freshAgeMs: vesselFreshAge,
     maxVessels: vesselLimit,
+    countLimited: vesselLimit !== null,
+    locationFilter: "none",
+    discardedByLocation: 0,
     pageSize: paginationPageSize,
     maxPages: paginationMaxPages,
     pagesFetched: 0,
@@ -273,11 +277,13 @@ export function createPocketWorldLiveAisProvider({
       const parsed = timestampMs(vessel.timestamp);
       if (parsed > 0 && parsed < cutoff) cache.delete(id);
     }
-    while (cache.size > vesselLimit) {
-      const oldest = [...cache.entries()]
-        .sort((a, b) => timestampMs(a[1].timestamp) - timestampMs(b[1].timestamp))[0]?.[0];
-      if (!oldest) break;
-      cache.delete(oldest);
+    if (vesselLimit !== null) {
+      while (cache.size > vesselLimit) {
+        const oldest = [...cache.entries()]
+          .sort((a, b) => timestampMs(a[1].timestamp) - timestampMs(b[1].timestamp))[0]?.[0];
+        if (!oldest) break;
+        cache.delete(oldest);
+      }
     }
     updateFreshnessState();
   }
@@ -288,11 +294,12 @@ export function createPocketWorldLiveAisProvider({
     try {
       mkdirSync(dirname(cachePath), { recursive: true });
       const payload = {
-        version: 2,
+        version: 3,
         provider: "pocketworld",
         savedAt: new Date(now()).toISOString(),
         totalAvailable: state.totalAvailable,
         fetchComplete: state.fetchComplete,
+        countLimited: state.countLimited,
         vessels: [...cache.values()],
       };
       writeFileSync(cachePath, JSON.stringify(payload));
@@ -387,7 +394,9 @@ export function createPocketWorldLiveAisProvider({
 
       try {
         const payloads = [];
-        const firstRequestLimit = Math.min(paginationPageSize, vesselLimit);
+        const firstRequestLimit = vesselLimit === null
+          ? paginationPageSize
+          : Math.min(paginationPageSize, vesselLimit);
         const firstPayload = await fetchPage(buildPageUrl(state.url, null, null, firstRequestLimit));
         payloads.push(firstPayload);
         let metadata = pageMetadata(firstPayload);
@@ -398,11 +407,12 @@ export function createPocketWorldLiveAisProvider({
         const seenCursors = new Set();
         let paginationError = null;
 
+        const belowCountLimit = () => vesselLimit === null || rawRows.length < vesselLimit;
         while (
           nextCursor !== null
           && nextCursor !== undefined
           && String(nextCursor).trim()
-          && rawRows.length < vesselLimit
+          && belowCountLimit()
           && payloads.length < paginationMaxPages
         ) {
           const cursorKey = String(nextCursor);
@@ -411,7 +421,7 @@ export function createPocketWorldLiveAisProvider({
             break;
           }
           seenCursors.add(cursorKey);
-          const remaining = vesselLimit - rawRows.length;
+          const remaining = vesselLimit === null ? paginationPageSize : vesselLimit - rawRows.length;
           const requestLimit = Math.min(paginationPageSize, remaining);
           const requestUrl = buildPageUrl(state.url, snapshotId, nextCursor, requestLimit);
           try {
@@ -420,21 +430,23 @@ export function createPocketWorldLiveAisProvider({
             rawRows.push(...responseRows(pagePayload));
             metadata = pageMetadata(pagePayload);
             totalAvailable = Math.max(totalAvailable, metadata.totalAvailable);
-            nextCursor = cursorForNextPage(
-              { ...metadata, totalAvailable },
-              rawRows.length,
-              snapshotId,
-            );
+            nextCursor = cursorForNextPage({ ...metadata, totalAvailable }, rawRows.length, snapshotId);
           } catch (error) {
             paginationError = error instanceof Error ? error.message : String(error);
             break;
           }
         }
 
-        const expectedRows = totalAvailable > 0 ? Math.min(totalAvailable, vesselLimit) : null;
+        if (!paginationError && nextCursor !== null && nextCursor !== undefined && String(nextCursor).trim() && payloads.length >= paginationMaxPages) {
+          paginationError = `PocketWorld pagination guard reached ${paginationMaxPages} pages before cursor exhaustion`;
+        }
+
+        const expectedRows = totalAvailable > 0
+          ? vesselLimit === null ? totalAvailable : Math.min(totalAvailable, vesselLimit)
+          : null;
         const cursorExhausted = nextCursor === null || nextCursor === undefined || !String(nextCursor).trim();
         const reachedExpectedRows = expectedRows !== null && rawRows.length >= expectedRows;
-        const localLimitTruncates = totalAvailable > vesselLimit;
+        const localLimitTruncates = vesselLimit !== null && totalAvailable > vesselLimit;
         const providerOmittedCursor = expectedRows !== null && rawRows.length < expectedRows && cursorExhausted;
         if (!paginationError && providerOmittedCursor) {
           paginationError = `PocketWorld reported ${expectedRows} available rows but returned ${rawRows.length} without next_cursor`;
@@ -462,9 +474,9 @@ export function createPocketWorldLiveAisProvider({
           }
         }
 
-        const normalized = [...normalizedById.values()]
-          .sort((a, b) => timestampMs(b.timestamp) - timestampMs(a.timestamp))
-          .slice(0, vesselLimit);
+        let normalized = [...normalizedById.values()]
+          .sort((a, b) => timestampMs(b.timestamp) - timestampMs(a.timestamp));
+        if (vesselLimit !== null) normalized = normalized.slice(0, vesselLimit);
         const fresh = normalized.filter((vessel) => observationAge(vessel) <= vesselFreshAge).length;
         const lastKnown = Math.max(0, normalized.length - fresh);
         for (const vessel of normalized) cache.set(vessel.id, vessel);
@@ -529,10 +541,5 @@ export function createPocketWorldLiveAisProvider({
 
   loadCache();
 
-  return {
-    refresh,
-    rows,
-    publicState,
-    shutdown,
-  };
+  return { refresh, rows, publicState, shutdown };
 }
