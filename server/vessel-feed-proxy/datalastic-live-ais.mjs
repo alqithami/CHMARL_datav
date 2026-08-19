@@ -9,6 +9,13 @@ function numeric(value) {
   return undefined;
 }
 
+function optionalCountLimit(value) {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!text || ["0", "unlimited", "none", "infinity", "inf"].includes(text)) return null;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+}
+
 function timestamp(value, now) {
   if (typeof value === "string" && Number.isFinite(Date.parse(value))) return value;
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -109,7 +116,7 @@ export function createDatalasticLiveAisProvider({
   scanIntervalMs = 5 * 60_000,
   timeoutMs = 15_000,
   maxAgeMs = 2 * 60 * 60_000,
-  maxVessels = 5000,
+  maxVessels = 0,
   fetchImpl = globalThis.fetch,
   now = Date.now,
 } = {}) {
@@ -119,7 +126,7 @@ export function createDatalasticLiveAisProvider({
   const interval = Math.max(1_000, Number(scanIntervalMs) || 5 * 60_000);
   const requestTimeout = Math.max(1_000, Number(timeoutMs) || 15_000);
   const vesselMaxAge = Math.max(60_000, Number(maxAgeMs) || 2 * 60 * 60_000);
-  const vesselLimit = Math.max(1, Number(maxVessels) || 5000);
+  const vesselLimit = optionalCountLimit(maxVessels);
   const scanRadius = Math.min(50, Math.max(1, Number(radiusNm) || 50));
 
   let inFlight = null;
@@ -136,6 +143,9 @@ export function createDatalasticLiveAisProvider({
     scanPoints: points.map((point) => point.id),
     scanIndex: 0,
     currentPoint: null,
+    maxVessels: vesselLimit,
+    countLimited: vesselLimit !== null,
+    discardedByLocation: 0,
     lastAttemptAt: null,
     lastSuccessAt: null,
     lastError: null,
@@ -169,11 +179,13 @@ export function createDatalasticLiveAisProvider({
     const nextTime = Date.parse(String(vessel.timestamp ?? ""));
     if (existing && Number.isFinite(existingTime) && Number.isFinite(nextTime) && nextTime < existingTime) return;
     cache.set(vessel.id, { ...existing, ...vessel });
-    while (cache.size > vesselLimit) {
-      const oldest = [...cache.entries()]
-        .sort((a, b) => Date.parse(String(a[1].timestamp ?? "")) - Date.parse(String(b[1].timestamp ?? "")))[0]?.[0];
-      if (!oldest) break;
-      cache.delete(oldest);
+    if (vesselLimit !== null) {
+      while (cache.size > vesselLimit) {
+        const oldest = [...cache.entries()]
+          .sort((a, b) => Date.parse(String(a[1].timestamp ?? "")) - Date.parse(String(b[1].timestamp ?? "")))[0]?.[0];
+        if (!oldest) break;
+        cache.delete(oldest);
+      }
     }
     state.cachedVessels = cache.size;
   }
@@ -270,10 +282,5 @@ export function createDatalasticLiveAisProvider({
     abortController?.abort();
   }
 
-  return {
-    refresh,
-    rows,
-    publicState,
-    shutdown,
-  };
+  return { refresh, rows, publicState, shutdown };
 }
