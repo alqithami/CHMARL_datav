@@ -1,0 +1,894 @@
+/*
+ * Professional expanded sub-window system.
+ *
+ * Loaded after every historical layout layer so focus dialogs remain above
+ * Leaflet, fit inside the viewport, and use a consistent header / toolbar /
+ * content / empty-state hierarchy.
+ */
+
+.portal-focus-backdrop,
+.focus-backdrop.portal-focus-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 30000 !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: clamp(8px, 1.5vw, 24px) !important;
+  overflow: hidden !important;
+  isolation: isolate;
+  overscroll-behavior: contain;
+  background: rgba(2, 10, 12, 0.86) !important;
+  backdrop-filter: blur(12px) saturate(0.72) !important;
+}
+
+.portal-focus-panel,
+.focus-panel.portal-focus-panel {
+  position: relative !important;
+  z-index: 1 !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  width: min(1280px, calc(100vw - 32px)) !important;
+  height: min(780px, calc(100dvh - 32px)) !important;
+  max-width: calc(100vw - 32px) !important;
+  max-height: calc(100dvh - 32px) !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid var(--portal-border-strong) !important;
+  border-radius: 12px !important;
+  color: var(--portal-text) !important;
+  background: var(--portal-panel) !important;
+  box-shadow: 0 28px 76px rgba(0, 0, 0, 0.42) !important;
+}
+
+.portal-focus-scene {
+  width: min(1640px, calc(100vw - 20px)) !important;
+  height: min(980px, calc(100dvh - 20px)) !important;
+  max-width: calc(100vw - 20px) !important;
+  max-height: calc(100dvh - 20px) !important;
+}
+
+.portal-focus-vessels,
+.portal-focus-port-events,
+.portal-focus-port-coverage,
+.portal-focus-port-queue {
+  width: min(1440px, calc(100vw - 28px)) !important;
+}
+
+.portal-focus-header,
+.focus-header.portal-focus-header {
+  position: relative !important;
+  z-index: 3 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 20px !important;
+  min-height: 78px !important;
+  margin: 0 !important;
+  padding: 13px 16px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--portal-border) !important;
+  color: var(--portal-text) !important;
+  background: var(--portal-panel) !important;
+  box-shadow: none !important;
+}
+
+.portal-focus-header > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.portal-focus-header > div > span {
+  color: var(--portal-accent) !important;
+  font-size: 9px !important;
+  font-weight: 780 !important;
+  letter-spacing: 0.11em !important;
+  text-transform: uppercase;
+}
+
+.portal-focus-header h2 {
+  margin: 0 !important;
+  overflow: hidden;
+  color: var(--portal-text) !important;
+  font-size: clamp(18px, 1.5vw, 24px) !important;
+  font-weight: 520 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.08 !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-focus-header p {
+  max-width: 72rem;
+  margin: 0 !important;
+  overflow: hidden;
+  color: var(--portal-text-muted) !important;
+  font-size: 10px !important;
+  line-height: 1.3 !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-focus-header > button {
+  flex: 0 0 auto;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  min-height: 34px !important;
+  padding: 6px 11px !important;
+  border: 1px solid var(--portal-border-strong) !important;
+  border-radius: 6px !important;
+  color: var(--portal-text) !important;
+  background: var(--portal-panel-raised) !important;
+  cursor: pointer;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+}
+
+.portal-focus-header > button:hover {
+  border-color: var(--portal-accent) !important;
+  background: var(--portal-panel-hover) !important;
+}
+
+.portal-focus-header > button > span {
+  color: var(--portal-accent);
+  font-size: 17px;
+  font-weight: 350;
+  line-height: 1;
+}
+
+.portal-focus-content,
+.focus-content.portal-focus-content {
+  position: relative !important;
+  z-index: 1 !important;
+  display: block !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  padding: 16px !important;
+  overflow: auto !important;
+  color: var(--portal-text) !important;
+  background: var(--portal-bg) !important;
+  scrollbar-gutter: stable;
+}
+
+.portal-focus-content > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+.portal-focus-scene .portal-focus-content {
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: #061519 !important;
+}
+
+.portal-focus-scene .scene-container,
+.portal-focus-scene .expanded-map,
+.portal-focus-scene .leaflet-map-shell,
+.portal-focus-scene .leaflet-map-root {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.portal-focus-scene .leaflet-map-controls {
+  max-width: calc(100% - 390px) !important;
+  flex-wrap: wrap !important;
+  overflow: visible !important;
+}
+
+/* Remove historical minimum heights that distorted list-based focus views. */
+.portal-focus-content .insight-panel-content {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) !important;
+  gap: 12px !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.portal-focus-content .port-event-feed {
+  grid-template-rows: auto auto minmax(0, 1fr) !important;
+}
+
+.portal-focus-content .insight-chart,
+.portal-focus-content .chart-box {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.portal-focus-reward .portal-focus-content,
+.portal-focus-constraints .portal-focus-content,
+.portal-focus-chmarl-components .portal-focus-content,
+.portal-focus-ports .portal-focus-content {
+  overflow: hidden !important;
+}
+
+.portal-focus-reward .portal-focus-content > *,
+.portal-focus-constraints .portal-focus-content > *,
+.portal-focus-chmarl-components .portal-focus-content > *,
+.portal-focus-ports .portal-focus-content > * {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Standard insight summary. */
+.portal-focus-content .insight-panel-summary {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-areas:
+    "label value"
+    "detail value" !important;
+  align-items: center !important;
+  gap: 4px 16px !important;
+  min-height: 70px !important;
+  padding: 12px 14px !important;
+  border: 1px solid var(--portal-border) !important;
+  border-radius: 9px !important;
+  background: var(--portal-panel) !important;
+}
+
+.portal-focus-content .insight-panel-summary > span {
+  grid-area: label;
+  color: var(--portal-accent) !important;
+  font-size: 9px !important;
+  font-weight: 780 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase;
+}
+
+.portal-focus-content .insight-panel-summary > strong {
+  grid-area: value;
+  align-self: center;
+  color: var(--portal-text) !important;
+  font-size: clamp(24px, 3vw, 38px) !important;
+  font-weight: 350 !important;
+  letter-spacing: -0.03em !important;
+  line-height: 1 !important;
+}
+
+.portal-focus-content .insight-panel-summary > small {
+  grid-area: detail;
+  overflow: visible !important;
+  color: var(--portal-text-muted) !important;
+  font-size: 10px !important;
+  line-height: 1.3 !important;
+  text-overflow: initial !important;
+  white-space: normal !important;
+}
+
+/* Port event feed */
+.port-event-overview {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.72fr) minmax(0, 3.28fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.port-event-overview .insight-panel-summary {
+  height: 100%;
+}
+
+.port-event-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.port-event-stat-grid article {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 70px;
+  padding: 10px 11px;
+  border: 1px solid var(--portal-border);
+  border-radius: 9px;
+  background: var(--portal-panel);
+}
+
+.port-event-stat-grid span,
+.port-event-stat-grid strong,
+.port-event-stat-grid small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.port-event-stat-grid span {
+  color: var(--portal-text-muted);
+  font-size: 8px;
+  font-weight: 740;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.port-event-stat-grid strong {
+  color: var(--portal-text);
+  font-size: 16px;
+  font-weight: 520;
+}
+
+.port-event-stat-grid small {
+  color: var(--portal-text-muted);
+  font-size: 8px;
+}
+
+.port-event-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 6px 8px;
+  border: 1px solid var(--portal-border);
+  border-radius: 8px;
+  background: var(--portal-panel);
+}
+
+.portal-focus-content .inline-filter-tabs {
+  display: flex !important;
+  align-items: center !important;
+  align-content: center !important;
+  flex: 1 1 auto !important;
+  flex-wrap: wrap !important;
+  justify-content: flex-start !important;
+  gap: 4px !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+}
+
+.portal-focus-content .inline-filter-tabs button {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 27px !important;
+  height: 27px !important;
+  padding: 4px 8px !important;
+  border: 1px solid transparent !important;
+  border-radius: 5px !important;
+  color: var(--portal-text-muted) !important;
+  background: transparent !important;
+  cursor: pointer;
+  font-size: 9px !important;
+  font-weight: 680 !important;
+  line-height: 1 !important;
+}
+
+.portal-focus-content .inline-filter-tabs button:hover {
+  border-color: var(--portal-border) !important;
+  color: var(--portal-text) !important;
+  background: var(--portal-panel-raised) !important;
+}
+
+.portal-focus-content .inline-filter-tabs button.active {
+  border-color: var(--portal-accent-deep) !important;
+  color: #ffffff !important;
+  background: var(--portal-accent-deep) !important;
+}
+
+.port-event-provider-state {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 4px 8px;
+  border: 1px solid var(--portal-border);
+  border-radius: 5px;
+  color: var(--portal-text-muted);
+  background: var(--portal-panel-raised);
+  font-size: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.port-event-provider-state i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--portal-text-muted);
+}
+
+.port-event-provider-state.good { color: var(--portal-success); border-color: color-mix(in srgb, var(--portal-success) 35%, var(--portal-border)); }
+.port-event-provider-state.good i { background: var(--portal-success); }
+.port-event-provider-state.warning { color: var(--portal-warning); border-color: color-mix(in srgb, var(--portal-warning) 35%, var(--portal-border)); }
+.port-event-provider-state.warning i { background: var(--portal-warning); }
+
+.port-event-table-shell {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--portal-border);
+  border-radius: 9px;
+  background: var(--portal-panel);
+}
+
+.port-event-table {
+  width: 100%;
+  min-width: 840px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.port-event-table th,
+.port-event-table td {
+  padding: 10px 12px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--portal-border);
+  color: var(--portal-text-secondary);
+  font-size: 10px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.port-event-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  color: var(--portal-text-muted);
+  background: var(--portal-panel-raised);
+  font-size: 8px;
+  font-weight: 780;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.port-event-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.port-event-table td strong {
+  color: var(--portal-text);
+  font-weight: 650;
+}
+
+.port-event-type,
+.port-event-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 3px 7px;
+  border: 1px solid var(--portal-border);
+  border-radius: 5px;
+  color: var(--portal-text-secondary);
+  background: var(--portal-panel-raised);
+  font-size: 8px;
+  font-weight: 680;
+  text-transform: capitalize;
+}
+
+.port-event-type i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--portal-info);
+}
+
+.port-event-type.active i,
+.port-event-state.active { color: var(--portal-success); border-color: color-mix(in srgb, var(--portal-success) 32%, var(--portal-border)); }
+.port-event-type.active i { background: var(--portal-success); }
+.port-event-type.watch i,
+.port-event-state.watch { color: var(--portal-warning); border-color: color-mix(in srgb, var(--portal-warning) 32%, var(--portal-border)); }
+.port-event-type.watch i { background: var(--portal-warning); }
+.port-event-type.complete i,
+.port-event-state.complete { color: var(--portal-text-muted); }
+.port-event-type.arrival i,
+.port-event-state.arrival { color: var(--portal-info); border-color: color-mix(in srgb, var(--portal-info) 32%, var(--portal-border)); }
+.port-event-type.arrival i { background: var(--portal-info); }
+
+/* Consistent empty states. */
+.portal-focus-empty-state,
+.portal-focus-content .insight-empty-state,
+.portal-focus-content .timeline-empty-state,
+.portal-focus-content .vessel-table-empty {
+  box-sizing: border-box;
+  display: grid !important;
+  place-content: center !important;
+  justify-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  min-height: 280px !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 28px !important;
+  border: 1px dashed var(--portal-border-strong) !important;
+  border-radius: 9px !important;
+  color: var(--portal-text-muted) !important;
+  background: var(--portal-panel-raised) !important;
+  font-size: 10px !important;
+  line-height: 1.4 !important;
+  text-align: center !important;
+}
+
+.portal-focus-empty-state strong {
+  color: var(--portal-text);
+  font-size: 14px;
+  font-weight: 570;
+}
+
+.portal-focus-empty-state p {
+  max-width: 36rem;
+  margin: 0;
+  color: var(--portal-text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.portal-focus-empty-state button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid var(--portal-border-strong);
+  border-radius: 5px;
+  color: var(--portal-text);
+  background: var(--portal-panel);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 680;
+}
+
+.portal-focus-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid color-mix(in srgb, var(--portal-accent) 28%, var(--portal-border));
+  border-radius: 999px;
+  color: var(--portal-accent);
+  background: color-mix(in srgb, var(--portal-accent) 8%, transparent);
+}
+
+.portal-focus-empty-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* List-oriented insight panels. */
+.portal-focus-content .constraint-ledger-list,
+.portal-focus-content .port-queue-list,
+.portal-focus-content .action-plan-list,
+.portal-focus-content .fairness-list,
+.portal-focus-content .vessel-risk-list,
+.portal-focus-content .weather-risk-list {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-content: start !important;
+  gap: 10px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: auto !important;
+}
+
+.portal-focus-content .decision-timeline-list,
+.portal-focus-content .port-event-list {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  align-content: start !important;
+  gap: 9px !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+}
+
+.portal-focus-content .weather-point-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  align-content: start !important;
+  gap: 10px !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+}
+
+.portal-focus-content .fleet-summary-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  align-content: start !important;
+  gap: 10px !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+}
+
+.portal-focus-content .constraint-ledger-row,
+.portal-focus-content .decision-timeline-card,
+.portal-focus-content .weather-point-card,
+.portal-focus-content .fleet-summary-grid article,
+.portal-focus-content .port-queue-row,
+.portal-focus-content .action-plan-row,
+.portal-focus-content .fairness-row,
+.portal-focus-content .vessel-risk-row,
+.portal-focus-content .weather-risk-row {
+  min-width: 0 !important;
+  padding: 12px !important;
+  border: 1px solid var(--portal-border) !important;
+  border-radius: 9px !important;
+  color: var(--portal-text-secondary) !important;
+  background: var(--portal-panel) !important;
+  box-shadow: none !important;
+}
+
+.portal-focus-content .constraint-ledger-row strong,
+.portal-focus-content .decision-timeline-card strong,
+.portal-focus-content .weather-point-card strong,
+.portal-focus-content .fleet-summary-grid strong,
+.portal-focus-content .port-queue-row strong,
+.portal-focus-content .action-plan-row strong,
+.portal-focus-content .fairness-row strong,
+.portal-focus-content .vessel-risk-row strong,
+.portal-focus-content .weather-risk-row strong {
+  color: var(--portal-text) !important;
+}
+
+.portal-focus-content .constraint-ledger-row small,
+.portal-focus-content .decision-timeline-card span,
+.portal-focus-content .decision-timeline-card p,
+.portal-focus-content .weather-point-card span,
+.portal-focus-content .weather-point-card dt,
+.portal-focus-content .weather-point-card dd,
+.portal-focus-content .fleet-summary-grid span,
+.portal-focus-content .fleet-summary-grid small,
+.portal-focus-content .port-queue-row small,
+.portal-focus-content .action-plan-row small,
+.portal-focus-content .fairness-row small,
+.portal-focus-content .vessel-risk-row small,
+.portal-focus-content .weather-risk-row small {
+  color: var(--portal-text-muted) !important;
+}
+
+/* Watchlist focus view. */
+.portal-focus-watchlist .watchlist-panel {
+  display: grid !important;
+  grid-template-columns: minmax(260px, 0.82fr) minmax(0, 2.18fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  gap: 12px !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.portal-focus-watchlist .watchlist-recommendation {
+  align-content: start !important;
+  min-height: 0 !important;
+  padding: 16px !important;
+  overflow: auto !important;
+  border: 1px solid color-mix(in srgb, var(--portal-accent) 35%, var(--portal-border)) !important;
+  border-radius: 9px !important;
+  background: color-mix(in srgb, var(--portal-accent) 6%, var(--portal-panel)) !important;
+}
+
+.portal-focus-watchlist .watchlist-items {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  align-content: start !important;
+  gap: 10px !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+}
+
+.portal-focus-watchlist .watchlist-item {
+  min-height: 0 !important;
+  padding: 12px !important;
+  border: 1px solid var(--portal-border) !important;
+  border-radius: 9px !important;
+  background: var(--portal-panel) !important;
+}
+
+/* Vessel table focus view. */
+.portal-focus-vessels .portal-focus-content {
+  overflow: hidden !important;
+}
+
+.portal-focus-vessels .vessel-table-shell {
+  display: grid !important;
+  grid-template-rows: auto auto minmax(0, 1fr) auto !important;
+  gap: 8px !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.portal-focus-vessels .vessel-table-toolbar {
+  display: grid !important;
+  grid-template-columns: minmax(240px, 1fr) repeat(3, minmax(130px, auto)) !important;
+  gap: 7px !important;
+}
+
+.portal-focus-vessels .vessel-table-summary {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+}
+
+.portal-focus-vessels .table-scroll {
+  height: 100% !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+  border: 1px solid var(--portal-border) !important;
+  border-radius: 8px !important;
+  background: var(--portal-panel) !important;
+}
+
+.portal-focus-vessels .vessel-table {
+  min-width: 1040px !important;
+}
+
+.portal-focus-vessels .vessel-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--portal-panel-raised) !important;
+}
+
+.portal-focus-vessels .vessel-table-empty {
+  display: table-cell !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+/* Port coverage and setup views. */
+.portal-focus-port-coverage .portal-focus-content,
+.portal-focus-port-queue .portal-focus-content {
+  overflow: hidden !important;
+}
+
+.portal-focus-port-coverage .port-coverage-matrix,
+.portal-focus-port-queue .port-queue-board {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.portal-focus-ports .port-ops-setup {
+  width: min(760px, 100%);
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 auto;
+  padding: 18px !important;
+  border: 1px solid var(--portal-border) !important;
+  border-radius: 9px !important;
+  color: var(--portal-text-secondary) !important;
+  background: var(--portal-panel) !important;
+}
+
+/* Light-mode parity. */
+:root[data-theme="light"] .portal-focus-backdrop {
+  background: rgba(19, 42, 47, 0.58) !important;
+}
+
+:root[data-theme="light"] .portal-focus-panel,
+:root[data-theme="light"] .portal-focus-header,
+:root[data-theme="light"] .portal-focus-content .insight-panel-summary,
+:root[data-theme="light"] .port-event-stat-grid article,
+:root[data-theme="light"] .port-event-toolbar,
+:root[data-theme="light"] .port-event-table-shell,
+:root[data-theme="light"] .portal-focus-content .constraint-ledger-row,
+:root[data-theme="light"] .portal-focus-content .decision-timeline-card,
+:root[data-theme="light"] .portal-focus-content .weather-point-card,
+:root[data-theme="light"] .portal-focus-content .fleet-summary-grid article,
+:root[data-theme="light"] .portal-focus-content .port-queue-row,
+:root[data-theme="light"] .portal-focus-content .action-plan-row,
+:root[data-theme="light"] .portal-focus-content .fairness-row,
+:root[data-theme="light"] .portal-focus-content .vessel-risk-row,
+:root[data-theme="light"] .portal-focus-content .weather-risk-row,
+:root[data-theme="light"] .portal-focus-watchlist .watchlist-item,
+:root[data-theme="light"] .portal-focus-vessels .table-scroll {
+  color: var(--portal-text) !important;
+  background: var(--portal-panel) !important;
+}
+
+:root[data-theme="light"] .portal-focus-content {
+  background: var(--portal-bg) !important;
+}
+
+/* Responsive focus layouts. */
+@media (max-width: 1050px) {
+  .port-event-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .port-event-stat-grid,
+  .portal-focus-content .weather-point-grid,
+  .portal-focus-content .fleet-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .portal-focus-watchlist .watchlist-panel {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto minmax(0, 1fr) !important;
+  }
+
+  .portal-focus-vessels .vessel-table-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .portal-focus-backdrop {
+    padding: 6px !important;
+  }
+
+  .portal-focus-panel,
+  .portal-focus-scene,
+  .portal-focus-vessels,
+  .portal-focus-port-events,
+  .portal-focus-port-coverage,
+  .portal-focus-port-queue {
+    width: calc(100vw - 12px) !important;
+    height: calc(100dvh - 12px) !important;
+    max-width: calc(100vw - 12px) !important;
+    max-height: calc(100dvh - 12px) !important;
+    border-radius: 9px !important;
+  }
+
+  .portal-focus-header {
+    min-height: 70px !important;
+    padding: 10px !important;
+  }
+
+  .portal-focus-header p {
+    max-width: 50ch;
+  }
+
+  .portal-focus-content {
+    padding: 10px !important;
+  }
+
+  .portal-focus-scene .portal-focus-content {
+    padding: 0 !important;
+  }
+
+  .portal-focus-scene .leaflet-map-controls {
+    max-width: calc(100% - 16px) !important;
+  }
+
+  .port-event-stat-grid,
+  .portal-focus-content .constraint-ledger-list,
+  .portal-focus-content .port-queue-list,
+  .portal-focus-content .action-plan-list,
+  .portal-focus-content .fairness-list,
+  .portal-focus-content .vessel-risk-list,
+  .portal-focus-content .weather-risk-list,
+  .portal-focus-content .weather-point-grid,
+  .portal-focus-content .fleet-summary-grid,
+  .portal-focus-watchlist .watchlist-items {
+    grid-template-columns: 1fr !important;
+  }
+
+  .port-event-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .port-event-provider-state {
+    align-self: flex-start;
+  }
+
+  .portal-focus-vessels .vessel-table-toolbar {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-focus-panel *,
+  .portal-focus-panel *::before,
+  .portal-focus-panel *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

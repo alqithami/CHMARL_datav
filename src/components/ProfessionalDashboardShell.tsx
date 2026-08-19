@@ -51,6 +51,13 @@ export type ProfessionalFocusPanel =
 
 type LoadStatus = "loading" | "refreshing" | DashboardDataSource;
 
+type FocusContent = {
+  panel: ProfessionalFocusPanel;
+  title: string;
+  description: string;
+  content: ReactNode;
+};
+
 const allowScenarioSimulation = import.meta.env.VITE_ALLOW_SAMPLE_DATA === "true";
 
 function isExternalSource(source: DashboardDataSource) {
@@ -127,20 +134,52 @@ function scenarioData(base: DashboardData, scenarioId: string): DashboardData {
   return base;
 }
 
-function FocusModal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+function FocusModal({
+  panel,
+  title,
+  description,
+  children,
+  onClose,
+}: {
+  panel: ProfessionalFocusPanel;
+  title: string;
+  description: string;
+  children: ReactNode;
+  onClose: () => void;
+}) {
   useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [onClose]);
 
   return (
-    <div className="focus-backdrop" role="dialog" aria-modal="true" aria-label={title}>
-      <section className="focus-panel portal-focus-panel">
-        <header className="focus-header"><h2>{title}</h2><button type="button" onClick={onClose}>Close</button></header>
-        <div className="focus-content">{children}</div>
+    <div
+      className={`focus-backdrop portal-focus-backdrop focus-${panel}`}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`focus-title-${panel}`}
+      aria-describedby={`focus-description-${panel}`}
+      onMouseDown={(event) => {
+        if (event.currentTarget === event.target) onClose();
+      }}>
+      <section className={`focus-panel portal-focus-panel portal-focus-${panel}`} data-focus-panel={panel}>
+        <header className="focus-header portal-focus-header">
+          <div>
+            <span>Operational detail</span>
+            <h2 id={`focus-title-${panel}`}>{title}</h2>
+            <p id={`focus-description-${panel}`}>{description}</p>
+          </div>
+          <button type="button" onClick={onClose}><span aria-hidden="true">×</span> Close</button>
+        </header>
+        <div className="focus-content portal-focus-content">{children}</div>
       </section>
     </div>
   );
@@ -195,26 +234,26 @@ export default function ProfessionalDashboardShell() {
     if (selectedVesselId && !data.vessels.some((vessel) => vessel.id === selectedVesselId)) setSelectedVesselId("");
   }, [data.vessels, selectedVesselId]);
 
-  const focusContent = useMemo(() => {
-    if (focusPanel === "reward") return { title: "CH-MARL Reward Trend", content: <RewardTrend data={data.rewardTrend} /> };
-    if (focusPanel === "speed") return { title: "Vessel Speed Profile", content: <VesselSpeedProfile vessels={data.vessels} /> };
-    if (focusPanel === "constraints") return { title: "Operational Constraint Pressure", content: <ConstraintChart data={data.constraintPressure} /> };
-    if (focusPanel === "scene") return { title: "Maritime Operations Map", content: <ShipScene vessels={data.vessels} portEvents={data.portEvents} expanded /> };
-    if (focusPanel === "ports") return { title: portPanelTitle, content: portPanelContent };
-    if (focusPanel === "watchlist") return { title: "Operational Watchlist", content: <OperationalWatchlist data={data} scenarioId={selectedScenarioId} /> };
-    if (focusPanel === "vessels") return { title: "Vessel State Table", content: <VesselTable vessels={data.vessels} /> };
-    if (focusPanel === "chmarl-components") return { title: "CH-MARL Reward Components", content: <ChmarlRewardComponents steps={data.chmarlSteps} /> };
-    if (focusPanel === "chmarl-actions") return { title: "CH-MARL Agent Action Plan", content: <ChmarlActionPlan steps={data.chmarlSteps} /> };
-    if (focusPanel === "chmarl-fairness") return { title: "CH-MARL Fairness Metrics", content: <ChmarlFairnessPanel steps={data.chmarlSteps} /> };
-    if (focusPanel === "chmarl-constraints") return { title: "CH-MARL Constraint Shield", content: <ChmarlConstraintLedger steps={data.chmarlSteps} /> };
-    if (focusPanel === "chmarl-decisions") return { title: "CH-MARL Decision Trace", content: <ChmarlDecisionTimeline steps={data.chmarlSteps} limit={24} /> };
-    if (focusPanel === "weather") return { title: "Marine Weather Coverage", content: <MarineWeatherOverview points={data.weatherPoints} /> };
-    if (focusPanel === "weather-risk") return { title: "Weather Risk Matrix", content: <WeatherRiskMatrix points={data.weatherPoints} /> };
-    if (focusPanel === "fleet") return { title: "Fleet Operational Summary", content: <FleetOperationalSummary vessels={data.vessels} /> };
-    if (focusPanel === "vessel-risk") return { title: "Vessel Risk Register", content: <VesselRiskRegister vessels={data.vessels} /> };
-    if (focusPanel === "port-events") return { title: "Port Event Feed", content: <PortEventFeed events={data.portEvents} source={data.portOpsSource} /> };
-    if (focusPanel === "port-queue") return { title: "Port Queue / Berth Board", content: <PortQueueBoard rows={data.portQueueStatus} source={data.portOpsSource} /> };
-    if (focusPanel === "port-coverage") return { title: "Eight-Port AIS Coverage", content: <PortCoverageMatrix vessels={data.vessels} /> };
+  const focusContent = useMemo<FocusContent | null>(() => {
+    if (focusPanel === "reward") return { panel: focusPanel, title: "CH-MARL Reward Trend", description: "Online reward trajectory and recent score behavior. Missing values remain explicit when no valid model state exists.", content: <RewardTrend data={data.rewardTrend} /> };
+    if (focusPanel === "speed") return { panel: focusPanel, title: "Vessel Speed Profile", description: "Distribution of reported AIS speed over ground across the current tracked cohort.", content: <VesselSpeedProfile vessels={data.vessels} /> };
+    if (focusPanel === "constraints") return { panel: focusPanel, title: "Operational Constraint Pressure", description: "Current pressure signals for capacity, safety, fuel, ETA, emissions, and fairness constraints.", content: <ConstraintChart data={data.constraintPressure} /> };
+    if (focusPanel === "scene") return { panel: focusPanel, title: "Maritime Operations Map", description: "Expanded interactive map with vessel search, port zones, events, trails, and seamarks.", content: <ShipScene vessels={data.vessels} portEvents={data.portEvents} expanded /> };
+    if (focusPanel === "ports") return { panel: focusPanel, title: portPanelTitle, description: "Connected port queue, berth utilization, and provider-readiness information.", content: portPanelContent };
+    if (focusPanel === "watchlist") return { panel: focusPanel, title: "Operational Watchlist", description: "Prioritized exceptions, provider conditions, and recommended operator actions.", content: <OperationalWatchlist data={data} scenarioId={selectedScenarioId} /> };
+    if (focusPanel === "vessels") return { panel: focusPanel, title: "Vessel State Table", description: "Searchable and sortable vessel state with provenance, position, speed, route, and freshness context.", content: <VesselTable vessels={data.vessels} /> };
+    if (focusPanel === "chmarl-components") return { panel: focusPanel, title: "CH-MARL Reward Components", description: "Component-level contribution to the latest available EcoFair-CH-MARL reward state.", content: <ChmarlRewardComponents steps={data.chmarlSteps} /> };
+    if (focusPanel === "chmarl-actions") return { panel: focusPanel, title: "CH-MARL Agent Action Plan", description: "Latest hierarchical actions and affected operational targets.", content: <ChmarlActionPlan steps={data.chmarlSteps} /> };
+    if (focusPanel === "chmarl-fairness") return { panel: focusPanel, title: "CH-MARL Fairness Metrics", description: "Available fuel-equity and service-fairness measures across the operational scope.", content: <ChmarlFairnessPanel steps={data.chmarlSteps} /> };
+    if (focusPanel === "chmarl-constraints") return { panel: focusPanel, title: "CH-MARL Constraint Shield", description: "Constraint values, limits, satisfaction state, and severity for the latest model step.", content: <ChmarlConstraintLedger steps={data.chmarlSteps} /> };
+    if (focusPanel === "chmarl-decisions") return { panel: focusPanel, title: "CH-MARL Decision Trace", description: "Chronological hierarchical decisions and their recorded rationale.", content: <ChmarlDecisionTimeline steps={data.chmarlSteps} limit={24} /> };
+    if (focusPanel === "weather") return { panel: focusPanel, title: "Marine Weather Coverage", description: "Available marine and fallback weather observations across monitored locations.", content: <MarineWeatherOverview points={data.weatherPoints} /> };
+    if (focusPanel === "weather-risk") return { panel: focusPanel, title: "Weather Risk Matrix", description: "Weather observations classified by wave, wind, and sea-state risk thresholds.", content: <WeatherRiskMatrix points={data.weatherPoints} /> };
+    if (focusPanel === "fleet") return { panel: focusPanel, title: "Fleet Operational Summary", description: "Fleet state, movement, position, trail, and freshness summary for the current AIS cohort.", content: <FleetOperationalSummary vessels={data.vessels} /> };
+    if (focusPanel === "vessel-risk") return { panel: focusPanel, title: "Vessel Risk Register", description: "Tracked vessel exceptions, missing state, freshness, and constraint indicators.", content: <VesselRiskRegister vessels={data.vessels} /> };
+    if (focusPanel === "port-events") return { panel: focusPanel, title: "Port Event Feed", description: "Filterable operational event feed for arrivals, anchorage, berth, service, and departure activity.", content: <PortEventFeed events={data.portEvents} source={data.portOpsSource} /> };
+    if (focusPanel === "port-queue") return { panel: focusPanel, title: "Port Queue / Berth Board", description: "Queue length, waiting vessels, berth utilization, and pressure state by connected port row.", content: <PortQueueBoard rows={data.portQueueStatus} source={data.portOpsSource} /> };
+    if (focusPanel === "port-coverage") return { panel: focusPanel, title: "Eight-Port AIS Coverage", description: "Current vessel coverage within the configured operational radius of the eight monitored ports.", content: <PortCoverageMatrix vessels={data.vessels} /> };
     return null;
   }, [data, focusPanel, portPanelContent, portPanelTitle, selectedScenarioId]);
 
@@ -266,7 +305,15 @@ export default function ProfessionalDashboardShell() {
 
       <CommandWorkspace data={data} onFocus={openFocus} />
 
-      {focusContent && <FocusModal title={focusContent.title} onClose={() => setFocusPanel(null)}>{focusContent.content}</FocusModal>}
+      {focusContent && (
+        <FocusModal
+          panel={focusContent.panel}
+          title={focusContent.title}
+          description={focusContent.description}
+          onClose={() => setFocusPanel(null)}>
+          {focusContent.content}
+        </FocusModal>
+      )}
     </main>
   );
 }
