@@ -1,0 +1,224 @@
+name: Diagnose live AIS geography regression
+
+on:
+  push:
+    branches:
+      - agent/diagnose-live-geography-regression
+    paths:
+      - .github/workflows/diagnose-live-geography-regression.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Inspect the deployed vessel sources and geography
+        env:
+          BASE_URL: https://chmarl-datav.onrender.com
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const baseUrl = process.env.BASE_URL;
+
+          async function getJson(path, timeoutMs = 180000) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+              const response = await fetch(baseUrl + path, {
+                signal: controller.signal,
+                headers: { accept: 'application/json', 'user-agent': 'CHMARL-read-only-geography-diagnostic/1.0' },
+              });
+              const text = await response.text();
+              let payload;
+              try { payload = JSON.parse(text); }
+              catch { payload = { parseError: true, preview: text.slice(0, 1000) }; }
+              return { status: response.status, payload };
+            } finally {
+              clearTimeout(timer);
+            }
+          }
+
+          function numeric(value) {
+            const n = Number(value);
+            return Number.isFinite(n) ? n : null;
+          }
+
+          function timestampMs(value) {
+            const parsed = Date.parse(String(value ?? ''));
+            return Number.isFinite(parsed) ? parsed : 0;
+          }
+
+          function inBox(row, minLat, maxLat, minLon, maxLon) {
+            const lat = numeric(row.latitude ?? row.lat);
+            const lon = numeric(row.longitude ?? row.lon ?? row.lng);
+            return lat !== null && lon !== null && lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
+          }
+
+          function topBins(rows, size = 5) {
+            const bins = new Map();
+            for (const row of rows) {
+              const lat = numeric(row.latitude ?? row.lat);
+              const lon = numeric(row.longitude ?? row.lon ?? row.lng);
+              if (lat === null || lon === null) continue;
+              const lat0 = Math.floor(lat / size) * size;
+              const lon0 = Math.floor(lon / size) * size;
+              const key = `${lat0}..${lat0 + size}, ${lon0}..${lon0 + size}`;
+              bins.set(key, (bins.get(key) ?? 0) + 1);
+            }
+            return [...bins.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20).map(([box, count]) => ({ box, count }));
+          }
+
+          function countBy(rows, selector) {
+            const counts = new Map();
+            for (const row of rows) {
+              const key = String(selector(row) ?? 'unknown');
+              counts.set(key, (counts.get(key) ?? 0) + 1);
+            }
+            return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([key, count]) => ({ key, count }));
+          }
+
+          function coordinateBounds(rows) {
+            const coordinates = rows.flatMap((row) => {
+              const lat = numeric(row.latitude ?? row.lat);
+              const lon = numeric(row.longitude ?? row.lon ?? row.lng);
+              return lat === null || lon === null ? [] : [{ lat, lon }];
+            });
+            if (!coordinates.length) return null;
+            return {
+              minLat: Math.min(...coordinates.map((p) => p.lat)),
+              maxLat: Math.max(...coordinates.map((p) => p.lat)),
+              minLon: Math.min(...coordinates.map((p) => p.lon)),
+              maxLon: Math.max(...coordinates.map((p) => p.lon)),
+            };
+          }
+
+          function ageSummary(rows) {
+            const ages = rows.map((row) => timestampMs(row.timestamp)).filter((value) => value > 0).map((value) => Date.now() - value).sort((a, b) => a - b);
+            if (!ages.length) return null;
+            const at = (fraction) => ages[Math.min(ages.length - 1, Math.floor((ages.length - 1) * fraction))];
+            return {
+              newestMinutes: +(ages[0] / 60000).toFixed(2),
+              medianMinutes: +(at(0.5) / 60000).toFixed(2),
+              p90Minutes: +(at(0.9) / 60000).toFixed(2),
+              oldestMinutes: +(ages.at(-1) / 60000).toFixed(2),
+            };
+          }
+
+          async function run() {
+            const [versionResult, healthResult, vesselResult] = await Promise.all([
+              getJson('/version', 60000),
+              getJson('/health', 180000),
+              getJson('/api/vessels', 240000),
+            ]);
+
+            const version = versionResult.payload ?? {};
+            const health = healthResult.payload ?? {};
+            const vesselsPayload = vesselResult.payload ?? {};
+            const rows = Array.isArray(vesselsPayload.vessels) ? vesselsPayload.vessels : [];
+
+            const regionCounts = {
+              norwayNorthSea: rows.filter((row) => inBox(row, 50, 72, -15, 40)).length,
+              balticFinland: rows.filter((row) => inBox(row, 53, 71, 10, 35)).length,
+              singapore: rows.filter((row) => inBox(row, -2, 8, 95, 110)).length,
+              redSea: rows.filter((row) => inBox(row, 11, 31, 32, 44)).length,
+              arabianGulf: rows.filter((row) => inBox(row, 22, 31, 47, 57)).length,
+              mediterranean: rows.filter((row) => inBox(row, 30, 47, -6, 37)).length,
+              americas: rows.filter((row) => inBox(row, -60, 72, -170, -30)).length,
+              eastAsia: rows.filter((row) => inBox(row, -10, 60, 110, 180)).length,
+            };
+
+            const summary = {
+              observedAt: new Date().toISOString(),
+              http: {
+                version: versionResult.status,
+                health: healthResult.status,
+                vessels: vesselResult.status,
+              },
+              deployedRevision: version.version ?? null,
+              providerState: health.providerState ?? null,
+              trackingScope: health.trackingScope ?? null,
+              operationalScope: health.operationalScope ?? null,
+              vesselInputs: health.vesselInputs ?? vesselsPayload.inputs ?? null,
+              api: {
+                source: vesselsPayload.source ?? null,
+                scope: vesselsPayload.scope ?? null,
+                counts: vesselsPayload.counts ?? null,
+                actualRows: rows.length,
+              },
+              aisstream: health.aisstream ? {
+                enabled: health.aisstream.enabled,
+                connected: health.aisstream.connected,
+                status: health.aisstream.status,
+                activeProfile: health.aisstream.activeProfile,
+                activeProfileDescription: health.aisstream.activeProfileDescription,
+                boundingBoxes: health.aisstream.boundingBoxes,
+                filterTypes: health.aisstream.filterTypes,
+                messageCount: health.aisstream.messageCount,
+                connectionMessageCount: health.aisstream.connectionMessageCount,
+                usablePositionMessages: health.aisstream.usablePositionMessages,
+                cachedVessels: health.aisstream.cachedVessels,
+                cacheLimit: health.aisstream.cacheLimit,
+                countLimited: health.aisstream.countLimited,
+                locationFilter: health.aisstream.locationFilter,
+                discardedByLocation: health.aisstream.discardedByLocation,
+                lastFrameAt: health.aisstream.lastFrameAt,
+                lastMessageAt: health.aisstream.lastMessageAt,
+                lastSuccessfulProfile: health.aisstream.lastSuccessfulProfile,
+                lastSuccessfulAt: health.aisstream.lastSuccessfulAt,
+                lastError: health.aisstream.lastError,
+                lastHttpStatus: health.aisstream.lastHttpStatus,
+                rateLimitedUntil: health.aisstream.rateLimitedUntil,
+                cycleBackoffUntil: health.aisstream.cycleBackoffUntil,
+              } : null,
+              pocketworld: health.pocketworld ? {
+                status: health.pocketworld.status,
+                connected: health.pocketworld.connected,
+                cachedVessels: health.pocketworld.cachedVessels,
+                totalAvailable: health.pocketworld.totalAvailable,
+                responseRowCount: health.pocketworld.responseRowCount,
+                pagesFetched: health.pocketworld.pagesFetched,
+                fetchComplete: health.pocketworld.fetchComplete,
+                truncated: health.pocketworld.truncated,
+                maxVessels: health.pocketworld.maxVessels,
+                countLimited: health.pocketworld.countLimited,
+                locationFilter: health.pocketworld.locationFilter,
+                discardedByLocation: health.pocketworld.discardedByLocation,
+                observedSources: health.pocketworld.observedSources,
+                workingSources: health.pocketworld.workingSources,
+                coverage: health.pocketworld.coverage,
+                lastSuccessAt: health.pocketworld.lastSuccessAt,
+                lastError: health.pocketworld.lastError,
+              } : null,
+              datalastic: health.datalastic ? {
+                configured: health.datalastic.configured,
+                enabled: health.datalastic.enabled,
+                status: health.datalastic.status,
+                cachedVessels: health.datalastic.cachedVessels,
+                countLimited: health.datalastic.countLimited,
+                locationFilter: health.datalastic.locationFilter,
+                discardedByLocation: health.datalastic.discardedByLocation,
+                scanPoints: health.datalastic.scanPoints,
+                lastError: health.datalastic.lastError,
+              } : null,
+              rowProvenance: countBy(rows, (row) => row.inputSource ?? row.provider ?? row.sourceProvider),
+              rowStatus: countBy(rows, (row) => row.status),
+              regionCounts,
+              coordinateBounds: coordinateBounds(rows),
+              age: ageSummary(rows),
+              topFiveDegreeBins: topBins(rows, 5),
+            };
+
+            console.log('=== LIVE AIS GEOGRAPHY DIAGNOSTIC ===');
+            console.log(JSON.stringify(summary, null, 2));
+          }
+
+          run().catch((error) => {
+            console.log('=== DIAGNOSTIC COULD NOT COMPLETE ===');
+            console.log(error instanceof Error ? error.stack : String(error));
+            // This is a read-only diagnostic. Do not generate failure email noise.
+            process.exitCode = 0;
+          });
+          NODE
