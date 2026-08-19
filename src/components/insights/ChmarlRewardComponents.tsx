@@ -7,7 +7,16 @@ export type ChmarlRewardComponentsProps = {
   compact?: boolean;
 };
 
-const componentOrder: ChmarlReward["component"][] = ["global", "throughput", "safety", "fairness", "delay", "emissions", "fuel", "constraint_penalty"];
+const componentOrder: ChmarlReward["component"][] = [
+  "global",
+  "throughput",
+  "safety",
+  "fairness",
+  "delay",
+  "emissions",
+  "fuel",
+  "constraint_penalty",
+];
 
 function latestStep(steps: ChmarlExperimentStep[]) {
   return steps.at(-1);
@@ -29,16 +38,40 @@ function componentRows(step?: ChmarlExperimentStep) {
 }
 
 function rewardLabelFormatter(params: unknown) {
-  const value = typeof params === "object" && params !== null && "value" in params
-    ? (params as { value?: unknown }).value
-    : undefined;
+  const value =
+    typeof params === "object" && params !== null && "value" in params
+      ? (params as { value?: unknown }).value
+      : undefined;
   const numericValue = Array.isArray(value) ? Number(value[0]) : Number(value);
   return Number.isFinite(numericValue) ? numericValue.toFixed(3) : "";
 }
 
-export default function ChmarlRewardComponents({ steps, compact = false }: ChmarlRewardComponentsProps) {
+function rewardComponentSummary(
+  rows: ReturnType<typeof componentRows>,
+  step?: ChmarlExperimentStep
+) {
+  if (rows.length === 0) {
+    return "Waiting for CH-MARL reward component observations.";
+  }
+  const stepLabel = step?.step === undefined ? "latest step" : `step ${step.step}`;
+  return `${stepLabel}. ${rows
+    .map(
+      (row) =>
+        `${row.component.replace("constraint_", "constraint ")}: ${row.value.toFixed(3)}`
+    )
+    .join("; ")}`;
+}
+
+export default function ChmarlRewardComponents({
+  steps,
+  compact = false,
+}: ChmarlRewardComponentsProps) {
   const latest = latestStep(steps);
   const rows = useMemo(() => componentRows(latest), [latest]);
+  const summary = useMemo(
+    () => rewardComponentSummary(rows, latest),
+    [latest, rows]
+  );
   const global = rows.find((row) => row.component === "global")?.value;
   const state = latest?.state ?? {};
 
@@ -67,7 +100,11 @@ export default function ChmarlRewardComponents({ steps, compact = false }: Chmar
       xAxis: {
         type: "category" as const,
         data: rows.map((row) => row.component.replace("constraint_", "constraint ")),
-        axisLabel: { color: "rgba(230,247,255,0.58)", interval: 0, rotate: compact ? 25 : 0 },
+        axisLabel: {
+          color: "rgba(230,247,255,0.58)",
+          interval: 0,
+          rotate: compact ? 25 : 0,
+        },
         axisLine: { lineStyle: { color: "rgba(255,255,255,0.10)" } },
         axisTick: { show: false },
       },
@@ -85,7 +122,12 @@ export default function ChmarlRewardComponents({ steps, compact = false }: Chmar
           barWidth: compact ? 12 : 18,
           data: rows.map((row) => row.value),
           itemStyle: { borderRadius: [6, 6, 0, 0], color: "#65e4cb" },
-          label: { show: !compact && rows.length > 0, position: "top" as const, color: "#dffcff", formatter: rewardLabelFormatter },
+          label: {
+            show: !compact && rows.length > 0,
+            position: "top" as const,
+            color: "#dffcff",
+            formatter: rewardLabelFormatter,
+          },
         },
       ],
     }),
@@ -99,7 +141,12 @@ export default function ChmarlRewardComponents({ steps, compact = false }: Chmar
         <strong>{global === undefined ? "n/a" : global.toFixed(3)}</strong>
         <small>{String(state.rewardFormula ?? "online CH-MARL reward components")}</small>
       </div>
-      <Chart option={option} className="insight-chart" />
+      <Chart
+        option={option}
+        className="insight-chart"
+        ariaLabel="CH-MARL reward components chart"
+        summary={summary}
+      />
     </div>
   );
 }
