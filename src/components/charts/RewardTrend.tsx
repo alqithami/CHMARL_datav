@@ -5,13 +5,13 @@ export type RewardTrendProps = {
   data: (string | number)[][];
 };
 
-function numericRewards(data: (string | number)[][]) {
+function numericRewards(data: RewardTrendProps["data"]) {
   return data
     .map((item) => Number(item[1]))
     .filter((value) => Number.isFinite(value));
 }
 
-function rewardRange(data: (string | number)[][]) {
+function rewardRange(data: RewardTrendProps["data"]) {
   const values = numericRewards(data);
   if (values.length === 0) return { min: 0, max: 1 };
 
@@ -26,8 +26,24 @@ function rewardRange(data: (string | number)[][]) {
   };
 }
 
+function rewardSummary(data: RewardTrendProps["data"]) {
+  const values = numericRewards(data);
+  if (values.length === 0) {
+    return "No CH-MARL episode reward observations are currently connected.";
+  }
+
+  const latestPoint = data[data.length - 1];
+  const latestLabel = String(latestPoint?.[0] ?? "latest step");
+  const latestValue = Number(latestPoint?.[1]);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+
+  return `${values.length} reward observations. ${latestLabel}: ${latestValue.toFixed(3)}. Observed range: ${minValue.toFixed(3)} to ${maxValue.toFixed(3)}.`;
+}
+
 export default function RewardTrend({ data }: RewardTrendProps) {
   const axisRange = useMemo(() => rewardRange(data), [data]);
+  const summary = useMemo(() => rewardSummary(data), [data]);
   const option = useMemo(
     () => ({
       grid: { left: 12, right: 16, top: 20, bottom: 18, containLabel: true },
@@ -80,5 +96,11 @@ export default function RewardTrend({ data }: RewardTrendProps) {
     [axisRange.max, axisRange.min, data]
   );
 
-  return <Chart option={option} />;
+  return (
+    <Chart
+      option={option}
+      ariaLabel="CH-MARL reward trend chart"
+      summary={summary}
+    />
+  );
 }
