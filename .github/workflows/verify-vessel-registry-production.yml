@@ -1,0 +1,133 @@
+name: Verify deployed persistent vessel registry
+
+on:
+  push:
+    branches:
+      - agent/verify-vessel-registry-production
+    paths:
+      - .github/workflows/verify-vessel-registry-production.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/verify-vessel-registry-production.yml
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - name: Check out verification branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/verify-vessel-registry-production
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Poll Render and record registry state
+        env:
+          BASE_URL: https://chmarl-datav.onrender.com
+          EXPECTED_SHA: 28157fccc09fe2fffd53bae7cf880fa888a7ff54
+        shell: bash
+        run: |
+          set +e
+          mkdir -p diagnostics
+          revision_matched=false
+          for attempt in $(seq 1 48); do
+            curl --silent --show-error --connect-timeout 10 --max-time 60 "$BASE_URL/version" -o /tmp/version.json
+            node - <<'NODE'
+          const fs = require('fs');
+          let value = {};
+          try { value = JSON.parse(fs.readFileSync('/tmp/version.json', 'utf8')); } catch {}
+          process.exit(value.version === process.env.EXPECTED_SHA ? 0 : 1);
+          NODE
+            if [[ "$?" == "0" ]]; then
+              revision_matched=true
+              break
+            fi
+            sleep 15
+          done
+
+          curl --silent --show-error --connect-timeout 10 --max-time 240 "$BASE_URL/health" -o /tmp/health.json
+          curl --silent --show-error --connect-timeout 10 --max-time 240 "$BASE_URL/api/vessels" -o /tmp/vessels.json
+          curl --silent --show-error --connect-timeout 10 --max-time 240 "$BASE_URL/api/registry/stats" -o /tmp/registry-stats.json
+          curl --silent --show-error --connect-timeout 10 --max-time 240 "$BASE_URL/api/registry/vessels?limit=5" -o /tmp/registry-list.json
+
+          node - <<'NODE'
+          const fs = require('fs');
+          const read = (path) => {
+            try { return JSON.parse(fs.readFileSync(path, 'utf8')); }
+            catch (error) { return { readError: error.message }; }
+          };
+          const version = read('/tmp/version.json');
+          const health = read('/tmp/health.json');
+          const vessels = read('/tmp/vessels.json');
+          const registry = read('/tmp/registry-stats.json');
+          const registryList = read('/tmp/registry-list.json');
+          const rows = Array.isArray(vessels.vessels) ? vessels.vessels : [];
+          const registryRows = Array.isArray(registryList.rows) ? registryList.rows : [];
+          const sample = registryRows.map((row) => ({
+            vesselUuid: row.vessel_uuid,
+            name: row.current_name,
+            imo: row.canonical_imo,
+            mmsi: row.current_mmsi,
+            registryStatus: row.registryStatus,
+            observedAt: row.observed_at,
+            provider: row.provider,
+          }));
+          const report = {
+            observedAt: new Date().toISOString(),
+            expectedRevision: process.env.EXPECTED_SHA,
+            deployedRevision: version.version ?? null,
+            revisionMatched: version.version === process.env.EXPECTED_SHA,
+            registryEndpointAvailable: !registry.readError && registry.enabled === true,
+            registryStatus: registry.status ?? null,
+            databaseFile: registry.databaseFile ?? null,
+            knownVessels: registry.knownVessels ?? null,
+            currentTrackingRows: vessels.counts?.tracking ?? rows.length,
+            registryStates: {
+              live: registry.live ?? null,
+              delayed: registry.delayed ?? null,
+              lastKnown: registry.lastKnown ?? null,
+              archived: registry.archived ?? null,
+              identityOnly: registry.identityOnly ?? null,
+            },
+            identity: {
+              imoAnchored: registry.imoAnchored ?? null,
+              mmsiAnchored: registry.mmsiAnchored ?? null,
+              openConflicts: registry.openIdentityConflicts ?? null,
+              identityChanges: registry.identityChanges ?? null,
+            },
+            storage: {
+              trackPoints: registry.trackPoints ?? null,
+              storagePolicy: registry.storagePolicy ?? null,
+              persistencePathFromHealth: health.persistence?.vesselRegistryDbFile ?? null,
+            },
+            currentApiRegistrySummary: vessels.registry ?? null,
+            registryListTotal: registryList.total ?? null,
+            sampleRecords: sample,
+            currentRowsCarryRegistryIdentity: rows.length === 0 ? null : rows.slice(0, 20).every((row) => Boolean(row.vesselUuid && row.registryStatus)),
+            ecofairOperationalRows: vessels.counts?.operational ?? health.operationalScope?.rows ?? null,
+            providerState: health.providerState ?? null,
+            warnings: [
+              ...(version.version !== process.env.EXPECTED_SHA ? ['Expected deployment revision was not observed before timeout.'] : []),
+              ...(registry.enabled !== true ? ['Registry endpoint did not report enabled=true.'] : []),
+              ...(registry.status !== 'ready' ? [`Registry status is ${registry.status ?? 'unknown'}.`] : []),
+              ...(Number(registry.knownVessels ?? 0) < Number(vessels.counts?.tracking ?? rows.length) ? ['Known registry count is below the current tracking count.'] : []),
+              ...(rows.length > 0 && !rows.slice(0, 20).every((row) => Boolean(row.vesselUuid && row.registryStatus)) ? ['Current vessel rows are missing registry metadata.'] : []),
+            ],
+          };
+          fs.writeFileSync('diagnostics/vessel-registry-production.json', JSON.stringify(report, null, 2) + '\n');
+          console.log(JSON.stringify(report, null, 2));
+          NODE
+
+      - name: Commit verification evidence
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add diagnostics/vessel-registry-production.json
+          git commit -m "Record deployed vessel registry state" || exit 0
+          git push origin HEAD:agent/verify-vessel-registry-production
