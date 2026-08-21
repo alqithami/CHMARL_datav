@@ -92,3 +92,5 @@ This prevents a provider outage from being misrepresented as permanent vessel lo
 ## Data integrity
 
 The registry stores only genuine provider observations. It does not synthesize vessel identities, positions, routes, or specifications. Invalid coordinates are not placed on the map, and an archived or last-known position cannot enter EcoFair-CH-MARL calculations unless a new, sufficiently fresh port-scope observation arrives.
+
+The production integration is validated through the repository's permanent runtime and UI contract suite before merge.
