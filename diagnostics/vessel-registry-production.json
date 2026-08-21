@@ -1,0 +1,130 @@
+{
+  "observedAt": "2026-08-21T03:31:44.780Z",
+  "expectedRevision": "28157fccc09fe2fffd53bae7cf880fa888a7ff54",
+  "deployedRevision": "28157fccc09fe2fffd53bae7cf880fa888a7ff54",
+  "revisionMatched": true,
+  "registryEndpointAvailable": true,
+  "registryStatus": "ready",
+  "databaseFile": "/var/data/vessel-registry.sqlite",
+  "knownVessels": 5572,
+  "currentTrackingRows": 5572,
+  "registryStates": {
+    "live": 0,
+    "delayed": 0,
+    "lastKnown": 5572,
+    "archived": 0,
+    "identityOnly": 0
+  },
+  "identity": {
+    "imoAnchored": 1649,
+    "mmsiAnchored": 5572,
+    "openConflicts": 0,
+    "identityChanges": 0
+  },
+  "storage": {
+    "trackPoints": 5572,
+    "storagePolicy": {
+      "permanentVesselRecords": true,
+      "permanentIdentityHistory": true,
+      "latestPositionRetained": true,
+      "globalTrackBucketMs": 21600000,
+      "operationalTrackBucketMs": 300000,
+      "fineTrackDays": 7,
+      "globalTrackRetentionDays": 90,
+      "operationalTrackRetentionDays": 365
+    },
+    "persistencePathFromHealth": "/var/data/vessel-registry.sqlite"
+  },
+  "currentApiRegistrySummary": {
+    "enabled": true,
+    "databaseFile": "/var/data/vessel-registry.sqlite",
+    "schemaVersion": 1,
+    "status": "ready",
+    "lastIngestAt": "2026-08-21T03:31:05.903Z",
+    "lastMaintenanceAt": null,
+    "lastError": null,
+    "observedRows": 22288,
+    "changedRows": 5572,
+    "skippedUnchangedRows": 16716,
+    "identityConflicts": 0,
+    "knownVessels": 5572,
+    "withPosition": 5572,
+    "live": 0,
+    "delayed": 0,
+    "lastKnown": 5572,
+    "archived": 0,
+    "identityOnly": 0,
+    "imoAnchored": 1649,
+    "mmsiAnchored": 5572,
+    "openIdentityConflicts": 0,
+    "trackPoints": 5572,
+    "identityChanges": 0,
+    "storagePolicy": {
+      "permanentVesselRecords": true,
+      "permanentIdentityHistory": true,
+      "latestPositionRetained": true,
+      "globalTrackBucketMs": 21600000,
+      "operationalTrackBucketMs": 300000,
+      "fineTrackDays": 7,
+      "globalTrackRetentionDays": 90,
+      "operationalTrackRetentionDays": 365
+    },
+    "freshness": {
+      "liveAgeMs": 600000,
+      "delayedAgeMs": 1800000,
+      "lastKnownAgeMs": 86400000
+    }
+  },
+  "registryListTotal": 5572,
+  "sampleRecords": [
+    {
+      "vesselUuid": "d9fbe1f3-b299-551c-8238-41d571159bfe",
+      "name": "ASKELADDEN",
+      "imo": null,
+      "mmsi": "257452000",
+      "registryStatus": "last-known",
+      "observedAt": "2026-08-21T03:01:40.146Z",
+      "provider": "pocketworld-barentswatch"
+    },
+    {
+      "vesselUuid": "c4fd8ccf-e1fe-5830-ac07-be8d005f9a43",
+      "name": "CELEBRITY APEX",
+      "imo": null,
+      "mmsi": "215105000",
+      "registryStatus": "last-known",
+      "observedAt": "2026-08-21T03:01:40.146Z",
+      "provider": "pocketworld-barentswatch"
+    },
+    {
+      "vesselUuid": "4df4491e-ce09-5f06-9323-13f19dc4bfad",
+      "name": "RAMFORM HYPERION",
+      "imo": null,
+      "mmsi": "311001857",
+      "registryStatus": "last-known",
+      "observedAt": "2026-08-21T03:01:40.146Z",
+      "provider": "pocketworld-barentswatch"
+    },
+    {
+      "vesselUuid": "1b8f3719-df0c-54ef-9985-14b85b62ff75",
+      "name": "ARNOYTIND",
+      "imo": null,
+      "mmsi": "257127870",
+      "registryStatus": "last-known",
+      "observedAt": "2026-08-21T03:01:39.470Z",
+      "provider": "pocketworld-barentswatch"
+    },
+    {
+      "vesselUuid": "b8f0bdb1-12be-5d5d-88be-e941f0150e7d",
+      "name": "AUSTFJORD",
+      "imo": null,
+      "mmsi": "257152000",
+      "registryStatus": "last-known",
+      "observedAt": "2026-08-21T03:01:39.000Z",
+      "provider": "pocketworld-barentswatch"
+    }
+  ],
+  "currentRowsCarryRegistryIdentity": true,
+  "ecofairOperationalRows": 0,
+  "providerState": "degraded-regional-only",
+  "warnings": []
+}
