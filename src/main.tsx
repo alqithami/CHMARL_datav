@@ -32,6 +32,7 @@ import "./mawaniLightMode.css";
 import "./portalVision.css";
 import "./vesselRegistry.css";
 import "./subwindowViews.css";
+import "./expandedMapToolbar.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
