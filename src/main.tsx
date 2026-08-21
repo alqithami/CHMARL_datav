@@ -30,6 +30,7 @@ import "./mawaniVisualRefresh.css";
 import "./vesselSpeedProfile.css";
 import "./mawaniLightMode.css";
 import "./portalVision.css";
+import "./vesselRegistry.css";
 import "./subwindowViews.css";
 
 createRoot(document.getElementById("root")!).render(

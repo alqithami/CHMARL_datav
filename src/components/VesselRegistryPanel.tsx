@@ -1,28 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchFirstJson } from "@/providers/backendUrl";
-
-export type VesselRegistrySummary = {
-  enabled: boolean;
-  status: string;
-  knownVessels: number;
-  withPosition: number;
-  live: number;
-  delayed: number;
-  lastKnown: number;
-  archived: number;
-  identityOnly: number;
-  imoAnchored: number;
-  mmsiAnchored: number;
-  openIdentityConflicts: number;
-  trackPoints: number;
-  identityChanges: number;
-  lastIngestAt?: string | null;
-  storagePolicy?: {
-    permanentVesselRecords?: boolean;
-    permanentIdentityHistory?: boolean;
-    latestPositionRetained?: boolean;
-  };
-};
+import type { VesselRegistrySummary } from "@/data/loadSampleDashboardData";
 
 type RegistryRow = {
   vessel_uuid: string;

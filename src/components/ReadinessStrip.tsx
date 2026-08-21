@@ -47,6 +47,7 @@ function Icon({ type }: { type: ReadinessItem["icon"] }) {
 
 export default function ReadinessStrip({ data, providerLabel, updatedAt }: ReadinessStripProps) {
   const tracking = data.vesselScope?.trackingRows ?? data.vessels.length;
+  const knownVessels = data.registry?.knownVessels ?? tracking;
   const reported = data.vesselScope?.reportedRows ?? tracking;
   const fresh = data.vesselScope?.freshRows ?? tracking;
   const operational = data.vesselScope?.operationalRows ?? 0;
@@ -61,8 +62,8 @@ export default function ReadinessStrip({ data, providerLabel, updatedAt }: Readi
     {
       id: "input",
       label: "Live input readiness",
-      value: tracking > 0 ? `${tracking.toLocaleString()} vessel rows` : "No current vessel rows",
-      detail: `${providerLabel} · ${fresh.toLocaleString()} fresh · ${positionedPct}% positioned · refreshed ${updatedAt}`,
+      value: knownVessels > 0 ? `${knownVessels.toLocaleString()} known · ${tracking.toLocaleString()} current` : "No vessel records",
+      detail: `${providerLabel} · ${fresh.toLocaleString()} fresh · ${positionedPct}% positioned · ${data.registry?.lastKnown?.toLocaleString() ?? 0} last known · refreshed ${updatedAt}`,
       tone: tracking > 0 && stale === 0 ? "good" : tracking > 0 ? "warning" : "missing",
       icon: "input",
     },

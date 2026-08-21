@@ -24,6 +24,20 @@ export type Vessel = {
   courseDeg?: number;
   timestamp?: string;
   inputSource?: string;
+  vesselUuid?: string;
+  imo?: string;
+  mmsi?: string;
+  callSign?: string;
+  flag?: string;
+  shipType?: string;
+  lengthM?: number;
+  beamM?: number;
+  draughtM?: number;
+  navigationStatus?: string;
+  destination?: string;
+  registryStatus?: "live" | "delayed" | "last-known" | "archived" | "identity-only";
+  identityConfidence?: number;
+  verifiedStatus?: string;
   trail?: VesselTrailPoint[];
 };
 

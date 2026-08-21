@@ -35,6 +35,24 @@ export type VesselScopeSummary = {
   operationalRadiusNm: number;
 };
 
+export type VesselRegistrySummary = {
+  enabled: boolean;
+  status: string;
+  knownVessels: number;
+  withPosition: number;
+  live: number;
+  delayed: number;
+  lastKnown: number;
+  archived: number;
+  identityOnly: number;
+  imoAnchored: number;
+  mmsiAnchored: number;
+  openIdentityConflicts: number;
+  trackPoints: number;
+  identityChanges: number;
+  lastIngestAt?: string | null;
+};
+
 export type DashboardData = {
   source: DashboardDataSource;
   chmarlSource: ChmarlDataSource;
@@ -43,6 +61,7 @@ export type DashboardData = {
   weatherPoints: MarineWeatherPoint[];
   coverageDiagnostics?: CoverageDiagnostics;
   vesselScope?: VesselScopeSummary;
+  registry?: VesselRegistrySummary;
   chmarlExperimentId?: string;
   chmarlScenarioId?: string;
   chmarlSteps: ChmarlExperimentStep[];
@@ -314,6 +333,7 @@ export async function loadSampleDashboardData(): Promise<DashboardData> {
     weatherPoints: marineWeather?.points ?? [],
     coverageDiagnostics,
     vesselScope,
+    registry: remoteVessels?.registry,
     chmarlExperimentId: runtimeExperiment?.experimentId ?? experimentSteps[0]?.experimentId,
     chmarlScenarioId: runtimeExperiment?.scenarioId ?? experimentSteps[0]?.scenarioId,
     chmarlSteps: experimentSteps,

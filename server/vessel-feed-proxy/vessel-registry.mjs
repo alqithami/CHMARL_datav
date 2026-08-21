@@ -406,6 +406,10 @@ export function createVesselRegistry({
       UPDATE vessel_identifiers SET last_observed_at = ?, source = COALESCE(?, source), confidence = MAX(confidence, ?)
       WHERE vessel_uuid = ? AND identifier_type = ? AND identifier_value = ? AND active = 1
     `),
+    activeMmsiForVessel: database.prepare(`
+      SELECT identifier_value FROM vessel_identifiers
+      WHERE vessel_uuid = ? AND identifier_type = 'mmsi' AND active = 1 AND identifier_value <> ?
+    `),
     closeOtherMmsi: database.prepare(`
       UPDATE vessel_identifiers SET active = 0, valid_to = ?
       WHERE vessel_uuid = ? AND identifier_type = 'mmsi' AND active = 1 AND identifier_value <> ?
@@ -441,7 +445,7 @@ export function createVesselRegistry({
         observed_ms = excluded.observed_ms,
         received_at = excluded.received_at,
         provider = excluded.provider,
-        operational = MAX(vessel_latest_positions.operational, excluded.operational)
+        operational = excluded.operational
       WHERE excluded.observed_ms >= vessel_latest_positions.observed_ms
     `),
     upsertTrack: database.prepare(`
@@ -573,13 +577,17 @@ export function createVesselRegistry({
       recordConflict(type, value, existingUuid, uuid, identity, { reason: "identifier is already active on another vessel" });
       return;
     }
-    if (type === "mmsi" && identity.imo) statements.closeOtherMmsi.run(identity.observedAt, uuid, value);
+    if (type === "mmsi" && identity.imo) {
+      const formerMmsi = statements.activeMmsiForVessel.all(uuid, value);
+      statements.closeOtherMmsi.run(identity.observedAt, uuid, value);
+      for (const row of formerMmsi) identifierCache.delete(`mmsi:${row.identifier_value}`);
+    }
     statements.insertIdentifier.run(uuid, type, value, identity.observedAt, identity.observedAt, identity.provider, confidence);
     statements.touchIdentifier.run(identity.observedAt, identity.provider, confidence, uuid, type, value);
     identifierCache.set(key, uuid);
   }
 
-  function updateIdentity(uuid, identity) {
+  function updateIdentity(uuid, identity, recordInitial = false) {
     const existing = vesselCache.get(uuid) ?? statements.vesselByUuid.get(uuid);
     const confidence = identity.imo ? 1 : identity.mmsi ? 0.75 : 0.5;
     const changes = [];
@@ -632,7 +640,7 @@ export function createVesselRegistry({
     const row = statements.vesselByUuid.get(uuid);
     vesselCache.set(uuid, row);
 
-    if (changes.length > 0 || !existing) {
+    if (changes.length > 0 || recordInitial) {
       const observationHash = createHash("sha256").update(`${uuid}|${identity.provider}|${serializeJson(identity)}`).digest("hex");
       statements.insertObservation.run(uuid, identity.provider, "identity", observationHash, identity.observedAt, serializeJson(identity));
     }
@@ -744,8 +752,9 @@ export function createVesselRegistry({
         for (const { vessel, operational } of changed) {
           const observation = observationPayload(vessel, nowMs, operational);
           const uuid = resolveUuid(observation.identity);
+          const wasKnown = vesselCache.has(uuid);
           ensureVessel(uuid, observation.identity, observation.observedAt);
-          updateIdentity(uuid, observation.identity);
+          updateIdentity(uuid, observation.identity, !wasKnown);
           updatePosition(uuid, observation);
           resolved.set(vessel, uuid);
           state.changedRows += 1;
@@ -791,7 +800,7 @@ export function createVesselRegistry({
     const normalizedQuery = String(query ?? "").trim();
     if (normalizedQuery) {
       conditions.push("(v.current_name LIKE ? OR v.canonical_imo LIKE ? OR v.current_mmsi LIKE ? OR v.current_call_sign LIKE ?)");
-      const pattern = `%${normalizedQuery.replace(/[%_]/g, "")} %`.replace(" %", "%");
+      const pattern = `%${normalizedQuery.replace(/[%_]/g, "")}%`;
       params.push(pattern, pattern, pattern, pattern);
     }
     const statusCondition = statusSql(status, nowMs);
