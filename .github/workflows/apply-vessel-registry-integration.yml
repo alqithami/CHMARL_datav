@@ -12,6 +12,17 @@ on:
       - docs/VESSEL_REGISTRY.md
       - scripts/apply-vessel-registry-integration.mjs
       - .github/workflows/apply-vessel-registry-integration.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - server/vessel-feed-proxy/vessel-registry.mjs
+      - scripts/smoke-vessel-registry.mjs
+      - src/components/VesselRegistryPanel.tsx
+      - src/vesselRegistry.css
+      - docs/VESSEL_REGISTRY.md
+      - scripts/apply-vessel-registry-integration.mjs
+      - .github/workflows/apply-vessel-registry-integration.yml
 
 permissions:
   contents: write
