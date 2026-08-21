@@ -1,0 +1,122 @@
+/*
+ * Expanded maritime-map toolbar alignment.
+ *
+ * The expanded map has two independent overlays: the primary map toolbar and
+ * the vessel-status filter. Historical rules allowed the primary toolbar to
+ * wrap onto a second row while the status filter remained at a fixed top
+ * offset, producing the small overlap visible in the focus view. Keep the
+ * primary toolbar on one horizontally scrollable row and position the filter
+ * below its reserved height.
+ */
+
+.portal-focus-scene .expanded-map > .leaflet-map-controls {
+  top: 14px !important;
+  left: 14px !important;
+  right: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 6px !important;
+  width: auto !important;
+  max-width: calc(100% - 390px) !important;
+  min-height: 48px !important;
+  padding: 6px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  border-radius: 10px !important;
+  white-space: nowrap;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--portal-border-strong) transparent;
+}
+
+.portal-focus-scene .expanded-map > .leaflet-map-controls > button,
+.portal-focus-scene .expanded-map > .leaflet-map-controls > span {
+  flex: 0 0 auto !important;
+  min-height: 34px !important;
+  height: 34px !important;
+  padding: 0 11px !important;
+  border-radius: 6px !important;
+}
+
+.portal-focus-scene .expanded-map > .tile-filter-bar {
+  top: 74px !important;
+  left: 14px !important;
+  right: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 4px !important;
+  width: max-content !important;
+  max-width: calc(100% - 390px) !important;
+  min-height: 40px !important;
+  padding: 5px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  border-radius: 9px !important;
+  white-space: nowrap;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--portal-border-strong) transparent;
+}
+
+.portal-focus-scene .expanded-map > .tile-filter-bar > button {
+  flex: 0 0 auto !important;
+  min-height: 30px !important;
+  height: 30px !important;
+  padding: 0 12px !important;
+  border-radius: 6px !important;
+}
+
+.portal-focus-scene .expanded-map > .leaflet-map-controls::-webkit-scrollbar,
+.portal-focus-scene .expanded-map > .tile-filter-bar::-webkit-scrollbar {
+  height: 4px;
+}
+
+.portal-focus-scene .expanded-map > .leaflet-map-controls::-webkit-scrollbar-thumb,
+.portal-focus-scene .expanded-map > .tile-filter-bar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--portal-border-strong);
+}
+
+.portal-focus-scene .expanded-map > .leaflet-map-controls::-webkit-scrollbar-track,
+.portal-focus-scene .expanded-map > .tile-filter-bar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (max-width: 980px) {
+  .portal-focus-scene .expanded-map > .leaflet-map-controls,
+  .portal-focus-scene .expanded-map > .tile-filter-bar {
+    max-width: calc(100% - 28px) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .portal-focus-scene .expanded-map > .leaflet-map-controls {
+    top: 10px !important;
+    left: 10px !important;
+    max-width: calc(100% - 20px) !important;
+    min-height: 44px !important;
+    padding: 5px !important;
+  }
+
+  .portal-focus-scene .expanded-map > .leaflet-map-controls > button,
+  .portal-focus-scene .expanded-map > .leaflet-map-controls > span {
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 0 9px !important;
+  }
+
+  .portal-focus-scene .expanded-map > .tile-filter-bar {
+    top: 64px !important;
+    left: 10px !important;
+    max-width: calc(100% - 20px) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-focus-scene .expanded-map > .leaflet-map-controls,
+  .portal-focus-scene .expanded-map > .tile-filter-bar {
+    scroll-behavior: auto !important;
+  }
+}
