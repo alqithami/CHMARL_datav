@@ -41,6 +41,17 @@ const runningOnRender = Boolean(process.env.RENDER || process.env.RENDER_SERVICE
 process.env.STATIC_DIR ??= "dist";
 process.env.PORT ??= "8787";
 process.env.RUNTIME_DATA_DIR = runningOnRender ? "/var/data" : (process.env.RUNTIME_DATA_DIR || ".runtime");
+process.env.VESSEL_REGISTRY_ENABLED = "true";
+process.env.VESSEL_REGISTRY_DB_FILE = join(process.env.RUNTIME_DATA_DIR, "vessel-registry.sqlite");
+process.env.VESSEL_REGISTRY_LIVE_AGE_MS ??= "600000";
+process.env.VESSEL_REGISTRY_DELAYED_AGE_MS ??= "1800000";
+process.env.VESSEL_REGISTRY_LAST_KNOWN_AGE_MS ??= "86400000";
+process.env.VESSEL_REGISTRY_GLOBAL_TRACK_BUCKET_MS ??= "21600000";
+process.env.VESSEL_REGISTRY_OPERATIONAL_TRACK_BUCKET_MS ??= "300000";
+process.env.VESSEL_REGISTRY_FINE_TRACK_DAYS ??= "7";
+process.env.VESSEL_REGISTRY_GLOBAL_TRACK_RETENTION_DAYS ??= "90";
+process.env.VESSEL_REGISTRY_OPERATIONAL_TRACK_RETENTION_DAYS ??= "365";
+process.env.VESSEL_REGISTRY_MAINTENANCE_MS ??= "3600000";
 process.env.AISSTREAM_URL = runningOnRender
   ? "wss://stream.aisstream.io/v0/stream"
   : (process.env.AISSTREAM_URL?.trim() || "wss://stream.aisstream.io/v0/stream");

@@ -16,6 +16,7 @@ function assertNotIncludes(content, text, label) {
 const runtime = read("server/vessel-feed-proxy/runtime-v3.mjs");
 const datalasticProvider = read("server/vessel-feed-proxy/datalastic-live-ais.mjs");
 const pocketWorldProvider = read("server/vessel-feed-proxy/pocketworld-live-ais.mjs");
+const vesselRegistry = read("server/vessel-feed-proxy/vessel-registry.mjs");
 const startProd = read("scripts/start-prod.mjs");
 const render = read("render.yaml");
 const dockerfile = read("Dockerfile");
@@ -44,6 +45,16 @@ assertIncludes(datalasticProvider, '"x-api-key": key', "Datalastic key is not se
 assertIncludes(datalasticProvider, 'inputSource: "datalastic-live-ais"', "Datalastic vessel provenance is absent");
 assertNotIncludes(datalasticProvider, "manual", "Datalastic provider contains manual vessel logic");
 assertIncludes(runtime, "createPocketWorldLiveAisProvider", "public live AIS fallback is not integrated");
+assertIncludes(runtime, "createVesselRegistry", "persistent vessel registry is not integrated");
+assertIncludes(runtime, 'path === "/api/registry/stats"', "registry statistics endpoint is absent");
+assertIncludes(runtime, 'path === "/api/registry/vessels"', "registry list endpoint is absent");
+assertIncludes(runtime, "vesselRegistry.observeBatch", "current AIS rows are not persisted into the registry");
+assertIncludes(vesselRegistry, "DatabaseSync", "the registry is not backed by SQLite");
+assertIncludes(vesselRegistry, "vessel_identity_history", "identity changes are not versioned");
+assertIncludes(vesselRegistry, "vessel_latest_positions", "latest movement state is not separated from identity");
+assertIncludes(vesselRegistry, "vessel_track_points", "bounded track history is absent");
+assertIncludes(vesselRegistry, "vessel_identity_conflicts", "identity conflicts cannot be quarantined");
+assertIncludes(vesselRegistry, 'return "archived"', "archived vessel state is absent");
 assertIncludes(runtime, "pocketWorldRefreshDue", "PocketWorld is not continuously merged with other AIS providers");
 assertIncludes(runtime, '...(Number(vesselInputState.pocketworldRows ?? 0) > 0 ? ["pocketworld"] : [])', "public AIS source is not represented in provider selection");
 assertIncludes(pocketWorldProvider, 'row.inputSource ?? `pocketworld-${source}`', "public AIS provenance is absent");
@@ -98,7 +109,11 @@ assertIncludes(startProd, 'process.env.AISSTREAM_OPERATIONAL_MAX_VESSELS = "0"',
 assertIncludes(startProd, 'process.env.DATALASTIC_MAX_VESSELS = "0"', "production startup does not remove the Datalastic cache ceiling");
 assertIncludes(startProd, 'process.env.POCKETWORLD_MAX_VESSELS = "0"', "production startup does not remove the PocketWorld aggregate ceiling");
 assertIncludes(startProd, 'process.env.RUNTIME_DATA_DIR = runningOnRender ? "/var/data"', "Render persistence is not enforced");
+assertIncludes(startProd, 'process.env.VESSEL_REGISTRY_ENABLED = "true"', "production startup does not enable the permanent registry");
+assertIncludes(startProd, 'vessel-registry.sqlite', "production startup does not place the registry on persistent storage");
 assertIncludes(render, "healthCheckPath: /health/live", "Render liveness endpoint is incorrect");
+assertIncludes(render, "VESSEL_REGISTRY_DB_FILE\n        value: /var/data/vessel-registry.sqlite", "Render registry database is not persistent");
+assertIncludes(render, "VESSEL_REGISTRY_LAST_KNOWN_AGE_MS\n        value: 86400000", "Render registry last-known policy is not configured");
 assertIncludes(render, "value: -90,-180;90,180", "Render does not use the global AIS box");
 assertIncludes(render, "AISSTREAM_MAX_VESSELS\n        value: 0", "Render still applies an AISStream vessel-count ceiling");
 assertIncludes(render, "AISSTREAM_OPERATIONAL_MAX_VESSELS\n        value: 0", "Render still caps the operational AIS cache");
@@ -137,6 +152,7 @@ assertIncludes(packageJson, "scripts/smoke-eight-port-ecofair-focus.mjs", "eight
 assertIncludes(packageJson, "scripts/smoke-public-live-ais-continuity.mjs", "public AIS continuity smoke test is not part of verification");
 assertIncludes(packageJson, "scripts/smoke-ais-rate-limit-backoff.mjs", "AIS rate-limit smoke test is not part of verification");
 assertIncludes(packageJson, "scripts/smoke-unbounded-global-ais.mjs", "unbounded global AIS smoke test is not part of verification");
+assertIncludes(packageJson, "scripts/smoke-vessel-registry.mjs", "persistent vessel registry smoke test is not part of verification");
 assertIncludes(runtime, "optionalCountLimit", "runtime does not support unlimited count policy");
 assertIncludes(runtime, 'locationFilter: "none"', "runtime does not expose location-filter-free tracking");
 assertIncludes(runtime, "validLatitudeRange: [-90, 90]", "runtime does not expose the full geographic latitude range");

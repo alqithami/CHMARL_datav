@@ -4,7 +4,7 @@ import type { DashboardData } from "@/data/loadSampleDashboardData";
 import type { PortEvent } from "@/types/chmarl";
 import PortCoverageMatrix from "./insights/PortCoverageMatrix";
 
-export type CommandWorkspaceFocus = "fleet" | "port-coverage" | "vessels" | "port-events" | "weather";
+export type CommandWorkspaceFocus = "registry" | "fleet" | "port-coverage" | "vessels" | "port-events" | "weather";
 
 export type CommandWorkspaceProps = {
   data: DashboardData;
@@ -69,6 +69,7 @@ function vesselForEvent(vessels: Vessel[], event: PortEvent) {
 
 function commandMetrics(data: DashboardData): CommandMetric[] {
   const tracking = data.vesselScope?.trackingRows ?? data.vessels.length;
+  const knownVessels = data.registry?.knownVessels ?? tracking;
   const operational = data.vesselScope?.operationalRows ?? 0;
   const radius = data.vesselScope?.operationalRadiusNm ?? 120;
   const moving = data.vessels.filter((vessel) => (speedKnots(vessel) ?? 0) > 0.5).length;
@@ -82,7 +83,7 @@ function commandMetrics(data: DashboardData): CommandMetric[] {
   const movingShare = tracking === 0 ? 0 : (moving / tracking) * 100;
 
   return [
-    { label: "Global vessels", value: integer.format(tracking), detail: "Tracked", tone: tracking > 0 ? "good" : "missing", focus: "fleet" },
+    { label: "Known vessels", value: integer.format(knownVessels), detail: `${integer.format(tracking)} currently tracked`, tone: knownVessels > 0 ? "good" : "missing", focus: "registry" },
     { label: "Moving vessels", value: integer.format(moving), detail: `${movingShare.toFixed(1)}% of tracked`, tone: tracking > 0 ? "info" : "missing", focus: "fleet" },
     { label: `Within ${radius} NM ports`, value: integer.format(operational), detail: operational > 0 ? "Fresh operational rows" : "No current rows", tone: operational > 0 ? "good" : "missing", focus: "port-coverage" },
     { label: "Port events", value: integer.format(data.portEvents.length), detail: data.portOpsSource === "none" ? "Provider required" : data.portOpsSource, tone: data.portEvents.length > 0 ? "info" : "missing", focus: "port-events" },

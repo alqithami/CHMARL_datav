@@ -5,6 +5,7 @@ import WebSocket from "ws";
 import { createEcoFairRuntime } from "./ecofair.mjs";
 import { createDatalasticLiveAisProvider } from "./datalastic-live-ais.mjs";
 import { createPocketWorldLiveAisProvider } from "./pocketworld-live-ais.mjs";
+import { createVesselRegistry } from "./vessel-registry.mjs";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "dist");
@@ -156,6 +157,15 @@ function normalizeVessel(row) {
   return {
     id: String(id),
     mmsi: row.mmsi === undefined ? undefined : String(row.mmsi),
+    imo: row.imo === undefined || row.imo === null ? undefined : String(row.imo),
+    callSign: row.callSign ?? row.callsign ?? row.call_sign,
+    flag: row.flag ?? row.countryCode ?? row.country_code ?? row.country,
+    shipType: row.shipType ?? row.vesselType ?? row.typeName ?? row.type_name ?? row.cargo,
+    lengthM: numberValue(row.lengthM ?? row.length_m ?? row.length),
+    beamM: numberValue(row.beamM ?? row.beam_m ?? row.beam ?? row.width),
+    draughtM: numberValue(row.draughtM ?? row.draught_m ?? row.draught ?? row.draft),
+    navigationStatus: row.navigationStatus ?? row.navStatus ?? row.nav_status,
+    destination,
     name: String(name),
     route: row.route ?? `${origin} → ${destination}`,
     cargo: String(row.cargo ?? row.cargoClass ?? row.vesselType ?? row.shipType ?? "Unspecified"),
@@ -195,6 +205,15 @@ function normalizeAisMessage(raw, inputSource) {
   return normalizeVessel({
     id: `MMSI-${mmsi}`,
     mmsi,
+    imo: metadata.IMO ?? metadata.ImoNumber ?? body.ImoNumber,
+    callSign: metadata.CallSign ?? metadata.Callsign ?? body.CallSign,
+    flag: metadata.Flag ?? metadata.Country,
+    shipType: metadata.ShipType ?? body.ShipType,
+    lengthM: numberValue(metadata.Length ?? body.Length),
+    beamM: numberValue(metadata.Beam ?? body.Beam),
+    draughtM: numberValue(metadata.Draught ?? body.Draught),
+    navigationStatus: body.NavigationalStatus ?? body.NavStatus,
+    destination: metadata.Destination ?? body.Destination,
     name: String(name).trim() || `MMSI ${mmsi}`,
     route: "AIS live position",
     cargo: raw.MessageType ?? "AIS vessel",
@@ -295,6 +314,17 @@ const ECOFAIR_STATE_FILE = runtimePath("ECOFAIR_STATE_FILE", "ecofair-state.json
 const CHMARL_EXPERIMENT_FILE = runtimePath("CHMARL_EXPERIMENT_FILE", "chmarl-episode.json");
 const PORT_EVENTS_FILE = runtimePath("PORT_EVENTS_FILE", "port-events.json");
 const WEATHER_FILE = runtimePath("WEATHER_FILE", "weather.json");
+const VESSEL_REGISTRY_DB_FILE = runtimePath("VESSEL_REGISTRY_DB_FILE", "vessel-registry.sqlite");
+const VESSEL_REGISTRY_ENABLED = process.env.VESSEL_REGISTRY_ENABLED !== "false";
+const VESSEL_REGISTRY_LIVE_AGE_MS = Math.max(60_000, Number(process.env.VESSEL_REGISTRY_LIVE_AGE_MS ?? 10 * 60_000));
+const VESSEL_REGISTRY_DELAYED_AGE_MS = Math.max(VESSEL_REGISTRY_LIVE_AGE_MS, Number(process.env.VESSEL_REGISTRY_DELAYED_AGE_MS ?? 30 * 60_000));
+const VESSEL_REGISTRY_LAST_KNOWN_AGE_MS = Math.max(VESSEL_REGISTRY_DELAYED_AGE_MS, Number(process.env.VESSEL_REGISTRY_LAST_KNOWN_AGE_MS ?? 24 * 60 * 60_000));
+const VESSEL_REGISTRY_GLOBAL_TRACK_BUCKET_MS = Math.max(60_000, Number(process.env.VESSEL_REGISTRY_GLOBAL_TRACK_BUCKET_MS ?? 6 * 60 * 60_000));
+const VESSEL_REGISTRY_OPERATIONAL_TRACK_BUCKET_MS = Math.max(60_000, Number(process.env.VESSEL_REGISTRY_OPERATIONAL_TRACK_BUCKET_MS ?? 5 * 60_000));
+const VESSEL_REGISTRY_FINE_TRACK_DAYS = Math.max(1, Number(process.env.VESSEL_REGISTRY_FINE_TRACK_DAYS ?? 7));
+const VESSEL_REGISTRY_GLOBAL_TRACK_RETENTION_DAYS = Math.max(7, Number(process.env.VESSEL_REGISTRY_GLOBAL_TRACK_RETENTION_DAYS ?? 90));
+const VESSEL_REGISTRY_OPERATIONAL_TRACK_RETENTION_DAYS = Math.max(30, Number(process.env.VESSEL_REGISTRY_OPERATIONAL_TRACK_RETENTION_DAYS ?? 365));
+const VESSEL_REGISTRY_MAINTENANCE_MS = Math.max(60_000, Number(process.env.VESSEL_REGISTRY_MAINTENANCE_MS ?? 60 * 60_000));
 
 const CHMARL_RUNTIME_ENABLED = process.env.CHMARL_RUNTIME_ENABLED !== "false";
 const CHMARL_EXPERIMENT_URL = process.env.CHMARL_EXPERIMENT_URL;
@@ -423,6 +453,18 @@ const pocketWorldProvider = createPocketWorldLiveAisProvider({
   maxPages: POCKETWORLD_MAX_PAGES,
   cacheFile: POCKETWORLD_CACHE_FILE,
   cacheFlushMs: POCKETWORLD_CACHE_FLUSH_MS,
+});
+const vesselRegistry = createVesselRegistry({
+  enabled: VESSEL_REGISTRY_ENABLED,
+  databaseFile: VESSEL_REGISTRY_DB_FILE,
+  liveAgeMs: VESSEL_REGISTRY_LIVE_AGE_MS,
+  delayedAgeMs: VESSEL_REGISTRY_DELAYED_AGE_MS,
+  lastKnownAgeMs: VESSEL_REGISTRY_LAST_KNOWN_AGE_MS,
+  globalTrackBucketMs: VESSEL_REGISTRY_GLOBAL_TRACK_BUCKET_MS,
+  operationalTrackBucketMs: VESSEL_REGISTRY_OPERATIONAL_TRACK_BUCKET_MS,
+  fineTrackDays: VESSEL_REGISTRY_FINE_TRACK_DAYS,
+  globalTrackRetentionDays: VESSEL_REGISTRY_GLOBAL_TRACK_RETENTION_DAYS,
+  operationalTrackRetentionDays: VESSEL_REGISTRY_OPERATIONAL_TRACK_RETENTION_DAYS,
 });
 
 const vesselInputState = {
@@ -637,6 +679,11 @@ async function loadCombinedVessels() {
     const freshTracking = tracking.filter(isOperationallyFresh);
     const operational = operationalVessels(tracking);
     const primaryOperational = primaryOperationalVessels(tracking);
+    const operationalIds = new Set(operational.map((row) => row.id));
+    const registeredTracking = vesselRegistry.observeBatch(tracking, { operationalIds });
+    const registeredById = new Map(registeredTracking.map((row) => [row.id, row]));
+    const registeredOperational = operational.map((row) => registeredById.get(row.id) ?? row);
+    const registeredPrimaryOperational = primaryOperational.map((row) => registeredById.get(row.id) ?? row);
     const activeProviders = [
       ...(trackingAis.length > 0 ? ["aisstream"] : []),
       ...(datalasticAis.length > 0 ? ["datalastic"] : []),
@@ -649,19 +696,19 @@ async function loadCombinedVessels() {
       pocketworldRows: pocketWorldAis.length,
       activeProviders,
       priorityAisRows: priorityAis.length,
-      trackingRows: tracking.length,
+      trackingRows: registeredTracking.length,
       freshTrackingRows: freshTracking.length,
-      lastKnownTrackingRows: Math.max(0, tracking.length - freshTracking.length),
-      primaryOperationalRows: primaryOperational.length,
-      portfolioOperationalRows: operational.length,
-      operationalRows: operational.length,
+      lastKnownTrackingRows: Math.max(0, registeredTracking.length - freshTracking.length),
+      primaryOperationalRows: registeredPrimaryOperational.length,
+      portfolioOperationalRows: registeredOperational.length,
+      operationalRows: registeredOperational.length,
       lastLoadedAt: new Date().toISOString(),
       lastError: null,
     });
-    lastCombinedVessels = tracking;
-    lastOperationalVessels = operational;
-    lastPrimaryOperationalVessels = primaryOperational;
-    return { tracking, operational, primaryOperational };
+    lastCombinedVessels = registeredTracking;
+    lastOperationalVessels = registeredOperational;
+    lastPrimaryOperationalVessels = registeredPrimaryOperational;
+    return { tracking: registeredTracking, operational: registeredOperational, primaryOperational: registeredPrimaryOperational };
   } catch (error) {
     vesselInputState.lastLoadedAt = new Date().toISOString();
     vesselInputState.lastError = error instanceof Error ? error.message : String(error);
@@ -1260,6 +1307,7 @@ function healthPayload() {
     operationalAisstream: publicAisState(operationalAisState),
     datalastic: datalasticProvider.publicState(),
     pocketworld: pocketWorldProvider.publicState(),
+    registry: vesselRegistry.publicState(),
     chmarl: { ...chmarlState, active: chmarlState.steps > 0 },
     ecofair: ecofair.summary(),
     portOps: { ...portOpsState, active: portOpsState.events > 0 || portOpsState.utilizationRows > 0 || portOpsState.queueRows > 0 },
@@ -1269,6 +1317,7 @@ function healthPayload() {
       trackingCacheFile: TRACKING_AIS_CACHE_FILE,
       operationalCacheFile: OPERATIONAL_AIS_CACHE_FILE,
       pocketWorldCacheFile: POCKETWORLD_CACHE_FILE,
+      vesselRegistryDbFile: VESSEL_REGISTRY_DB_FILE,
       ecofairStateFile: ECOFAIR_STATE_FILE,
     },
   };
@@ -1278,6 +1327,7 @@ function shutdown() {
   stopping = true;
   datalasticProvider.shutdown();
   pocketWorldProvider.shutdown();
+  vesselRegistry.close();
   for (const state of [trackingAisState, operationalAisState]) {
     if (state.reconnectTimer) clearTimeout(state.reconnectTimer);
     try { state.socket?.close(); } catch {}
@@ -1309,6 +1359,8 @@ const cacheInterval = setInterval(() => {
 cacheInterval.unref?.();
 const ecofairInterval = setInterval(() => void runBackgroundTick(), ECOFAIR_TICK_MS);
 ecofairInterval.unref?.();
+const registryMaintenanceInterval = setInterval(() => vesselRegistry.maintenance(), VESSEL_REGISTRY_MAINTENANCE_MS);
+registryMaintenanceInterval.unref?.();
 const pruneInterval = setInterval(() => {
   cacheRows(trackingAisCache, trackingAisState);
   cacheRows(operationalAisCache, operationalAisState);
@@ -1443,7 +1495,34 @@ createServer(async (request, response) => {
         datalastic: datalasticProvider.publicState(),
         pocketworld: pocketWorldProvider.publicState(),
       },
+      registry: vesselRegistry.publicState(),
     });
+  }
+
+  if (path === "/api/registry/stats") {
+    await loadCombinedVessels();
+    return sendJson(response, 200, vesselRegistry.stats());
+  }
+
+  if (path === "/api/registry/vessels") {
+    await loadCombinedVessels();
+    return sendJson(response, 200, vesselRegistry.listVessels({
+      query: url.searchParams.get("q") ?? "",
+      status: url.searchParams.get("status") ?? "",
+      limit: url.searchParams.get("limit") ?? 100,
+      offset: url.searchParams.get("offset") ?? 0,
+    }));
+  }
+
+  const registryRoute = path.match(/^\/api\/registry\/vessels\/([^/]+)(?:\/(identity-history|track|observations))?$/);
+  if (registryRoute) {
+    const vesselUuid = decodeURIComponent(registryRoute[1]);
+    const resource = registryRoute[2];
+    if (resource === "identity-history") return sendJson(response, 200, vesselRegistry.identityHistory(vesselUuid, { limit: url.searchParams.get("limit") ?? 200 }));
+    if (resource === "track") return sendJson(response, 200, vesselRegistry.track(vesselUuid, { from: url.searchParams.get("from"), to: url.searchParams.get("to"), limit: url.searchParams.get("limit") ?? 2000 }));
+    if (resource === "observations") return sendJson(response, 200, vesselRegistry.observations(vesselUuid, { limit: url.searchParams.get("limit") ?? 100 }));
+    const vessel = vesselRegistry.getVessel(vesselUuid);
+    return vessel ? sendJson(response, 200, vessel) : sendJson(response, 404, { error: "Vessel registry record not found" });
   }
 
   if ((path === "/api/chmarl/episode" || path === "/api/chmarl/ingest") && request.method === "POST") {
@@ -1486,13 +1565,14 @@ createServer(async (request, response) => {
   const staticMatch = staticFileForUrl(request.url);
   if (staticMatch?.path) return sendFile(response, staticMatch.path);
   if (staticMatch?.statusCode === 403) return sendJson(response, 403, { error: "Forbidden" });
-  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/health", "/health/live", "/health/ready", "/version", "/api/vessels", "/api/vessels/operations", "/api/vessels?scope=operational", "/api/vessels?scope=primary", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report"] });
+  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/health", "/health/live", "/health/ready", "/version", "/api/vessels", "/api/vessels/operations", "/api/vessels?scope=operational", "/api/vessels?scope=primary", "/api/registry/stats", "/api/registry/vessels", "/api/registry/vessels/:vessel_uuid", "/api/registry/vessels/:vessel_uuid/identity-history", "/api/registry/vessels/:vessel_uuid/track", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report"] });
 }).listen(PORT, "0.0.0.0", () => {
   console.log(`CH-MARL backend listening at http://0.0.0.0:${PORT}`);
   console.log(`Global AIS boxes: ${TRACKING_BOXES.length}; cache limit: ${AISSTREAM_MAX_VESSELS}`);
   console.log(`Operational AIS derivation: ${OPERATIONAL_PRIORITY_ENABLED ? "enabled" : "disabled"}; monitored boxes: ${OPERATIONAL_BOXES.length}; cache limit: ${AISSTREAM_OPERATIONAL_MAX_VESSELS}`);
   console.log(`EcoFair operational radius: ${ECOFAIR_OPERATIONAL_RADIUS_NM} nm around ${PORT_REFERENCE_POINTS.length} monitored ports`);
   console.log(`Runtime data directory: ${RUNTIME_DATA_DIR}`);
+  console.log(`Persistent vessel registry: ${VESSEL_REGISTRY_ENABLED ? VESSEL_REGISTRY_DB_FILE : "disabled"}`);
   if (AISSTREAM_API_KEY) console.log("AISStream live mode enabled.");
   if (DATALASTIC_API_KEY) console.log(`Datalastic live AIS failover enabled for ${DATALASTIC_SCAN_POINTS.map((point) => point.id).join(", ") || "no scan points"}.`);
   else console.log("Datalastic live AIS failover is not configured.");

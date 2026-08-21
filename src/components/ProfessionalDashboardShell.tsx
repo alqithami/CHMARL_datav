@@ -27,6 +27,7 @@ import PortOpsSetup from "./PortOpsSetup";
 import ReadinessStrip from "./ReadinessStrip";
 import ShipScene from "./ShipScene";
 import VesselTable from "./VesselTable";
+import VesselRegistryPanel from "./VesselRegistryPanel";
 
 export type ProfessionalFocusPanel =
   | "reward"
@@ -36,6 +37,7 @@ export type ProfessionalFocusPanel =
   | "ports"
   | "watchlist"
   | "vessels"
+  | "registry"
   | "chmarl-components"
   | "chmarl-constraints"
   | "chmarl-decisions"
@@ -241,7 +243,8 @@ export default function ProfessionalDashboardShell() {
     if (focusPanel === "scene") return { panel: focusPanel, title: "Maritime Operations Map", description: "Expanded interactive map with vessel search, port zones, events, trails, and seamarks.", content: <ShipScene vessels={data.vessels} portEvents={data.portEvents} expanded /> };
     if (focusPanel === "ports") return { panel: focusPanel, title: portPanelTitle, description: "Connected port queue, berth utilization, and provider-readiness information.", content: portPanelContent };
     if (focusPanel === "watchlist") return { panel: focusPanel, title: "Operational Watchlist", description: "Prioritized exceptions, provider conditions, and recommended operator actions.", content: <OperationalWatchlist data={data} scenarioId={selectedScenarioId} /> };
-    if (focusPanel === "vessels") return { panel: focusPanel, title: "Vessel State Table", description: "Searchable and sortable vessel state with provenance, position, speed, route, and freshness context.", content: <VesselTable vessels={data.vessels} /> };
+    if (focusPanel === "vessels") return { panel: focusPanel, title: "Vessel State Table", description: "Searchable and sortable current vessel state with provenance, position, speed, route, and freshness context.", content: <VesselTable vessels={data.vessels} /> };
+    if (focusPanel === "registry") return { panel: focusPanel, title: "Persistent Vessel Registry", description: "Permanent physical-vessel identity, mutable identifier history, latest genuine position, and archived state.", content: <VesselRegistryPanel /> };
     if (focusPanel === "chmarl-components") return { panel: focusPanel, title: "CH-MARL Reward Components", description: "Component-level contribution to the latest available EcoFair-CH-MARL reward state.", content: <ChmarlRewardComponents steps={data.chmarlSteps} /> };
     if (focusPanel === "chmarl-actions") return { panel: focusPanel, title: "CH-MARL Agent Action Plan", description: "Latest hierarchical actions and affected operational targets.", content: <ChmarlActionPlan steps={data.chmarlSteps} /> };
     if (focusPanel === "chmarl-fairness") return { panel: focusPanel, title: "CH-MARL Fairness Metrics", description: "Available fuel-equity and service-fairness measures across the operational scope.", content: <ChmarlFairnessPanel steps={data.chmarlSteps} /> };

@@ -1,4 +1,4 @@
-import type { DashboardDataSource } from "@/data/loadSampleDashboardData";
+import type { DashboardDataSource, VesselRegistrySummary } from "@/data/loadSampleDashboardData";
 import type { Vessel, VesselTrailPoint } from "@/data/chmarlData";
 import { fetchFirstJson } from "./backendUrl";
 import { getVesselDisplayStats, stabilizeVesselDisplay } from "./vesselDisplayStabilizer";
@@ -13,6 +13,23 @@ type RemoteVesselRow = Partial<Vessel> & {
   vesselId?: string;
   mmsi?: string | number;
   imo?: string | number;
+  vesselUuid?: string;
+  callSign?: string;
+  callsign?: string;
+  call_sign?: string;
+  flag?: string;
+  countryCode?: string;
+  country_code?: string;
+  lengthM?: string | number;
+  length_m?: string | number;
+  beamM?: string | number;
+  beam_m?: string | number;
+  draughtM?: string | number;
+  draught_m?: string | number;
+  navigationStatus?: string;
+  registryStatus?: Vessel["registryStatus"];
+  identityConfidence?: number;
+  verifiedStatus?: string;
   vesselName?: string;
   shipName?: string;
   vesselType?: string;
@@ -43,6 +60,7 @@ type RemoteVesselPayload = {
   vessels?: RemoteVesselRow[];
   data?: RemoteVesselRow[];
   items?: RemoteVesselRow[];
+  registry?: VesselRegistrySummary;
   counts?: {
     tracking?: number;
     freshTracking?: number;
@@ -67,6 +85,7 @@ export type DashboardVesselFeed = {
   cachedRows: number;
   operationalRows: number;
   operationalRadiusNm?: number;
+  registry?: VesselRegistrySummary;
 };
 
 function endpointUrl() {
@@ -137,6 +156,19 @@ function toDashboardVessel(row: RemoteVesselRow): Vessel {
   const destination = row.destinationPort ?? row.destination ?? row.dest ?? "Unknown";
   return {
     id: String(id),
+    vesselUuid: row.vesselUuid,
+    imo: row.imo === undefined ? undefined : String(row.imo),
+    mmsi: row.mmsi === undefined ? undefined : String(row.mmsi),
+    callSign: row.callSign ?? row.callsign ?? row.call_sign,
+    flag: row.flag ?? row.countryCode ?? row.country_code,
+    shipType: row.shipType ?? row.vesselType,
+    lengthM: toNumber(row.lengthM ?? row.length_m),
+    beamM: toNumber(row.beamM ?? row.beam_m),
+    draughtM: toNumber(row.draughtM ?? row.draught_m),
+    navigationStatus: row.navigationStatus ?? row.navStatus,
+    registryStatus: row.registryStatus,
+    identityConfidence: row.identityConfidence,
+    verifiedStatus: row.verifiedStatus,
     name: String(name),
     route: row.route ?? `${origin} → ${destination}`,
     cargo: row.cargo ?? row.cargoClass ?? row.vesselType ?? row.shipType ?? "Unspecified",
@@ -188,5 +220,6 @@ export async function loadRemoteDashboardVessels(): Promise<DashboardVesselFeed 
     cachedRows: displayStats.cachedRows,
     operationalRows,
     operationalRadiusNm: payload.inputs?.operationalRadiusNm,
+    registry: payload.registry,
   };
 }
