@@ -1,5 +1,5 @@
 {
-  "observedAt": "2026-08-21T03:31:44.780Z",
+  "observedAt": "2026-08-21T03:31:59.602Z",
   "expectedRevision": "28157fccc09fe2fffd53bae7cf880fa888a7ff54",
   "deployedRevision": "28157fccc09fe2fffd53bae7cf880fa888a7ff54",
   "revisionMatched": true,
@@ -43,9 +43,9 @@
     "lastIngestAt": "2026-08-21T03:31:05.903Z",
     "lastMaintenanceAt": null,
     "lastError": null,
-    "observedRows": 22288,
+    "observedRows": 55720,
     "changedRows": 5572,
-    "skippedUnchangedRows": 16716,
+    "skippedUnchangedRows": 50148,
     "identityConflicts": 0,
     "knownVessels": 5572,
     "withPosition": 5572,
