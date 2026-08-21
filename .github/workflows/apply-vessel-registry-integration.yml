@@ -68,6 +68,24 @@ jobs:
             node scripts/apply-vessel-registry-integration.mjs
             status=$?
           fi
+          if [[ "$status" == "0" ]]; then
+            python3 - <<'PY'
+          from pathlib import Path
+          path = Path("src/components/ReadinessStrip.tsx")
+          text = path.read_text()
+          old = '      detail: `${providerLabel} · ${fresh.toLocaleString()} fresh · ${positionedPct}% positioned · refreshed ${updatedAt}`,'
+          generated = '      detail: `Permanent registry · ${data.registry?.lastKnown?.toLocaleString() ?? 0} last known · ${data.registry?.archived?.toLocaleString() ?? 0} archived · refreshed ${updatedAt}`,'
+          replacement = '      detail: `${providerLabel} · ${fresh.toLocaleString()} fresh · ${positionedPct}% positioned · ${data.registry?.lastKnown?.toLocaleString() ?? 0} last known · refreshed ${updatedAt}`,'
+          if generated in text:
+              text = text.replace(generated, replacement, 1)
+          elif old in text:
+              text = text.replace(old, replacement, 1)
+          else:
+              raise SystemExit("Could not align the generated readiness detail")
+          path.write_text(text)
+          PY
+            status=$?
+          fi
           if [[ "$status" != "0" ]]; then
             echo "applied=false" >> "$GITHUB_OUTPUT"
             echo "Registry patch could not be applied; no source commit will be created."
