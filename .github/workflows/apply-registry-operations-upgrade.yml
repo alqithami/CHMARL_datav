@@ -1,0 +1,159 @@
+name: Apply vessel registry operations upgrade
+
+on:
+  push:
+    branches:
+      - agent/registry-operations-upgrade
+    paths:
+      - scripts/apply-registry-operations-upgrade.mjs
+      - .github/workflows/apply-registry-operations-upgrade.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-registry-operations-upgrade
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out upgrade branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/registry-operations-upgrade
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+
+      - name: Enable pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+          pnpm --version
+
+      - name: Apply and validate reviewed registry changes
+        id: validate
+        shell: bash
+        run: |
+          set +e
+          node --check scripts/apply-registry-operations-upgrade.mjs
+          status=$?
+          if [[ "$status" != "0" ]]; then
+            echo "validated=false" >> "$GITHUB_OUTPUT"
+            echo "Patch syntax validation failed; no generated commit will be created."
+            exit 0
+          fi
+
+          node scripts/apply-registry-operations-upgrade.mjs
+          status=$?
+          if [[ "$status" != "0" ]]; then
+            echo "validated=false" >> "$GITHUB_OUTPUT"
+            echo "Patch application failed; no generated commit will be created."
+            exit 0
+          fi
+
+          node --check server/vessel-feed-proxy/vessel-registry.mjs
+          node --check server/vessel-feed-proxy/runtime-v3.mjs
+          node --check scripts/smoke-vessel-registry.mjs
+          status=$?
+          if [[ "$status" != "0" ]]; then
+            echo "validated=false" >> "$GITHUB_OUTPUT"
+            echo "Generated JavaScript validation failed; no generated commit will be created."
+            exit 0
+          fi
+
+          corepack enable
+          corepack prepare pnpm@9.15.9 --activate
+          pnpm install --frozen-lockfile
+          status=$?
+          if [[ "$status" != "0" ]]; then
+            echo "validated=false" >> "$GITHUB_OUTPUT"
+            echo "Dependency installation failed; no generated commit will be created."
+            exit 0
+          fi
+
+          pnpm check
+          status=$?
+          if [[ "$status" != "0" ]]; then
+            echo "validated=false" >> "$GITHUB_OUTPUT"
+            echo "Application validation failed; no generated commit will be created."
+            exit 0
+          fi
+
+          pnpm verify:dist
+          status=$?
+          if [[ "$status" != "0" ]]; then
+            echo "validated=false" >> "$GITHUB_OUTPUT"
+            echo "Artifact verification failed; no generated commit will be created."
+            exit 0
+          fi
+
+          git diff --check
+          status=$?
+          if [[ "$status" != "0" ]]; then
+            echo "validated=false" >> "$GITHUB_OUTPUT"
+            echo "Diff verification failed; no generated commit will be created."
+            exit 0
+          fi
+
+          echo "validated=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build production container
+        if: steps.validate.outputs.validated == 'true'
+        id: container
+        shell: bash
+        run: |
+          set +e
+          docker build --tag chmarl-datav:registry-operations .
+          status=$?
+          if [[ "$status" != "0" ]]; then
+            echo "validated=false" >> "$GITHUB_OUTPUT"
+            echo "Container build failed; no generated commit will be created."
+            exit 0
+          fi
+          echo "validated=true" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke production container
+        if: steps.validate.outputs.validated == 'true' && steps.container.outputs.validated == 'true'
+        id: smoke
+        shell: bash
+        run: |
+          set +e
+          docker run --detach --name chmarl-registry-operations --publish 8787:8787 chmarl-datav:registry-operations
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:8787/health/live > /tmp/chmarl-live.json; then
+              cat /tmp/chmarl-live.json
+              docker rm --force chmarl-registry-operations >/dev/null 2>&1 || true
+              echo "validated=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs chmarl-registry-operations || true
+          docker rm --force chmarl-registry-operations >/dev/null 2>&1 || true
+          echo "validated=false" >> "$GITHUB_OUTPUT"
+          echo "Container smoke failed; no generated commit will be created."
+          exit 0
+
+      - name: Commit validated registry upgrade
+        if: steps.validate.outputs.validated == 'true' && steps.container.outputs.validated == 'true' && steps.smoke.outputs.validated == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit."
+            exit 0
+          fi
+          git commit -m "Upgrade vessel registry operations"
+          git push origin HEAD:agent/registry-operations-upgrade
