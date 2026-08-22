@@ -65,8 +65,28 @@ jobs:
             return 0
           }
 
-          run_stage "Patch syntax" node --check scripts/apply-registry-operations-upgrade.mjs || true
+          echo "=== Bootstrap range correction ===" | tee -a "$LOG"
+          python3 - <<'PY' >> "$LOG" 2>&1
+          from pathlib import Path
+          path = Path("scripts/apply-registry-operations-upgrade.mjs")
+          text = path.read_text()
+          old = "  return content.slice(0, start) + replacement + content.slice(endStart);"
+          new = "  const end = endStart + endMarker.length;\n  return content.slice(0, start) + replacement + content.slice(end);"
+          if old not in text:
+              raise SystemExit("Could not find the range replacement helper")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          status=$?
+          if [[ "$status" != "0" ]]; then
+            failed_stage="Bootstrap range correction"
+            echo "FAILED ($status): $failed_stage" | tee -a "$LOG"
+          else
+            echo "PASSED: Bootstrap range correction" | tee -a "$LOG"
+          fi
+
+          if [[ -z "$failed_stage" ]]; then run_stage "Patch syntax" node --check scripts/apply-registry-operations-upgrade.mjs || true; fi
           if [[ -z "$failed_stage" ]]; then run_stage "Patch application" node scripts/apply-registry-operations-upgrade.mjs || true; fi
+          if [[ -z "$failed_stage" ]]; then rm -f diagnostics/registry-operations-upgrade-failure.txt; fi
           if [[ -z "$failed_stage" ]]; then run_stage "Registry syntax" node --check server/vessel-feed-proxy/vessel-registry.mjs || true; fi
           if [[ -z "$failed_stage" ]]; then run_stage "Runtime syntax" node --check server/vessel-feed-proxy/runtime-v3.mjs || true; fi
           if [[ -z "$failed_stage" ]]; then run_stage "Registry smoke syntax" node --check scripts/smoke-vessel-registry.mjs || true; fi
