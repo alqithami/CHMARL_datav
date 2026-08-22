@@ -19,7 +19,7 @@ jobs:
   apply:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
 
     steps:
       - name: Check out upgrade branch
@@ -46,107 +46,74 @@ jobs:
         shell: bash
         run: |
           set +e
-          node --check scripts/apply-registry-operations-upgrade.mjs
-          status=$?
-          if [[ "$status" != "0" ]]; then
-            echo "validated=false" >> "$GITHUB_OUTPUT"
-            echo "Patch syntax validation failed; no generated commit will be created."
-            exit 0
-          fi
+          LOG=/tmp/registry-operations-upgrade.log
+          : > "$LOG"
+          failed_stage=""
 
-          node scripts/apply-registry-operations-upgrade.mjs
-          status=$?
-          if [[ "$status" != "0" ]]; then
-            echo "validated=false" >> "$GITHUB_OUTPUT"
-            echo "Patch application failed; no generated commit will be created."
-            exit 0
-          fi
-
-          node --check server/vessel-feed-proxy/vessel-registry.mjs
-          node --check server/vessel-feed-proxy/runtime-v3.mjs
-          node --check scripts/smoke-vessel-registry.mjs
-          status=$?
-          if [[ "$status" != "0" ]]; then
-            echo "validated=false" >> "$GITHUB_OUTPUT"
-            echo "Generated JavaScript validation failed; no generated commit will be created."
-            exit 0
-          fi
-
-          corepack enable
-          corepack prepare pnpm@9.15.9 --activate
-          pnpm install --frozen-lockfile
-          status=$?
-          if [[ "$status" != "0" ]]; then
-            echo "validated=false" >> "$GITHUB_OUTPUT"
-            echo "Dependency installation failed; no generated commit will be created."
-            exit 0
-          fi
-
-          pnpm check
-          status=$?
-          if [[ "$status" != "0" ]]; then
-            echo "validated=false" >> "$GITHUB_OUTPUT"
-            echo "Application validation failed; no generated commit will be created."
-            exit 0
-          fi
-
-          pnpm verify:dist
-          status=$?
-          if [[ "$status" != "0" ]]; then
-            echo "validated=false" >> "$GITHUB_OUTPUT"
-            echo "Artifact verification failed; no generated commit will be created."
-            exit 0
-          fi
-
-          git diff --check
-          status=$?
-          if [[ "$status" != "0" ]]; then
-            echo "validated=false" >> "$GITHUB_OUTPUT"
-            echo "Diff verification failed; no generated commit will be created."
-            exit 0
-          fi
-
-          echo "validated=true" >> "$GITHUB_OUTPUT"
-
-      - name: Build production container
-        if: steps.validate.outputs.validated == 'true'
-        id: container
-        shell: bash
-        run: |
-          set +e
-          docker build --tag chmarl-datav:registry-operations .
-          status=$?
-          if [[ "$status" != "0" ]]; then
-            echo "validated=false" >> "$GITHUB_OUTPUT"
-            echo "Container build failed; no generated commit will be created."
-            exit 0
-          fi
-          echo "validated=true" >> "$GITHUB_OUTPUT"
-
-      - name: Smoke production container
-        if: steps.validate.outputs.validated == 'true' && steps.container.outputs.validated == 'true'
-        id: smoke
-        shell: bash
-        run: |
-          set +e
-          docker run --detach --name chmarl-registry-operations --publish 8787:8787 chmarl-datav:registry-operations
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent --show-error http://127.0.0.1:8787/health/live > /tmp/chmarl-live.json; then
-              cat /tmp/chmarl-live.json
-              docker rm --force chmarl-registry-operations >/dev/null 2>&1 || true
-              echo "validated=true" >> "$GITHUB_OUTPUT"
-              exit 0
+          run_stage() {
+            stage="$1"
+            shift
+            echo "=== $stage ===" | tee -a "$LOG"
+            "$@" >> "$LOG" 2>&1
+            status=$?
+            if [[ "$status" != "0" ]]; then
+              failed_stage="$stage"
+              echo "FAILED ($status): $stage" | tee -a "$LOG"
+              return "$status"
             fi
-            sleep 2
-          done
-          docker logs chmarl-registry-operations || true
-          docker rm --force chmarl-registry-operations >/dev/null 2>&1 || true
-          echo "validated=false" >> "$GITHUB_OUTPUT"
-          echo "Container smoke failed; no generated commit will be created."
-          exit 0
+            echo "PASSED: $stage" | tee -a "$LOG"
+            return 0
+          }
 
-      - name: Commit validated registry upgrade
-        if: steps.validate.outputs.validated == 'true' && steps.container.outputs.validated == 'true' && steps.smoke.outputs.validated == 'true'
+          run_stage "Patch syntax" node --check scripts/apply-registry-operations-upgrade.mjs || true
+          if [[ -z "$failed_stage" ]]; then run_stage "Patch application" node scripts/apply-registry-operations-upgrade.mjs || true; fi
+          if [[ -z "$failed_stage" ]]; then run_stage "Registry syntax" node --check server/vessel-feed-proxy/vessel-registry.mjs || true; fi
+          if [[ -z "$failed_stage" ]]; then run_stage "Runtime syntax" node --check server/vessel-feed-proxy/runtime-v3.mjs || true; fi
+          if [[ -z "$failed_stage" ]]; then run_stage "Registry smoke syntax" node --check scripts/smoke-vessel-registry.mjs || true; fi
+          if [[ -z "$failed_stage" ]]; then run_stage "Locked dependency install" pnpm install --frozen-lockfile || true; fi
+          if [[ -z "$failed_stage" ]]; then run_stage "Application validation" pnpm check || true; fi
+          if [[ -z "$failed_stage" ]]; then run_stage "Artifact verification" pnpm verify:dist || true; fi
+          if [[ -z "$failed_stage" ]]; then run_stage "Repository diff" git diff --check || true; fi
+          if [[ -z "$failed_stage" ]]; then run_stage "Production container build" docker build --tag chmarl-datav:registry-operations . || true; fi
+
+          if [[ -z "$failed_stage" ]]; then
+            echo "=== Production container smoke ===" | tee -a "$LOG"
+            docker run --detach --name chmarl-registry-operations --publish 8787:8787 chmarl-datav:registry-operations >> "$LOG" 2>&1
+            status=$?
+            if [[ "$status" == "0" ]]; then
+              smoke_ready=false
+              for attempt in $(seq 1 30); do
+                if curl --fail --silent --show-error http://127.0.0.1:8787/health/live >> "$LOG" 2>&1; then
+                  smoke_ready=true
+                  break
+                fi
+                sleep 2
+              done
+              if [[ "$smoke_ready" != "true" ]]; then
+                failed_stage="Production container smoke"
+                docker logs chmarl-registry-operations >> "$LOG" 2>&1 || true
+              fi
+            else
+              failed_stage="Production container smoke"
+            fi
+            docker rm --force chmarl-registry-operations >/dev/null 2>&1 || true
+          fi
+
+          if [[ -z "$failed_stage" ]]; then
+            echo "result=success" >> "$GITHUB_OUTPUT"
+            echo "The registry operations upgrade passed all validation stages."
+          else
+            echo "result=failure" >> "$GITHUB_OUTPUT"
+            echo "failed_stage=$failed_stage" >> "$GITHUB_OUTPUT"
+            git reset --hard HEAD
+            mkdir -p diagnostics
+            cp "$LOG" diagnostics/registry-operations-upgrade-failure.txt
+            printf '\nFailed stage: %s\n' "$failed_stage" >> diagnostics/registry-operations-upgrade-failure.txt
+            echo "Validation failed at: $failed_stage. A diagnostic will be committed without failing this workflow."
+          fi
+
+      - name: Commit validated implementation or diagnostic
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -155,5 +122,9 @@ jobs:
             echo "No generated changes to commit."
             exit 0
           fi
-          git commit -m "Upgrade vessel registry operations"
+          if [[ "${{ steps.validate.outputs.result }}" == "success" ]]; then
+            git commit -m "Upgrade vessel registry operations"
+          else
+            git commit -m "Record registry upgrade validation diagnostic"
+          fi
           git push origin HEAD:agent/registry-operations-upgrade
