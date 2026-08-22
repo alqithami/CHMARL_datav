@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
@@ -192,6 +192,11 @@ function serializeJson(value) {
   catch { return "{}"; }
 }
 
+function fileSize(path) {
+  try { return statSync(path).size; }
+  catch { return 0; }
+}
+
 export function createVesselRegistry({
   enabled = true,
   databaseFile = ".runtime/vessel-registry.sqlite",
@@ -243,6 +248,7 @@ export function createVesselRegistry({
       observeBatch: (rows) => rows,
       stats: disabled,
       listVessels: () => ({ rows: [], total: 0, limit: 0, offset: 0 }),
+      listConflicts: () => ({ rows: [], total: 0, limit: 0, offset: 0, status: "open" }),
       getVessel: () => null,
       identityHistory: () => [],
       track: () => [],
@@ -791,7 +797,7 @@ export function createVesselRegistry({
     return { clause: "1 = 1", params: [] };
   }
 
-  function listVessels({ query = "", status = "", limit = 100, offset = 0 } = {}) {
+  function listVessels({ query = "", status = "", limit = 100, offset = 0, sort = "latest", direction = "desc" } = {}) {
     const nowMs = now();
     const safeLimit = boundedInteger(limit, 100, 1, 500);
     const safeOffset = boundedInteger(offset, 0, 0, 10_000_000);
@@ -807,6 +813,15 @@ export function createVesselRegistry({
     conditions.push(statusCondition.clause);
     params.push(...statusCondition.params);
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const sortColumns = {
+      latest: "COALESCE(lp.observed_ms, 0)",
+      name: "v.current_name COLLATE NOCASE",
+      "first-seen": "v.first_seen_at",
+      "last-seen": "v.last_seen_at",
+      confidence: "v.identity_confidence",
+    };
+    const safeSort = Object.hasOwn(sortColumns, sort) ? sort : "latest";
+    const safeDirection = String(direction).toLowerCase() === "asc" ? "ASC" : "DESC";
     const countRow = database.prepare(`
       SELECT COUNT(*) AS total FROM vessels v
       LEFT JOIN vessel_latest_positions lp ON lp.vessel_uuid = v.vessel_uuid
@@ -819,14 +834,52 @@ export function createVesselRegistry({
       FROM vessels v
       LEFT JOIN vessel_latest_positions lp ON lp.vessel_uuid = v.vessel_uuid
       ${where}
-      ORDER BY COALESCE(lp.observed_ms, 0) DESC, v.current_name ASC
+      ORDER BY ${sortColumns[safeSort]} ${safeDirection}, v.current_name COLLATE NOCASE ASC
       LIMIT ? OFFSET ?
     `).all(...params, safeLimit, safeOffset).map((row) => ({
       ...row,
       registryStatus: classifyPosition(Number(row.observed_ms ?? 0), nowMs, thresholds),
       positionAgeMs: row.observed_ms ? Math.max(0, nowMs - Number(row.observed_ms)) : null,
     }));
-    return { rows, total: Number(countRow?.total ?? 0), limit: safeLimit, offset: safeOffset, query: normalizedQuery, status: status || "all" };
+    return {
+      rows,
+      total: Number(countRow?.total ?? 0),
+      limit: safeLimit,
+      offset: safeOffset,
+      query: normalizedQuery,
+      status: status || "all",
+      sort: safeSort,
+      direction: safeDirection.toLowerCase(),
+    };
+  }
+
+  function listConflicts({ status = "open", limit = 100, offset = 0 } = {}) {
+    const safeLimit = boundedInteger(limit, 100, 1, 500);
+    const safeOffset = boundedInteger(offset, 0, 0, 10_000_000);
+    const normalizedStatus = String(status ?? "open").trim().toLowerCase();
+    const where = normalizedStatus && normalizedStatus !== "all" ? "WHERE c.resolution_status = ?" : "";
+    const params = where ? [normalizedStatus] : [];
+    const countRow = database.prepare(`
+      SELECT COUNT(*) AS total FROM vessel_identity_conflicts c ${where}
+    `).get(...params);
+    const rows = database.prepare(`
+      SELECT c.*,
+        existing.current_name AS existing_vessel_name,
+        incoming.current_name AS incoming_vessel_name
+      FROM vessel_identity_conflicts c
+      LEFT JOIN vessels existing ON existing.vessel_uuid = c.existing_vessel_uuid
+      LEFT JOIN vessels incoming ON incoming.vessel_uuid = c.incoming_vessel_uuid
+      ${where}
+      ORDER BY c.observed_at DESC, c.conflict_id DESC
+      LIMIT ? OFFSET ?
+    `).all(...params, safeLimit, safeOffset);
+    return {
+      rows,
+      total: Number(countRow?.total ?? 0),
+      limit: safeLimit,
+      offset: safeOffset,
+      status: normalizedStatus || "all",
+    };
   }
 
   function getVessel(uuid) {
@@ -889,6 +942,11 @@ export function createVesselRegistry({
     const conflicts = database.prepare("SELECT COUNT(*) AS count FROM vessel_identity_conflicts WHERE resolution_status = 'open'").get();
     const trackPoints = database.prepare("SELECT COUNT(*) AS count FROM vessel_track_points").get();
     const history = database.prepare("SELECT COUNT(*) AS count FROM vessel_identity_history").get();
+    const identifiers = database.prepare("SELECT COUNT(*) AS count FROM vessel_identifiers WHERE active = 1").get();
+    const observations = database.prepare("SELECT COUNT(*) AS count FROM vessel_provider_observations").get();
+    const databaseBytes = fileSize(dbPath);
+    const walBytes = fileSize(`${dbPath}-wal`);
+    const shmBytes = fileSize(`${dbPath}-shm`);
     return {
       ...state,
       status: state.lastError ? "degraded" : "ready",
@@ -904,6 +962,14 @@ export function createVesselRegistry({
       openIdentityConflicts: Number(conflicts?.count ?? 0),
       trackPoints: Number(trackPoints?.count ?? 0),
       identityChanges: Number(history?.count ?? 0),
+      activeIdentifiers: Number(identifiers?.count ?? 0),
+      providerObservations: Number(observations?.count ?? 0),
+      storage: {
+        databaseBytes,
+        walBytes,
+        shmBytes,
+        totalBytes: databaseBytes + walBytes + shmBytes,
+      },
       storagePolicy: {
         permanentVesselRecords: true,
         permanentIdentityHistory: true,
@@ -953,6 +1019,7 @@ export function createVesselRegistry({
       database.prepare("DELETE FROM vessel_provider_observations WHERE observed_at < ?").run(new Date(nowMs - 365 * DAY_MS).toISOString());
       database.exec("COMMIT");
       database.exec("PRAGMA wal_checkpoint(PASSIVE)");
+      database.exec("PRAGMA optimize");
       state.lastMaintenanceAt = new Date(nowMs).toISOString();
       state.lastError = null;
     } catch (error) {
@@ -972,6 +1039,7 @@ export function createVesselRegistry({
     observeBatch,
     stats,
     listVessels,
+    listConflicts,
     getVessel,
     identityHistory,
     track,

@@ -68,7 +68,8 @@ Permanent vessel identity and identity-change history are not deleted by track m
 
 ```text
 GET /api/registry/stats
-GET /api/registry/vessels?q=&status=&limit=&offset=
+GET /api/registry/vessels?q=&status=&sort=&direction=&limit=&offset=
+GET /api/registry/conflicts?status=&limit=&offset=
 GET /api/registry/vessels/:vessel_uuid
 GET /api/registry/vessels/:vessel_uuid/identity-history
 GET /api/registry/vessels/:vessel_uuid/track?from=&to=&limit=
@@ -94,3 +95,15 @@ This prevents a provider outage from being misrepresented as permanent vessel lo
 The registry stores only genuine provider observations. It does not synthesize vessel identities, positions, routes, or specifications. Invalid coordinates are not placed on the map, and an archived or last-known position cannot enter EcoFair-CH-MARL calculations unless a new, sufficiently fresh port-scope observation arrives.
 
 The production integration is validated through the repository's permanent runtime and UI contract suite before merge.
+
+## Operations workspace
+
+The production registry window supports paginated browsing, state filters, safe server-side sorting, and CSV export of the current result page. Selecting a vessel opens three evidence views:
+
+- **Identity** — canonical specifications, active and historical identifiers, and versioned identity changes;
+- **Movement** — retained track statistics, a compact trace, and recent downsampled track points;
+- **Sources** — provider audit observations and identity-confidence context.
+
+Open IMO/MMSI conflicts are exposed as a read-only operator review queue. They are never resolved or merged automatically by the interface.
+
+Registry statistics also expose active identifiers, provider audit observations, SQLite database/WAL/shared-memory sizes, storage policy, freshness thresholds, and the last maintenance time. Hourly maintenance checkpoints the WAL, downsamples historical tracks, removes only expired track/provider-observation rows, and runs SQLite index optimization. Permanent vessel identities and identity history are preserved.
