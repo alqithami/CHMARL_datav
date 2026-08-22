@@ -48,12 +48,18 @@ assertIncludes(runtime, "createPocketWorldLiveAisProvider", "public live AIS fal
 assertIncludes(runtime, "createVesselRegistry", "persistent vessel registry is not integrated");
 assertIncludes(runtime, 'path === "/api/registry/stats"', "registry statistics endpoint is absent");
 assertIncludes(runtime, 'path === "/api/registry/vessels"', "registry list endpoint is absent");
+assertIncludes(runtime, 'path === "/api/registry/conflicts"', "registry conflict queue endpoint is absent");
+assertIncludes(runtime, 'url.searchParams.get("sort")', "registry sorting is not exposed by the API");
 assertIncludes(runtime, "vesselRegistry.observeBatch", "current AIS rows are not persisted into the registry");
 assertIncludes(vesselRegistry, "DatabaseSync", "the registry is not backed by SQLite");
 assertIncludes(vesselRegistry, "vessel_identity_history", "identity changes are not versioned");
 assertIncludes(vesselRegistry, "vessel_latest_positions", "latest movement state is not separated from identity");
 assertIncludes(vesselRegistry, "vessel_track_points", "bounded track history is absent");
 assertIncludes(vesselRegistry, "vessel_identity_conflicts", "identity conflicts cannot be quarantined");
+assertIncludes(vesselRegistry, "function listConflicts", "identity conflicts cannot be listed for operator review");
+assertIncludes(vesselRegistry, "sortColumns", "registry records cannot be sorted safely");
+assertIncludes(vesselRegistry, "databaseBytes", "registry storage usage is not exposed");
+assertIncludes(vesselRegistry, 'database.exec("PRAGMA optimize")', "registry maintenance does not optimize SQLite indexes");
 assertIncludes(vesselRegistry, 'return "archived"', "archived vessel state is absent");
 assertIncludes(runtime, "pocketWorldRefreshDue", "PocketWorld is not continuously merged with other AIS providers");
 assertIncludes(runtime, '...(Number(vesselInputState.pocketworldRows ?? 0) > 0 ? ["pocketworld"] : [])', "public AIS source is not represented in provider selection");

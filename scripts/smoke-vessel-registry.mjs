@@ -145,6 +145,9 @@ try {
   assert(stats.knownVessels === 2, `Expected two physical vessels, received ${stats.knownVessels}`);
   assert(stats.imoAnchored === 2, "Both valid IMO records were not retained");
   assert(stats.openIdentityConflicts >= 1, "The conflicting identity report was not recorded");
+  const conflictQueue = registry.listConflicts({ status: "open", limit: 10 });
+  assert(conflictQueue.total >= 1, "The identity conflict queue is not queryable");
+  assert(conflictQueue.rows.some((row) => row.identifier_value === "222222222"), "The MMSI conflict is absent from the operator queue");
   assert(stats.trackPoints >= 2, "Track history was not recorded");
   assert(stats.live === 2, "Current registry positions were not classified as live");
 
@@ -162,6 +165,13 @@ try {
 
   const track = registry.track(firstUuid, { from: "2025-12-31T00:00:00.000Z", to: "2026-01-02T00:00:00.000Z" });
   assert(track.length >= 2, "The latest and operational movement history was not queryable");
+  const observations = registry.observations(firstUuid, { limit: 100 });
+  assert(observations.length >= 1, "Provider audit observations were not retained");
+  const firstPage = registry.listVessels({ sort: "name", direction: "asc", limit: 1, offset: 0 });
+  const secondPage = registry.listVessels({ sort: "name", direction: "asc", limit: 1, offset: 1 });
+  assert(firstPage.rows.length === 1 && secondPage.rows.length === 1, "Registry pagination did not return stable pages");
+  assert(firstPage.rows[0].vessel_uuid !== secondPage.rows[0].vessel_uuid, "Registry pagination repeated the same vessel");
+  assert(firstPage.sort === "name" && firstPage.direction === "asc", "Registry sorting metadata was not preserved");
 
   nowMs += 20 * 60_000;
   assert(registry.listVessels({ status: "delayed" }).rows.some((row) => row.vessel_uuid === firstUuid), "The delayed state was not queryable");
@@ -181,6 +191,9 @@ try {
   const postMaintenance = registry.stats();
   assert(postMaintenance.knownVessels === 2, "Registry maintenance deleted permanent vessel records");
   assert(postMaintenance.storagePolicy.permanentVesselRecords === true, "The permanent registry policy is not exposed");
+  assert(postMaintenance.activeIdentifiers >= 2, "Active identifier statistics are absent");
+  assert(postMaintenance.providerObservations >= 1, "Provider observation statistics are absent");
+  assert(postMaintenance.storage?.totalBytes > 0, "Registry storage usage is not exposed");
 
   console.log("Persistent vessel registry smoke test passed.");
 } finally {

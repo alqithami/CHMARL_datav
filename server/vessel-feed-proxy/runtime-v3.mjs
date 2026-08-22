@@ -1511,6 +1511,17 @@ createServer(async (request, response) => {
       status: url.searchParams.get("status") ?? "",
       limit: url.searchParams.get("limit") ?? 100,
       offset: url.searchParams.get("offset") ?? 0,
+      sort: url.searchParams.get("sort") ?? "latest",
+      direction: url.searchParams.get("direction") ?? "desc",
+    }));
+  }
+
+  if (path === "/api/registry/conflicts") {
+    await loadCombinedVessels();
+    return sendJson(response, 200, vesselRegistry.listConflicts({
+      status: url.searchParams.get("status") ?? "open",
+      limit: url.searchParams.get("limit") ?? 100,
+      offset: url.searchParams.get("offset") ?? 0,
     }));
   }
 
@@ -1565,7 +1576,7 @@ createServer(async (request, response) => {
   const staticMatch = staticFileForUrl(request.url);
   if (staticMatch?.path) return sendFile(response, staticMatch.path);
   if (staticMatch?.statusCode === 403) return sendJson(response, 403, { error: "Forbidden" });
-  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/health", "/health/live", "/health/ready", "/version", "/api/vessels", "/api/vessels/operations", "/api/vessels?scope=operational", "/api/vessels?scope=primary", "/api/registry/stats", "/api/registry/vessels", "/api/registry/vessels/:vessel_uuid", "/api/registry/vessels/:vessel_uuid/identity-history", "/api/registry/vessels/:vessel_uuid/track", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report"] });
+  return sendJson(response, 404, { error: "Not found", availableEndpoints: ["/health", "/health/live", "/health/ready", "/version", "/api/vessels", "/api/vessels/operations", "/api/vessels?scope=operational", "/api/vessels?scope=primary", "/api/registry/stats", "/api/registry/vessels", "/api/registry/conflicts", "/api/registry/vessels/:vessel_uuid", "/api/registry/vessels/:vessel_uuid/identity-history", "/api/registry/vessels/:vessel_uuid/track", "/api/chmarl/episode", "/api/chmarl/ingest", "/api/port-events", "/api/weather", "/api/report"] });
 }).listen(PORT, "0.0.0.0", () => {
   console.log(`CH-MARL backend listening at http://0.0.0.0:${PORT}`);
   console.log(`Global AIS boxes: ${TRACKING_BOXES.length}; cache limit: ${AISSTREAM_MAX_VESSELS}`);
